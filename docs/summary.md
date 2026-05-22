@@ -147,3 +147,28 @@ Verification:
 - `npm run build` passes with the expected large chunk warning from map/gallery bundles.
 - Vite dev server runs at `http://localhost:5175/` in this environment because ports 5173 and 5174 were already in use.
 - `curl -I http://localhost:5175/` returns HTTP 200 from the running frontend server.
+
+## Phase 8 - Complete Simulated Booking, Payment, Wallet, and Host Trip Flow
+
+Built the end-to-end booking lifecycle with simulated payments only; no Razorpay or external payment gateway calls are used.
+
+Implemented:
+- `backend/app/routers/bookings.py` with booking preview, booking creation, simulated payment completion, host accept/reject, guest/host cancellation with refund policy, start trip, end trip, booking list/detail, extension request, and extension response endpoints.
+- `backend/app/routers/payments.py` with wallet balance/history, simulated wallet top-up, wallet booking payment, and booking payment lookup endpoints.
+- `backend/app/services/booking_flow.py` shared helpers for simulated transaction IDs, wallet creation, wallet transaction records, payment completion, notifications, and booking confirmation email dispatch.
+- Coupon validation for preview/create without consuming coupons during preview, then `CouponUsage` creation and `used_count` increment during booking creation.
+- Booking validation for approval/availability, conflicting bookings, host availability blocks, pickup lead time, minimum duration, max trip days, guest overlap, and coupon applicability.
+- Simulated accounting for wallet debits, instant wallet refunds, security deposit release, host earning credit, host pending earning records, and payment records with `SIM_TXN_*` transaction IDs.
+- `frontend/src/pages/booking/BookingConfirmPage.jsx` with car/trip summary, insurance selection, coupon apply states, previewed price breakdown, guest notes, KYC warning, and cancellation policy.
+- `frontend/src/pages/booking/PaymentPage.jsx` with simulated card/UPI/net banking UI, wallet payment with balance/deficit handling, add-money modal, Radix confirmation dialog, processing state, success state, and simulated payment API calls.
+- `frontend/src/pages/booking/BookingSuccessPage.jsx` with animated success state, booking reference copy, trip summary, and navigation CTAs.
+- `frontend/src/pages/booking/BookingDetailsPage.jsx` with status timeline, booking/payment cards, SVG QR code generation via `qrcode`, contextual actions, cancellation dialog, and print-ready invoice generation.
+- `frontend/src/pages/booking/MyBookingsPage.jsx` with guest booking tabs, date/status filters, cards, cancellation, empty states, and detail navigation.
+- `frontend/src/pages/host/BookingRequestsPage.jsx` and `frontend/src/pages/host/ActiveTripsPage.jsx` with pending request management, reject modal, accept/start/end trip actions, host earnings display, active-trip end modal, and host booking tabs.
+- Router wiring for `/booking/confirm/:carId`, `/booking/pay/:bookingId`, `/booking/success`, `/dashboard/bookings`, `/dashboard/bookings/:bookingId`, `/host/bookings`, and `/host/active-trips`.
+- Car detail booking CTA now routes into booking confirmation with selected dates and insurance.
+
+Verification:
+- `python3 -m compileall backend/app` passes.
+- `npm install qrcode` completed successfully with 0 vulnerabilities.
+- `npm run build` passes with the expected large chunk warning from maps/gallery/QR and dashboard bundles.

@@ -275,7 +275,12 @@ function BookingWidget({ car, user, borderless = false }) {
 
       {!user && <p className="mt-4 rounded-md bg-amber-50 p-3 text-sm font-bold text-amber-800">Log in to continue with this booking.</p>}
       {user && !user.is_kyc_verified && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">KYC approval is required before booking.</p>}
-      <button className="mt-4 w-full rounded-md bg-zoomcar px-5 py-3 font-black text-white">Book Now</button>
+      <Link
+        to={`/booking/confirm/${car.id}?pickup=${encodeURIComponent(pickup.toISOString())}&return=${encodeURIComponent(returnAt.toISOString())}&insurance=${insurance}`}
+        className="mt-4 block w-full rounded-md bg-zoomcar px-5 py-3 text-center font-black text-white"
+      >
+        Book Now
+      </Link>
     </aside>
   )
 }

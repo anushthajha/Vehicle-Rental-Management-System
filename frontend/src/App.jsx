@@ -11,6 +11,13 @@ import SearchBar from './components/search/SearchBar'
 import CarDetailPage from './pages/CarDetailPage'
 import SearchPage from './pages/SearchPage'
 import WishlistPage from './pages/WishlistPage'
+import BookingConfirmPage from './pages/booking/BookingConfirmPage'
+import BookingDetailsPage from './pages/booking/BookingDetailsPage'
+import BookingSuccessPage from './pages/booking/BookingSuccessPage'
+import MyBookingsPage from './pages/booking/MyBookingsPage'
+import PaymentPage from './pages/booking/PaymentPage'
+import ActiveTripsPage from './pages/host/ActiveTripsPage'
+import BookingRequestsPage from './pages/host/BookingRequestsPage'
 import EditCarPage from './pages/host/EditCarPage'
 import ListCarPage from './pages/host/ListCarPage'
 import ManageCarsPage from './pages/host/ManageCarsPage'
@@ -81,9 +88,16 @@ export default function App() {
           </Route>
           <Route element={<PrivateRoute />}>
             <Route path="/account" element={<Placeholder title="Account" />} />
+            <Route path="/booking/confirm/:carId" element={<BookingConfirmPage />} />
+            <Route path="/booking/pay/:bookingId" element={<PaymentPage />} />
+            <Route path="/booking/success" element={<BookingSuccessPage />} />
+            <Route path="/dashboard/bookings" element={<MyBookingsPage />} />
+            <Route path="/dashboard/bookings/:bookingId" element={<BookingDetailsPage />} />
           </Route>
           <Route element={<HostRoute />}>
             <Route path="/host/dashboard" element={<ManageCarsPage />} />
+            <Route path="/host/bookings" element={<BookingRequestsPage />} />
+            <Route path="/host/active-trips" element={<ActiveTripsPage />} />
             <Route path="/host/list-car" element={<ListCarPage />} />
             <Route path="/host/my-cars" element={<ManageCarsPage />} />
             <Route path="/host/cars/:carId/edit" element={<EditCarPage />} />

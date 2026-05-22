@@ -21,6 +21,7 @@
     "framer-motion": "latest",
     "leaflet": "latest",
     "lucide-react": "latest",
+    "qrcode": "^1.5.4",
     "react": "^18.0.0",
     "react-datepicker": "latest",
     "react-dom": "^18.0.0",
