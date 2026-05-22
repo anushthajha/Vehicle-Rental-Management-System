@@ -1,0 +1,47 @@
+{
+  "name": "zoomcar-clone-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "latest",
+    "@radix-ui/react-accordion": "latest",
+    "@radix-ui/react-dialog": "latest",
+    "@radix-ui/react-dropdown-menu": "latest",
+    "@radix-ui/react-slider": "latest",
+    "@radix-ui/react-tabs": "latest",
+    "@tanstack/react-query": "^5.0.0",
+    "axios": "latest",
+    "date-fns": "latest",
+    "framer-motion": "latest",
+    "leaflet": "latest",
+    "lucide-react": "latest",
+    "react": "^18.0.0",
+    "react-datepicker": "latest",
+    "react-dom": "^18.0.0",
+    "react-dropzone": "latest",
+    "react-helmet-async": "latest",
+    "react-hook-form": "latest",
+    "react-hot-toast": "latest",
+    "react-image-gallery": "latest",
+    "react-leaflet": "latest",
+    "react-router-dom": "^6.0.0",
+    "recharts": "latest",
+    "swiper": "latest",
+    "zod": "latest",
+    "zustand": "latest"
+  },
+  "devDependencies": {
+    "@tailwindcss/forms": "latest",
+    "@vitejs/plugin-react": "latest",
+    "autoprefixer": "latest",
+    "postcss": "latest",
+    "tailwindcss": "^3.0.0",
+    "vite": "latest"
+  }
+}
