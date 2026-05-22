@@ -1,6 +1,7 @@
 from typing import Optional
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from pymongo.errors import OperationFailure
 
 from app.config import settings
 
@@ -36,9 +37,16 @@ async def _create_indexes() -> None:
     # notifications: fast lookup by user_id + is_read
     await db.notifications.create_index([("user_id", 1), ("created_at", -1)])
     await db.notifications.create_index([("user_id", 1), ("is_read", 1)])
-    # reviews: lookup by car_id, booking_id
+    # reviews: lookup by car_id, booking_id; one review per booking/review_type pair
     await db.reviews.create_index([("car_id", 1), ("created_at", -1)])
-    await db.reviews.create_index([("booking_id", 1)], unique=True)
+    try:
+        review_indexes = await db.reviews.index_information()
+        for name, details in review_indexes.items():
+            if details.get("key") == [("booking_id", 1)] and details.get("unique"):
+                await db.reviews.drop_index(name)
+    except OperationFailure:
+        pass
+    await db.reviews.create_index([("booking_id", 1), ("review_type", 1)], unique=True)
     await db.reviews.create_index([("reviewer_id", 1)])
     # support_messages: by ticket_id
     await db.support_messages.create_index([("ticket_id", 1), ("created_at", 1)])
