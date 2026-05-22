@@ -68,3 +68,40 @@ Verification:
 - `alembic check` reports `No new upgrade operations detected`.
 - MySQL contains all expected Phase 3 tables.
 - `http://localhost/api/health` remains healthy after migration.
+
+## Phase 4 - MongoDB Document Models & Service Functions
+
+Created the MongoDB document model layer for high-write, document-oriented collections.
+
+Implemented:
+- `backend/app/mongo_models/notification.py` with `NotificationDoc` and helpers for create, list, unread count, mark read, mark all read, and delete.
+- `backend/app/mongo_models/review.py` with `ReviewDoc` and helpers for create, car review stats, user reviews, host replies, booking reviews, and average rating aggregation.
+- `backend/app/mongo_models/support_message.py` with `SupportMessageDoc` and ticket message thread helpers.
+- `backend/app/mongo_models/analytics.py` with car view logging/counts, search logs, admin activity feed, and city search trend aggregation.
+- `backend/app/mongo_models/session.py` with login session creation and recent session lookup.
+- `backend/app/mongo_models/__init__.py` exports the Phase 4 document models and service functions.
+- Updated MongoDB review indexes to enforce uniqueness on `(booking_id, review_type)` instead of `booking_id` alone.
+
+Verification:
+- `python3 -m compileall backend/app` passes.
+- Backend Docker image rebuild passes.
+- Import check inside the backend image passes for the new mongo model exports.
+
+## Phase 5 - Email-Only Authentication System
+
+Built the complete email/password authentication foundation across FastAPI, Redis, Celery email tasks, and React auth pages.
+
+Implemented:
+- `backend/app/utils/auth.py` with bcrypt password hashing, strength validation, JWT access/refresh token creation, Redis blacklist checks, force-logout support, and reusable auth/role/KYC dependencies.
+- `backend/app/utils/email.py` with async HTML email templates for verification, password reset, booking, KYC, reminder, review, and payout emails using Zoomcar red branding.
+- `backend/app/tasks/email_tasks.py` and Celery task imports for background email delivery.
+- `backend/app/redis.py` for shared async Redis access and FastAPI shutdown cleanup.
+- `backend/app/routers/auth.py` with register, verify email, resend verification, login, refresh, logout, forgot password, reset password, me, and change password endpoints.
+- Frontend auth shell with `AuthContext`/Zustand storage, Axios auth/refresh interceptors, route guards, and auth pages for login, registration, forgot password, reset password, and email verification.
+
+Security coverage:
+- Password policy requires 8+ characters, one uppercase letter, one digit, and one special character from `!@#$%^&*`.
+- JWT payloads include `sub`, `email`, `role`, `jti`, `iat`, and `exp`.
+- Logout blacklists the current token JTI until expiration.
+- Password resets set a per-user force-logout timestamp so older tokens are rejected.
+- Resend verification and forgot password endpoints use Redis rate limits.

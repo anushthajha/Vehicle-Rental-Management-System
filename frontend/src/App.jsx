@@ -1,0 +1,81 @@
+import React from 'react'
+import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom'
+import { AuthProvider, useAuthStore } from './context/AuthContext'
+import { AdminRoute, GuestRoute, HostRoute, PrivateRoute } from './components/RouteGuards'
+import EmailVerificationPage from './pages/auth/EmailVerificationPage'
+import ForgotPasswordPage from './pages/auth/ForgotPasswordPage'
+import LoginPage from './pages/auth/LoginPage'
+import RegisterPage from './pages/auth/RegisterPage'
+import ResetPasswordPage from './pages/auth/ResetPasswordPage'
+
+function HomePage() {
+  const { user, logout } = useAuthStore()
+  return (
+    <main className="min-h-screen bg-zinc-50 px-6 py-10">
+      <section className="mx-auto max-w-5xl">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-black uppercase text-zoomcar">Zoomcar Clone</p>
+            <h1 className="mt-2 text-4xl font-black text-zinc-950">Authentication is ready.</h1>
+          </div>
+          <div className="flex gap-3">
+            {user ? (
+              <button onClick={logout} className="rounded-md bg-zinc-950 px-4 py-3 font-bold text-white">Log out</button>
+            ) : (
+              <>
+                <Link className="rounded-md border border-zinc-300 px-4 py-3 font-bold text-zinc-900" to="/auth/login">Log in</Link>
+                <Link className="rounded-md bg-zoomcar px-4 py-3 font-bold text-white" to="/auth/register">Register</Link>
+              </>
+            )}
+          </div>
+        </div>
+        {user && (
+          <div className="mt-8 rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-black text-zinc-950">Signed in as {user.full_name}</h2>
+            <p className="mt-2 text-zinc-600">{user.email}</p>
+          </div>
+        )}
+      </section>
+    </main>
+  )
+}
+
+function Placeholder({ title }) {
+  return (
+    <main className="grid min-h-screen place-items-center bg-zinc-50 px-4">
+      <div className="rounded-lg border border-zinc-200 bg-white p-8 text-center shadow-sm">
+        <h1 className="text-2xl font-black text-zinc-950">{title}</h1>
+        <Link className="mt-5 inline-flex rounded-md bg-zoomcar px-4 py-3 font-bold text-white" to="/">Back home</Link>
+      </div>
+    </main>
+  )
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route element={<GuestRoute />}>
+            <Route path="/auth/login" element={<LoginPage />} />
+            <Route path="/auth/register" element={<RegisterPage />} />
+            <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/auth/verify-email" element={<EmailVerificationPage />} />
+          </Route>
+          <Route element={<PrivateRoute />}>
+            <Route path="/account" element={<Placeholder title="Account" />} />
+          </Route>
+          <Route element={<HostRoute />}>
+            <Route path="/host/dashboard" element={<Placeholder title="Host dashboard" />} />
+          </Route>
+          <Route element={<AdminRoute />}>
+            <Route path="/admin" element={<Placeholder title="Admin dashboard" />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
+  )
+}

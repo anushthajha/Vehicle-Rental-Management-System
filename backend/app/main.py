@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.database import init_db
 from app.mongodb import connect_mongo, disconnect_mongo
+from app.redis import close_redis
 from app.routers import (
     admin,
     auth,
@@ -28,6 +29,7 @@ async def lifespan(app: FastAPI):
     await init_db()
     await connect_mongo()
     yield
+    await close_redis()
     await disconnect_mongo()
 
 
