@@ -7,6 +7,10 @@ import ForgotPasswordPage from './pages/auth/ForgotPasswordPage'
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
 import ResetPasswordPage from './pages/auth/ResetPasswordPage'
+import SearchBar from './components/search/SearchBar'
+import CarDetailPage from './pages/CarDetailPage'
+import SearchPage from './pages/SearchPage'
+import WishlistPage from './pages/WishlistPage'
 import EditCarPage from './pages/host/EditCarPage'
 import ListCarPage from './pages/host/ListCarPage'
 import ManageCarsPage from './pages/host/ManageCarsPage'
@@ -15,15 +19,16 @@ function HomePage() {
   const { user, logout } = useAuthStore()
   return (
     <main className="min-h-screen bg-zinc-50 px-6 py-10">
-      <section className="mx-auto max-w-5xl">
+      <section className="mx-auto max-w-6xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-sm font-black uppercase text-zoomcar">Zoomcar Clone</p>
-            <h1 className="mt-2 text-4xl font-black text-zinc-950">Authentication is ready.</h1>
+            <h1 className="mt-2 text-4xl font-black text-zinc-950">Find your next self-drive car.</h1>
           </div>
           <div className="flex gap-3">
             {user ? (
               <>
+                <Link className="rounded-md border border-zinc-300 px-4 py-3 font-bold text-zinc-900" to="/wishlist">Wishlist</Link>
                 <Link className="rounded-md bg-zoomcar px-4 py-3 font-bold text-white" to="/host/my-cars">My Cars</Link>
                 <button onClick={logout} className="rounded-md bg-zinc-950 px-4 py-3 font-bold text-white">Log out</button>
               </>
@@ -35,6 +40,7 @@ function HomePage() {
             )}
           </div>
         </div>
+        <SearchBar className="mt-8" />
         {user && (
           <div className="mt-8 rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
             <h2 className="text-xl font-black text-zinc-950">Signed in as {user.full_name}</h2>
@@ -63,6 +69,9 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/search" element={<SearchPage />} />
+          <Route path="/cars/:carId" element={<CarDetailPage />} />
+          <Route path="/wishlist" element={<WishlistPage />} />
           <Route element={<GuestRoute />}>
             <Route path="/auth/login" element={<LoginPage />} />
             <Route path="/auth/register" element={<RegisterPage />} />

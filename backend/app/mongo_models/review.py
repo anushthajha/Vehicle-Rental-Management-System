@@ -45,9 +45,11 @@ async def create_review(data: dict) -> str:
     return str(result.inserted_id)
 
 
-async def get_car_reviews(car_id: str, page: int = 1, limit: int = 10, sort: str = "recent") -> dict:
+async def get_car_reviews(car_id: str, page: int = 1, limit: int = 10, sort: str = "recent", rating: int | None = None) -> dict:
     db = get_mongo_db()
     query = {"car_id": car_id, "review_type": "guest_to_car", "is_published": True}
+    if rating:
+        query["rating"] = rating
     skip = max(page - 1, 0) * limit
 
     sort_map = {
@@ -63,9 +65,10 @@ async def get_car_reviews(car_id: str, page: int = 1, limit: int = 10, sort: str
     reviews = [_serialize_id(doc) for doc in await cursor.to_list(length=limit)]
 
     breakdown = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0}
+    stats_query = {"car_id": car_id, "review_type": "guest_to_car", "is_published": True}
     stats = await db.reviews.aggregate(
         [
-            {"$match": query},
+            {"$match": stats_query},
             {"$group": {"_id": "$rating", "count": {"$sum": 1}}},
         ]
     ).to_list(length=5)

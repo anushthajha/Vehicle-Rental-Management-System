@@ -125,3 +125,25 @@ Verification:
 - Backend Docker image rebuild passes.
 - Docker import check confirms the car router and pricing service load.
 - `docker build -f frontend/Dockerfile frontend` passes with the expected large-chunk warning from the host wizard and Leaflet map bundle.
+
+## Phase 7 - Car Search, Discovery, Detail, and Wishlist Experience
+
+Built the guest-facing car discovery experience across React and FastAPI.
+
+Implemented:
+- `frontend/src/components/search/SearchBar.jsx` reusable home/search search bar with 50-city combobox, top-city chips, pickup/return date-time pickers, duration preview, URL prefill, and `/search` query-string navigation.
+- `frontend/src/components/search/FilterSidebar.jsx` with price slider and histogram, category cards, transmission radios, fuel/seats/features/rating filters, mobile sort, active filter count, clear/apply actions, and mobile bottom-sheet support.
+- `frontend/src/components/car/CarCard.jsx` with grid/list variants, lazy image treatment, wishlist heart, category badges, feature metadata, rating/new-trip display, price, location, hover lift, and local/backend wishlist sync.
+- `frontend/src/pages/SearchPage.jsx` with desktop sidebar, mobile filter drawer, grid/list/map view toggles, result counts, infinite scroll, skeleton loading, empty state, Leaflet map markers, selected-car panel, and debounced map-bound search.
+- `frontend/src/pages/CarDetailPage.jsx` with sticky scroll header, hero gallery/lightbox, car header, desktop/mobile booking widget, insurance/coupon/price breakdown, feature grid, expandable description, custom availability calendar, host profile, reviews, fuzzy pickup map, and similar cars.
+- `frontend/src/pages/WishlistPage.jsx` with saved-car grid, localStorage fallback for logged-out users, backend sync for logged-in users, empty state, and fade-out removal.
+- Backend wishlist support with `Wishlist` SQLAlchemy model, Alembic migration, and protected `GET /api/wishlist`, `POST /api/wishlist`, and `DELETE /api/wishlist/{car_id}` endpoints.
+- Backend review listing via `GET /api/reviews/car/{car_id}` with rating filters and pagination.
+- Search API extensions for multi-select categories/fuel types, minimum rating, host filtering, exclusion for similar cars, newest sorting, and richer result payloads for list cards.
+
+Verification:
+- `python3 -m compileall backend/app` passes.
+- `npm install` completed successfully with 0 vulnerabilities.
+- `npm run build` passes with the expected large chunk warning from map/gallery bundles.
+- Vite dev server runs at `http://localhost:5175/` in this environment because ports 5173 and 5174 were already in use.
+- `curl -I http://localhost:5175/` returns HTTP 200 from the running frontend server.

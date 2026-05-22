@@ -33,3 +33,35 @@ body {
   font-weight: 800;
   color: #27272a;
 }
+
+.react-datepicker-wrapper {
+  width: 100%;
+}
+
+.price-marker {
+  min-width: 62px;
+  border: 2px solid #e31837;
+  border-radius: 999px;
+  background: white;
+  color: #18181b;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 28px;
+  text-align: center;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 18%);
+}
+
+.car-marker {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 2px solid #e31837;
+  border-radius: 999px;
+  background: white;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 18%);
+}
+
+.leaflet-container {
+  font-family: inherit;
+}

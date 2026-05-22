@@ -204,6 +204,10 @@ def _features(car: Car) -> list[str]:
     return features
 
 
+def _csv_values(value: str | None) -> list[str]:
+    return [item.strip() for item in (value or "").split(",") if item.strip()]
+
+
 def _car_payload(car: Car, host_name: str | None = None, primary_image_url: str | None = None, distance_km=None) -> dict:
     return {
         "id": car.id,
@@ -216,6 +220,7 @@ def _car_payload(car: Car, host_name: str | None = None, primary_image_url: str 
         "transmission": car.transmission,
         "fuel_type": car.fuel_type,
         "seats": car.seats,
+        "description": car.description,
         "location_city": car.location_city,
         "location_area": car.location_area,
         "location_lat": _money(car.location_lat) if car.location_lat is not None else None,
@@ -231,6 +236,7 @@ def _car_payload(car: Car, host_name: str | None = None, primary_image_url: str 
         "is_featured": car.is_featured,
         "is_available": car.is_available,
         "is_approved": car.is_approved,
+        "created_at": _dt(car.created_at),
         "distance_km": round(float(distance_km), 2) if distance_km is not None else None,
     }
 
@@ -327,6 +333,8 @@ async def _list_rows(db: AsyncSession, conditions: list, sort_by: str, page: int
         query = query.order_by(Car.average_rating.desc(), Car.total_trips.desc())
     elif sort_by == "most_booked":
         query = query.order_by(Car.total_trips.desc(), Car.average_rating.desc())
+    elif sort_by == "newest":
+        query = query.order_by(Car.created_at.desc())
     else:
         score = (Car.average_rating * 0.4) + (Car.total_trips * 0.3) + (case((Car.is_featured.is_(True), 1), else_=0) * 0.3)
         query = query.order_by(score.desc(), Car.created_at.desc())
@@ -351,6 +359,9 @@ async def search_cars(
     lat: float | None = None,
     lng: float | None = None,
     radius_km: float = 10,
+    min_rating: float | None = Query(default=None, ge=0, le=5),
+    host_id: str | None = None,
+    exclude: str | None = None,
     sort_by: str = "recommended",
     features: str | None = None,
     page: int = Query(default=1, ge=1),
@@ -373,20 +384,28 @@ async def search_cars(
         conditions.append(~block_overlap)
     if city:
         conditions.append(func.lower(Car.location_city) == city.lower())
-    if category:
-        conditions.append(Car.category == category)
+    category_values = _csv_values(category)
+    fuel_values = _csv_values(fuel_type)
+    if category_values:
+        conditions.append(Car.category.in_(category_values))
     if transmission:
         conditions.append(Car.transmission == transmission)
-    if fuel_type:
-        conditions.append(Car.fuel_type == fuel_type)
+    if fuel_values:
+        conditions.append(Car.fuel_type.in_(fuel_values))
     if seats:
         conditions.append(Car.seats >= seats)
+    if min_rating is not None:
+        conditions.append(Car.average_rating >= min_rating)
+    if host_id:
+        conditions.append(Car.host_id == host_id)
+    if exclude:
+        conditions.append(Car.id != exclude)
     if min_price is not None:
         conditions.append(Car.price_per_day >= min_price)
     if max_price is not None:
         conditions.append(Car.price_per_day <= max_price)
 
-    requested_features = [item.strip() for item in (features or "").split(",") if item.strip()]
+    requested_features = _csv_values(features)
     for feature in requested_features:
         column = FEATURE_MAP.get(feature)
         if column is not None:
@@ -414,6 +433,9 @@ async def search_cars(
         "lat": lat,
         "lng": lng,
         "radius_km": radius_km,
+        "min_rating": min_rating,
+        "host_id": host_id,
+        "exclude": exclude,
         "features": requested_features,
         "sort_by": sort_by,
     }
