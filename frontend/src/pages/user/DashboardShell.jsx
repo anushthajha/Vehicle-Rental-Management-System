@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Bell, CalendarDays, Car, ChevronLeft, Headphones, Heart, Home, LayoutDashboard, Settings, ShieldCheck, Star, Wallet } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
+import NotificationBell from '../../components/layout/NotificationBell'
 
 const NAV_ITEMS = [
   { label: 'Overview', to: '/dashboard', icon: LayoutDashboard },
@@ -10,7 +11,7 @@ const NAV_ITEMS = [
   { label: 'Notifications', to: '/dashboard/notifications', icon: Bell },
   { label: 'Wishlist', to: '/wishlist', icon: Heart },
   { label: 'Reviews', to: '/dashboard/reviews', icon: Star },
-  { label: 'Support', to: '/support', icon: Headphones },
+  { label: 'Support', to: '/dashboard/support', icon: Headphones },
   { label: 'Settings', to: '/dashboard/profile', icon: Settings },
 ]
 
@@ -44,7 +45,10 @@ export default function DashboardShell({ children, title, eyebrow, actions }) {
               {eyebrow && <p className="text-xs font-black uppercase tracking-wide text-zoomcar">{eyebrow}</p>}
               {title && <h1 className="text-2xl font-black text-zinc-950">{title}</h1>}
             </div>
-            {actions}
+            <div className="flex items-center gap-2">
+              <NotificationBell />
+              {actions}
+            </div>
           </div>
         </header>
         <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">{children}</div>

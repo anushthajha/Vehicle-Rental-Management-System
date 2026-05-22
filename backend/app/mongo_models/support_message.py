@@ -11,7 +11,7 @@ class SupportMessageDoc(BaseModel):
     ticket_id: str
     sender_id: str
     sender_name: str
-    sender_role: Literal["user", "admin", "staff"]
+    sender_role: Literal["user", "admin", "staff", "system"]
     message: str
     attachment_url: Optional[str] = None
     is_staff_reply: bool = False

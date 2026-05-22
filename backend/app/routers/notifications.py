@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.models.user import User
 from app.mongodb import get_mongo_db
-from app.mongo_models.notification import get_unread_count, get_user_notifications, mark_all_read
+from app.mongo_models.notification import delete_notification, get_unread_count, get_user_notifications, mark_all_read, mark_notification_read
+from app.redis import get_redis
 from app.utils.auth import get_current_active_user
 
 
@@ -45,28 +46,67 @@ async def list_notifications(
             item["_id"] = str(item["_id"])
         total = await get_mongo_db().notifications.count_documents(query)
     pages = (total + limit - 1) // limit if total else 0
+    unread_count = await get_unread_count(current_user.id)
     return {
         "notifications": items,
         "total": total,
+        "total_unread": unread_count,
         "page": page,
         "pages": pages,
         "has_next": page < pages,
-        "unread_count": await get_unread_count(current_user.id),
+        "has_more": page < pages,
+        "unread_count": unread_count,
     }
 
 
-@router.post("/{notification_id}/read")
-async def mark_read(notification_id: str, current_user: User = Depends(get_current_active_user)):
-    result = await get_mongo_db().notifications.update_one(
-        {"_id": _object_id(notification_id), "user_id": current_user.id},
-        {"$set": {"is_read": True}},
-    )
-    if result.matched_count == 0:
+@router.get("/unread-count")
+async def unread_count(current_user: User = Depends(get_current_active_user)):
+    redis = get_redis()
+    cache_key = f"notifications:unread:{current_user.id}"
+    cached = await redis.get(cache_key)
+    if cached is not None:
+        return {"count": int(cached)}
+    count = await get_unread_count(current_user.id)
+    await redis.set(cache_key, count, ex=30)
+    return {"count": count}
+
+
+async def _mark_read(notification_id: str, current_user: User) -> dict:
+    exists = await get_mongo_db().notifications.find_one({"_id": _object_id(notification_id), "user_id": current_user.id})
+    if exists is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
+    await mark_notification_read(notification_id)
+    await get_redis().delete(f"notifications:unread:{current_user.id}")
     return {"is_read": True}
 
 
-@router.post("/mark-all-read")
+@router.patch("/{notification_id}/read")
+async def mark_read(notification_id: str, current_user: User = Depends(get_current_active_user)):
+    return await _mark_read(notification_id, current_user)
+
+
+@router.post("/{notification_id}/read")
+async def mark_read_legacy(notification_id: str, current_user: User = Depends(get_current_active_user)):
+    return await _mark_read(notification_id, current_user)
+
+
+@router.patch("/mark-all-read")
 async def mark_all_notifications_read(current_user: User = Depends(get_current_active_user)):
     await mark_all_read(current_user.id)
+    await get_redis().delete(f"notifications:unread:{current_user.id}")
     return {"message": "All notifications marked as read", "unread_count": 0}
+
+
+@router.post("/mark-all-read")
+async def mark_all_notifications_read_legacy(current_user: User = Depends(get_current_active_user)):
+    return await mark_all_notifications_read(current_user)
+
+
+@router.delete("/{notification_id}")
+async def delete_user_notification(notification_id: str, current_user: User = Depends(get_current_active_user)):
+    exists = await get_mongo_db().notifications.find_one({"_id": _object_id(notification_id), "user_id": current_user.id})
+    if exists is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
+    await delete_notification(notification_id)
+    await get_redis().delete(f"notifications:unread:{current_user.id}")
+    return {"message": "Notification deleted"}

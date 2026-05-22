@@ -17,6 +17,7 @@ import BookingDetailsPage from './pages/booking/BookingDetailsPage'
 import BookingSuccessPage from './pages/booking/BookingSuccessPage'
 import MyBookingsPage from './pages/booking/MyBookingsPage'
 import PaymentPage from './pages/booking/PaymentPage'
+import WriteReviewPage from './pages/booking/WriteReviewPage'
 import ActiveTripsPage from './pages/host/ActiveTripsPage'
 import BookingRequestsPage from './pages/host/BookingRequestsPage'
 import EditCarPage from './pages/host/EditCarPage'
@@ -26,6 +27,8 @@ import DashboardPage from './pages/user/DashboardPage'
 import KYCPage from './pages/user/KYCPage'
 import NotificationsPage from './pages/user/NotificationsPage'
 import ProfilePage from './pages/user/ProfilePage'
+import ReviewsPage from './pages/user/ReviewsPage'
+import SupportPage from './pages/user/SupportPage'
 import WalletPage from './pages/user/WalletPage'
 
 function HomePage() {
@@ -100,11 +103,13 @@ export default function App() {
             <Route path="/dashboard/wallet" element={<WalletPage />} />
             <Route path="/dashboard/notifications" element={<NotificationsPage />} />
             <Route path="/dashboard/profile" element={<ProfilePage />} />
-            <Route path="/dashboard/reviews" element={<Placeholder title="Reviews" />} />
-            <Route path="/support" element={<Placeholder title="Support" />} />
+            <Route path="/dashboard/reviews" element={<ReviewsPage />} />
+            <Route path="/dashboard/support" element={<SupportPage />} />
+            <Route path="/support" element={<SupportPage />} />
             <Route path="/booking/confirm/:carId" element={<BookingConfirmPage />} />
             <Route path="/booking/pay/:bookingId" element={<PaymentPage />} />
             <Route path="/booking/success" element={<BookingSuccessPage />} />
+            <Route path="/booking/review/:bookingId" element={<WriteReviewPage />} />
             <Route path="/dashboard/bookings" element={<MyBookingsPage />} />
             <Route path="/dashboard/bookings/:bookingId" element={<BookingDetailsPage />} />
           </Route>

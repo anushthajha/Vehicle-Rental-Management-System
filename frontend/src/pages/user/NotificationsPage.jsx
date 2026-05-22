@@ -58,14 +58,14 @@ export default function NotificationsPage() {
 
   async function openNotification(item) {
     if (!item.is_read) {
-      await api.post(`/notifications/${item._id}/read`)
+      await api.patch(`/notifications/${item._id}/read`)
       setItems((current) => current.map((entry) => (entry._id === item._id ? { ...entry, is_read: true } : entry)))
     }
     if (item.action_url) navigate(item.action_url)
   }
 
   async function markAll() {
-    await api.post('/notifications/mark-all-read')
+    await api.patch('/notifications/mark-all-read')
     setItems((current) => current.map((item) => ({ ...item, is_read: true })))
   }
 

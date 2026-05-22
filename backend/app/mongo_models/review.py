@@ -87,6 +87,7 @@ async def get_car_reviews(car_id: str, page: int = 1, limit: int = 10, sort: str
         "total": total,
         "avg_rating": avg_rating,
         "rating_breakdown": breakdown,
+        "has_more": skip + len(reviews) < total,
     }
 
 

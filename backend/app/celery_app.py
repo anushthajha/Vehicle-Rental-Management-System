@@ -1,4 +1,5 @@
 from celery import Celery
+from celery.schedules import crontab
 
 from app.config import settings
 
@@ -16,7 +17,17 @@ celery_app.conf.update(
     accept_content=["json"],
     timezone="Asia/Kolkata",
     enable_utc=True,
-    imports=("app.tasks.email_tasks",),
+    imports=("app.tasks.email_tasks", "app.tasks.maintenance_tasks"),
+    beat_schedule={
+        "auto-cancel-unpaid-bookings": {
+            "task": "app.tasks.maintenance.auto_cancel_unpaid_bookings",
+            "schedule": 30 * 60,
+        },
+        "update-superhost-status": {
+            "task": "app.tasks.maintenance.update_superhost_status",
+            "schedule": crontab(hour=2, minute=0),
+        },
+    },
 )
 
 

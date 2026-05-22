@@ -26,11 +26,8 @@ from app.services.booking_flow import (
     money,
 )
 from app.services.pricing import calculate_booking_price
-from app.tasks.email_tasks import (
-    send_booking_cancelled_email,
-    send_booking_request_to_host_email,
-    send_review_request_email,
-)
+from app.tasks.email_tasks import send_booking_cancelled_email, send_booking_request_to_host_email
+from app.tasks.maintenance_tasks import send_review_request_task
 from app.utils.auth import get_current_active_user, require_host, require_kyc_user
 
 
@@ -195,6 +192,8 @@ def _booking_payload(booking: Booking, car: Car, image: str | None, counterparty
     return {
         "id": booking.id,
         "booking_ref": booking.booking_ref,
+        "guest_id": booking.guest_id,
+        "host_id": booking.host_id,
         "status": booking.status,
         "created_at": _dt(booking.created_at),
         "pickup_datetime": _dt(booking.pickup_datetime),
@@ -460,7 +459,7 @@ async def end_trip(booking_id: str, payload: EndTripRequest, current_user: User 
     await db.commit()
     if guest:
         try:
-            send_review_request_email.apply_async(args=[guest.email, guest.full_name, booking.booking_ref], countdown=7200)
+            send_review_request_task.apply_async(args=[booking.id], countdown=7200)
         except Exception:
             pass
     return {"status": booking.status, "extra_km_charged": money(booking.extra_km_charged)}

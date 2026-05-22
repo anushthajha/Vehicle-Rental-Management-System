@@ -199,3 +199,29 @@ Verification:
 - Vite dev server runs at `http://localhost:5175/` in this environment because ports 5173 and 5174 were already in use.
 - `curl http://localhost:5175/api/health` returns `{"status":"ok","service":"zoomcar-backend"}` through the Vite proxy.
 
+## Phase 10 - Reviews, Notifications Routing, Support, and Celery Maintenance
+
+Built the MongoDB-backed reviews system, completed notification route parity, added customer support tickets/chat, and wired scheduled Celery maintenance tasks.
+
+Implemented:
+- `backend/app/routers/reviews.py` with protected review creation, role/window/duplicate validations, car/host/guest review types, host replies, car review aggregation, user review listing, my-given reviews, and booking review lookup.
+- Review creation stores reviewer, car, and trip snapshots in MongoDB, updates MySQL car/host ratings, creates review notifications, and logs activity.
+- `backend/app/routers/notifications.py` now supports paginated filtering, unread-count with Redis 30-second cache, PATCH read/mark-all-read routes, delete, and legacy POST aliases for existing UI calls.
+- `backend/app/routers/support.py` with authenticated or anonymous ticket creation, user/admin ticket listing, ticket detail with MongoDB messages, replies with optional attachments, close-ticket flow, and anonymous contact requests.
+- `backend/app/models/support.py` and Alembic revision `9c8b7a6d5e4f_extend_support_tickets.py` add anonymous contact fields, nullable `user_id`, and optional assigned admin support.
+- `backend/app/mongo_models/review.py` returns `has_more` for review pagination; `support_message.py` supports system messages.
+- `backend/app/tasks/maintenance_tasks.py` adds generic email routing, review request scheduling, pending booking auto-cancel, daily superhost refresh, and trip reminder tasks.
+- `backend/app/celery_app.py` imports maintenance tasks and configures Celery beat for 30-minute booking auto-cancel and daily 2am superhost status updates.
+- Booking completion now queues the review-request task, and payment confirmation queues trip reminders two hours before pickup.
+- `frontend/src/pages/booking/WriteReviewPage.jsx` adds interactive star-review submission for car, host, or guest review flows.
+- `frontend/src/components/reviews/ReviewCard.jsx` renders verified-trip review cards with stars, expandable body text, and host replies.
+- `frontend/src/pages/user/ReviewsPage.jsx` adds dashboard tabs for reviews given and received.
+- `frontend/src/pages/user/SupportPage.jsx` adds dashboard support ticket list, filters, new-ticket modal, chat thread, attachments, replies, and close-ticket action.
+- `frontend/src/components/layout/NotificationBell.jsx` adds polling unread badge, dropdown notifications, mark-all-read, read-on-click navigation, and toast alerts for new notifications.
+
+Verification:
+- `python3 -m compileall backend/app` passes.
+- `python3 -m compileall backend/alembic` passes.
+- `docker compose exec backend alembic upgrade head` applies the support-ticket migration.
+- `docker compose exec backend python -m compileall app` passes inside the backend container.
+- `npm run build` passes with the expected large chunk warning.

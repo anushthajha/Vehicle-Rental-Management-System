@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
@@ -11,6 +11,7 @@ from app.models.payment import Payment, UserWallet, WalletTransaction
 from app.models.user import User
 from app.mongo_models.notification import create_notification
 from app.tasks.email_tasks import send_booking_confirmation_email
+from app.tasks.maintenance_tasks import send_trip_reminder_task
 
 
 def money(value) -> float:
@@ -116,6 +117,12 @@ async def mark_payment_paid(
     payload = booking_email_payload(booking, car)
     queue_booking_confirmation(guest.email, payload)
     queue_booking_confirmation(host.email, payload)
+    try:
+        reminder_at = booking.pickup_datetime - timedelta(hours=2)
+        countdown = max(int((reminder_at - datetime.utcnow()).total_seconds()), 0)
+        send_trip_reminder_task.apply_async(args=[booking.id], countdown=countdown)
+    except Exception:
+        pass
     await create_notification(
         guest.id,
         "Payment successful",
