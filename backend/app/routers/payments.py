@@ -1,9 +1,9 @@
 from datetime import datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -74,18 +74,30 @@ async def _pay_booking_with_wallet(db: AsyncSession, booking: Booking, payment: 
 
 
 @router.get("/wallet")
-async def get_wallet(current_user: User = Depends(get_current_active_user), db: AsyncSession = Depends(get_db)):
+async def get_wallet(
+    transaction_type: str = Query(default="all", pattern="^(all|credit|debit)$"),
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=100),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
     wallet = await get_or_create_wallet(db, current_user.id)
+    conditions = [WalletTransaction.user_id == current_user.id]
+    if transaction_type != "all":
+        conditions.append(WalletTransaction.transaction_type == transaction_type)
+    total = await db.scalar(select(func.count()).select_from(WalletTransaction).where(*conditions)) or 0
     txns = (
         await db.execute(
             select(WalletTransaction)
-            .where(WalletTransaction.user_id == current_user.id)
+            .where(*conditions)
             .order_by(WalletTransaction.created_at.desc())
-            .limit(20)
+            .offset((page - 1) * limit)
+            .limit(limit)
         )
     ).scalars().all()
     await db.commit()
-    return {"balance": money(wallet.balance), "transactions": [_transaction_payload(txn) for txn in txns]}
+    pages = (total + limit - 1) // limit if total else 0
+    return {"balance": money(wallet.balance), "transactions": [_transaction_payload(txn) for txn in txns], "total": total, "page": page, "pages": pages, "has_next": page < pages}
 
 
 @router.post("/wallet/add", status_code=status.HTTP_201_CREATED)

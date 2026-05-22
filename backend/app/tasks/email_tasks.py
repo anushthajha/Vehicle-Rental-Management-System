@@ -38,6 +38,11 @@ def send_kyc_approved_email(to_email: str, full_name: str) -> None:
     _run(email.send_kyc_approved_email(to_email, full_name))
 
 
+@celery_app.task(name="app.tasks.email.send_kyc_submission_confirmation")
+def send_kyc_submission_confirmation(to_email: str, full_name: str) -> None:
+    _run(email.send_kyc_submission_confirmation(to_email, full_name))
+
+
 @celery_app.task(name="app.tasks.email.send_kyc_rejected_email")
 def send_kyc_rejected_email(to_email: str, full_name: str, reason: str) -> None:
     _run(email.send_kyc_rejected_email(to_email, full_name, reason))

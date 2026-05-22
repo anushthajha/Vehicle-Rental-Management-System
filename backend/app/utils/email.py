@@ -116,6 +116,14 @@ async def send_kyc_approved_email(to_email: str, full_name: str) -> None:
     await _send_html_email(to_email, "KYC Verified ✓ — You're ready to book", _layout("KYC verified", body))
 
 
+async def send_kyc_submission_confirmation(to_email: str, full_name: str) -> None:
+    body = (
+        f"<p>Hi {escape(full_name)}, we received your KYC documents.</p>"
+        "<p>Our team will review them within 24 hours and notify you as soon as verification is complete.</p>"
+    )
+    await _send_html_email(to_email, "KYC submitted — Review in progress", _layout("KYC under review", body))
+
+
 async def send_kyc_rejected_email(to_email: str, full_name: str, reason: str) -> None:
     body = (
         f"<p>Hi {escape(full_name)}, we need a little more information to verify your KYC.</p>"

@@ -3,6 +3,7 @@ import { CalendarDays, Loader2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import api from '../../services/api'
 import { bookingDuration, formatDateTime, moneyLabel, statusClass } from '../../utils/bookingUtils'
+import DashboardShell from '../user/DashboardShell'
 
 const TABS = {
   upcoming: ['pending', 'confirmed'],
@@ -36,14 +37,13 @@ export default function MyBookingsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-50 px-4 py-8">
-      <section className="mx-auto max-w-6xl">
-        <h1 className="text-3xl font-black text-zinc-950">My Bookings</h1>
+    <DashboardShell title="My Bookings" eyebrow="Trips">
+      <section>
         <div className="mt-5 flex flex-wrap gap-2">{Object.keys(TABS).map((item) => <button key={item} onClick={() => { setTab(item); setStatusFilter('') }} className={`rounded-md px-4 py-2 font-black capitalize ${tab === item ? 'bg-zoomcar text-white' : 'bg-white text-zinc-700'}`}>{item}</button>)}</div>
         <div className="mt-4 flex flex-wrap gap-3"><input type="date" className="input h-11 w-48" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} /><select className="input h-11 w-48" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="">Tab statuses</option>{['pending', 'confirmed', 'active', 'completed', 'cancelled', 'rejected'].map((status) => <option key={status} value={status}>{status}</option>)}</select></div>
         {loading ? <div className="grid h-64 place-items-center"><Loader2 className="animate-spin text-zoomcar" /></div> : visible.length ? <div className="mt-5 grid gap-4">{visible.map((booking) => <BookingCard key={booking.id} booking={booking} onCancel={cancel} />)}</div> : <div className="mt-6 grid min-h-80 place-items-center rounded-lg border border-dashed border-zinc-300 bg-white text-center"><div><CalendarDays className="mx-auto text-zoomcar" size={42} /><h2 className="mt-3 text-2xl font-black text-zinc-950">No bookings yet</h2><Link to="/search" className="mt-4 inline-flex rounded-md bg-zoomcar px-4 py-3 font-black text-white">Explore cars</Link></div></div>}
       </section>
-    </main>
+    </DashboardShell>
   )
 }
 

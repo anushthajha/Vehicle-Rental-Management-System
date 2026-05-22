@@ -1,4 +1,5 @@
 import React from 'react'
+import { Toaster } from 'react-hot-toast'
 import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuthStore } from './context/AuthContext'
 import { AdminRoute, GuestRoute, HostRoute, PrivateRoute } from './components/RouteGuards'
@@ -21,6 +22,11 @@ import BookingRequestsPage from './pages/host/BookingRequestsPage'
 import EditCarPage from './pages/host/EditCarPage'
 import ListCarPage from './pages/host/ListCarPage'
 import ManageCarsPage from './pages/host/ManageCarsPage'
+import DashboardPage from './pages/user/DashboardPage'
+import KYCPage from './pages/user/KYCPage'
+import NotificationsPage from './pages/user/NotificationsPage'
+import ProfilePage from './pages/user/ProfilePage'
+import WalletPage from './pages/user/WalletPage'
 
 function HomePage() {
   const { user, logout } = useAuthStore()
@@ -74,6 +80,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <Toaster position="top-right" />
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/search" element={<SearchPage />} />
@@ -88,6 +95,13 @@ export default function App() {
           </Route>
           <Route element={<PrivateRoute />}>
             <Route path="/account" element={<Placeholder title="Account" />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/dashboard/kyc" element={<KYCPage />} />
+            <Route path="/dashboard/wallet" element={<WalletPage />} />
+            <Route path="/dashboard/notifications" element={<NotificationsPage />} />
+            <Route path="/dashboard/profile" element={<ProfilePage />} />
+            <Route path="/dashboard/reviews" element={<Placeholder title="Reviews" />} />
+            <Route path="/support" element={<Placeholder title="Support" />} />
             <Route path="/booking/confirm/:carId" element={<BookingConfirmPage />} />
             <Route path="/booking/pay/:bookingId" element={<PaymentPage />} />
             <Route path="/booking/success" element={<BookingSuccessPage />} />

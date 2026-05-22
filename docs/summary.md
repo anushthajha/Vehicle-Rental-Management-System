@@ -172,3 +172,30 @@ Verification:
 - `python3 -m compileall backend/app` passes.
 - `npm install qrcode` completed successfully with 0 vulnerabilities.
 - `npm run build` passes with the expected large chunk warning from maps/gallery/QR and dashboard bundles.
+
+## Phase 9 - User Dashboard, Profile, KYC, Wallet, and Notifications
+
+Built the complete user-facing dashboard foundation across FastAPI, MongoDB notifications, file uploads, and React dashboard pages.
+
+Implemented:
+- `backend/app/routers/users.py` with protected profile summary, profile update, avatar upload/processing, and public user profile endpoints.
+- `backend/app/routers/kyc.py` with protected KYC status, submit, resubmit, file validation/compression, admin listing, approve, and reject endpoints.
+- Admin KYC approval/rejection updates user verification, sends email tasks, creates MongoDB notifications, and logs activity.
+- `backend/app/routers/notifications.py` with notification listing, read, and mark-all-read endpoints.
+- `backend/app/routers/payments.py` wallet history filters and pagination for dashboard wallet transaction views.
+- KYC submission confirmation email support in `backend/app/utils/email.py` and `backend/app/tasks/email_tasks.py`.
+- `frontend/src/pages/user/DashboardShell.jsx` shared desktop sidebar and mobile bottom nav.
+- `frontend/src/pages/user/DashboardPage.jsx` overview with profile stats, KYC banner, upcoming trips, recent notifications, and quick actions.
+- `frontend/src/pages/user/ProfilePage.jsx` profile photo upload, personal info editing, password change UI, notification preference controls, and delete-account confirmation modal.
+- `frontend/src/pages/user/KYCPage.jsx` full KYC state machine for not submitted, under review, approved, and rejected/resubmit flows with drag/drop upload previews.
+- `frontend/src/pages/user/WalletPage.jsx` wallet balance, simulated top-up modal, transaction filters, date range filtering, and CSV export.
+- `frontend/src/pages/user/NotificationsPage.jsx` full notification inbox with filters, mark-all-read, read-on-click, and infinite scroll.
+- Router wiring for `/dashboard`, `/dashboard/kyc`, `/dashboard/wallet`, `/dashboard/notifications`, `/dashboard/profile`, and dashboard-shell integration for My Bookings.
+- Vite local proxy for `/api` and `/uploads` so dashboard pages work through the dev server.
+
+Verification:
+- `python3 -m compileall backend/app` passes.
+- `npm run build` passes with the expected large chunk warning.
+- Vite dev server runs at `http://localhost:5175/` in this environment because ports 5173 and 5174 were already in use.
+- `curl http://localhost:5175/api/health` returns `{"status":"ok","service":"zoomcar-backend"}` through the Vite proxy.
+
