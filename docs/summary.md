@@ -38,3 +38,33 @@ Verification:
 - `docker compose up --build -d` starts successfully.
 - Backend startup completes MySQL wait, MongoDB wait, Alembic migration check, seed check, and FastAPI startup.
 - `http://localhost/api/health` returns `{"status":"ok","service":"zoomcar-backend"}`.
+
+## Phase 3 - MySQL ORM Models & Alembic Schema
+
+Created the complete SQLAlchemy ORM schema for the MySQL side of the Zoomcar clone.
+
+Implemented:
+- `backend/app/models/base.py` with `TimestampMixin` and UUID generation helper.
+- `backend/app/models/user.py` with `User`, `UserKYC`, `EmailVerification`, and `PasswordReset`.
+- `backend/app/models/car.py` with `Car`, `CarImage`, `CarAvailabilityBlock`, and `CarPricingRule`.
+- `backend/app/models/booking.py` with `Booking` and `BookingExtension`.
+- `backend/app/models/payment.py` with `Payment`, `UserWallet`, and `WalletTransaction`.
+- `backend/app/models/coupon.py` with `Coupon` and `CouponUsage`.
+- `backend/app/models/host.py` with `HostProfile` and `HostPayoutRequest`.
+- `backend/app/models/support.py` with `SupportTicket`.
+- `backend/app/models/__init__.py` imports all models so Alembic can discover metadata.
+- Alembic revision `444784d636fa_initial_schema.py` generated with autogenerate and applied on Docker startup.
+
+Schema coverage:
+- All UUID primary keys use `String(36)`.
+- Money fields use `DECIMAL` with appropriate precision.
+- Enum fields use SQLAlchemy `Enum` with explicit values.
+- Long free-text fields use `Text`.
+- Boolean fields use SQLAlchemy `Boolean`, which maps correctly for MySQL.
+
+Verification:
+- `python3 -m compileall backend/app/models` passes.
+- `docker compose up --build -d` applies migration `0001_initial_schema -> 444784d636fa`.
+- `alembic check` reports `No new upgrade operations detected`.
+- MySQL contains all expected Phase 3 tables.
+- `http://localhost/api/health` remains healthy after migration.
