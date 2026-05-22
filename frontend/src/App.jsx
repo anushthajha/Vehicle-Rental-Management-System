@@ -7,6 +7,9 @@ import ForgotPasswordPage from './pages/auth/ForgotPasswordPage'
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
 import ResetPasswordPage from './pages/auth/ResetPasswordPage'
+import EditCarPage from './pages/host/EditCarPage'
+import ListCarPage from './pages/host/ListCarPage'
+import ManageCarsPage from './pages/host/ManageCarsPage'
 
 function HomePage() {
   const { user, logout } = useAuthStore()
@@ -20,7 +23,10 @@ function HomePage() {
           </div>
           <div className="flex gap-3">
             {user ? (
-              <button onClick={logout} className="rounded-md bg-zinc-950 px-4 py-3 font-bold text-white">Log out</button>
+              <>
+                <Link className="rounded-md bg-zoomcar px-4 py-3 font-bold text-white" to="/host/my-cars">My Cars</Link>
+                <button onClick={logout} className="rounded-md bg-zinc-950 px-4 py-3 font-bold text-white">Log out</button>
+              </>
             ) : (
               <>
                 <Link className="rounded-md border border-zinc-300 px-4 py-3 font-bold text-zinc-900" to="/auth/login">Log in</Link>
@@ -68,7 +74,10 @@ export default function App() {
             <Route path="/account" element={<Placeholder title="Account" />} />
           </Route>
           <Route element={<HostRoute />}>
-            <Route path="/host/dashboard" element={<Placeholder title="Host dashboard" />} />
+            <Route path="/host/dashboard" element={<ManageCarsPage />} />
+            <Route path="/host/list-car" element={<ListCarPage />} />
+            <Route path="/host/my-cars" element={<ManageCarsPage />} />
+            <Route path="/host/cars/:carId/edit" element={<EditCarPage />} />
           </Route>
           <Route element={<AdminRoute />}>
             <Route path="/admin" element={<Placeholder title="Admin dashboard" />} />

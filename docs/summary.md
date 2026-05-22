@@ -105,3 +105,23 @@ Security coverage:
 - Logout blacklists the current token JTI until expiration.
 - Password resets set a per-user force-logout timestamp so older tokens are rejected.
 - Resend verification and forgot password endpoints use Redis rate limits.
+
+## Phase 6 - Car Listing & Management System
+
+Built the host-side car listing and management system across FastAPI, SQLAlchemy, MongoDB analytics, Redis view counters, image processing, and React host pages.
+
+Implemented:
+- `backend/app/routers/cars.py` with public search/listing, featured cars, city cars, car detail, host car creation, edit, soft delete, image upload/delete/primary/reorder, date blocks, monthly availability, pricing rules, host car stats, and availability toggling.
+- Search supports city, category, transmission, fuel type, seats, price range, date overlap exclusion, feature filters, location radius filtering with Haversine distance, recommended sorting, pagination, and MongoDB search logging.
+- Car detail responses include images, host profile, pricing rules, 90-day availability blocks, MongoDB review summaries, MongoDB view logging, and Redis `car_views:{car_id}` increments.
+- Host listing creation enforces verified KYC and host access, creates host profiles when missing, increments listing counts, notifies admins, and logs activity.
+- `backend/app/services/pricing.py` with booking price calculation for hourly/daily rates, pricing-rule discounts/surcharges, insurance plans, coupon discounts, platform fees, security deposit display, and host earnings.
+- `frontend/src/pages/host/ListCarPage.jsx` with a six-step persisted Zustand listing wizard covering basic info, features, location map, pricing, photos, and review/submit.
+- `frontend/src/pages/host/ManageCarsPage.jsx` with host stats, filter tabs, car rows, availability toggle, edit, bookings, and delete actions.
+- `frontend/src/pages/host/EditCarPage.jsx` with prefilled car editing plus date block and pricing rule management.
+
+Verification:
+- `python3 -m compileall backend/app` passes.
+- Backend Docker image rebuild passes.
+- Docker import check confirms the car router and pricing service load.
+- `docker build -f frontend/Dockerfile frontend` passes with the expected large-chunk warning from the host wizard and Leaflet map bundle.

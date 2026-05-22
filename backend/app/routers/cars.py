@@ -1,4 +1,759 @@
-from fastapi import APIRouter
+import calendar
+import math
+import os
+from datetime import date, datetime, time, timedelta
+from decimal import Decimal
+from io import BytesIO
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
+from PIL import Image
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import case, distinct, func, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import settings
+from app.database import get_db
+from app.models.booking import Booking
+from app.models.car import Car, CarAvailabilityBlock, CarImage, CarPricingRule
+from app.models.host import HostProfile
+from app.models.user import User
+from app.mongo_models.analytics import log_activity, log_car_view, log_search
+from app.mongo_models.notification import create_notification
+from app.mongo_models.review import get_car_reviews
+from app.redis import get_redis
+from app.utils.auth import require_host, require_kyc_user, verify_token
 
 
 router = APIRouter(prefix="/cars", tags=["cars"])
+
+BOOKING_BLOCKING_STATUSES = ("confirmed", "active", "pending")
+FEATURE_MAP = {
+    "ac": Car.has_ac,
+    "music": Car.has_music_system,
+    "gps": Car.has_gps_tracker,
+    "keyless": Car.has_keyless_entry,
+    "sunroof": Car.has_sunroof,
+    "child_seat": Car.has_child_seat,
+    "luggage_carrier": Car.has_luggage_carrier,
+}
+CAR_UPDATE_FIELDS = {
+    "title",
+    "make",
+    "car_model",
+    "year",
+    "color",
+    "category",
+    "transmission",
+    "fuel_type",
+    "seats",
+    "description",
+    "registration_number",
+    "location_city",
+    "location_area",
+    "location_lat",
+    "location_lng",
+    "location_address",
+    "price_per_hour",
+    "price_per_day",
+    "min_trip_hours",
+    "max_trip_days",
+    "security_deposit",
+    "extra_km_charge",
+    "included_km_per_day",
+    "has_gps_tracker",
+    "has_keyless_entry",
+    "has_ac",
+    "has_music_system",
+    "has_sunroof",
+    "has_child_seat",
+    "has_luggage_carrier",
+    "minimum_guest_rating",
+    "auto_accept_bookings",
+}
+
+
+class CarCreate(BaseModel):
+    title: str | None = None
+    make: str
+    car_model: str
+    year: int = Field(ge=2010, le=2026)
+    color: str | None = None
+    transmission: str
+    fuel_type: str
+    seats: int = Field(ge=2, le=12)
+    category: str
+    description: str | None = Field(default=None, max_length=1000)
+    registration_number: str
+    location_city: str
+    location_area: str | None = None
+    location_lat: Decimal | None = None
+    location_lng: Decimal | None = None
+    location_address: str | None = None
+    price_per_hour: Decimal = Field(gt=0)
+    price_per_day: Decimal = Field(gt=0)
+    min_trip_hours: int = Field(default=4, ge=2, le=24)
+    max_trip_days: int = Field(default=30, ge=1, le=30)
+    security_deposit: Decimal = Field(default=Decimal("0.00"), ge=0)
+    extra_km_charge: Decimal = Field(default=Decimal("0.00"), ge=0)
+    included_km_per_day: int = Field(default=300, ge=0)
+    has_gps_tracker: bool = False
+    has_keyless_entry: bool = False
+    has_ac: bool = True
+    has_music_system: bool = True
+    has_sunroof: bool = False
+    has_child_seat: bool = False
+    has_luggage_carrier: bool = False
+    minimum_guest_rating: Decimal | None = None
+    auto_accept_bookings: bool = False
+
+    @field_validator("registration_number")
+    @classmethod
+    def normalize_registration(cls, value: str) -> str:
+        return value.replace(" ", "").upper()
+
+    @field_validator("title")
+    @classmethod
+    def strip_title(cls, value: str | None) -> str | None:
+        return value.strip() if value else value
+
+
+class CarUpdate(BaseModel):
+    title: str | None = None
+    make: str | None = None
+    car_model: str | None = None
+    year: int | None = Field(default=None, ge=2010, le=2026)
+    color: str | None = None
+    transmission: str | None = None
+    fuel_type: str | None = None
+    seats: int | None = Field(default=None, ge=2, le=12)
+    category: str | None = None
+    description: str | None = Field(default=None, max_length=1000)
+    registration_number: str | None = None
+    location_city: str | None = None
+    location_area: str | None = None
+    location_lat: Decimal | None = None
+    location_lng: Decimal | None = None
+    location_address: str | None = None
+    price_per_hour: Decimal | None = Field(default=None, gt=0)
+    price_per_day: Decimal | None = Field(default=None, gt=0)
+    min_trip_hours: int | None = Field(default=None, ge=2, le=24)
+    max_trip_days: int | None = Field(default=None, ge=1, le=30)
+    security_deposit: Decimal | None = Field(default=None, ge=0)
+    extra_km_charge: Decimal | None = Field(default=None, ge=0)
+    included_km_per_day: int | None = Field(default=None, ge=0)
+    has_gps_tracker: bool | None = None
+    has_keyless_entry: bool | None = None
+    has_ac: bool | None = None
+    has_music_system: bool | None = None
+    has_sunroof: bool | None = None
+    has_child_seat: bool | None = None
+    has_luggage_carrier: bool | None = None
+    minimum_guest_rating: Decimal | None = None
+    auto_accept_bookings: bool | None = None
+
+    @field_validator("registration_number")
+    @classmethod
+    def normalize_registration(cls, value: str | None) -> str | None:
+        return value.replace(" ", "").upper() if value else value
+
+
+class ImageReorderItem(BaseModel):
+    image_id: str
+    order_index: int = Field(ge=0)
+
+
+class DateBlockRequest(BaseModel):
+    blocked_from: datetime
+    blocked_to: datetime
+    reason: str | None = Field(default=None, max_length=200)
+
+
+class PricingRuleRequest(BaseModel):
+    rule_type: str
+    discount_percent: Decimal | None = Field(default=None, ge=0, le=100)
+    surcharge_percent: Decimal | None = Field(default=None, ge=0, le=100)
+    min_days: int | None = Field(default=None, ge=1)
+    applies_on: str | None = Field(default=None, max_length=100)
+
+
+def _money(value) -> float:
+    return float(value or 0)
+
+
+def _dt(value: datetime | None) -> str | None:
+    return value.isoformat() if value else None
+
+
+def _features(car: Car) -> list[str]:
+    features = []
+    if car.has_ac:
+        features.append("ac")
+    if car.has_music_system:
+        features.append("music")
+    if car.has_gps_tracker:
+        features.append("gps")
+    if car.has_keyless_entry:
+        features.append("keyless")
+    if car.has_sunroof:
+        features.append("sunroof")
+    if car.has_child_seat:
+        features.append("child_seat")
+    if car.has_luggage_carrier:
+        features.append("luggage_carrier")
+    return features
+
+
+def _car_payload(car: Car, host_name: str | None = None, primary_image_url: str | None = None, distance_km=None) -> dict:
+    return {
+        "id": car.id,
+        "title": car.title,
+        "make": car.make,
+        "car_model": car.car_model,
+        "year": car.year,
+        "color": car.color,
+        "category": car.category,
+        "transmission": car.transmission,
+        "fuel_type": car.fuel_type,
+        "seats": car.seats,
+        "location_city": car.location_city,
+        "location_area": car.location_area,
+        "location_lat": _money(car.location_lat) if car.location_lat is not None else None,
+        "location_lng": _money(car.location_lng) if car.location_lng is not None else None,
+        "price_per_hour": _money(car.price_per_hour),
+        "price_per_day": _money(car.price_per_day),
+        "average_rating": _money(car.average_rating),
+        "total_trips": car.total_trips,
+        "primary_image_url": primary_image_url,
+        "features": _features(car),
+        "host_name": host_name,
+        "host_id": car.host_id,
+        "is_featured": car.is_featured,
+        "is_available": car.is_available,
+        "is_approved": car.is_approved,
+        "distance_km": round(float(distance_km), 2) if distance_km is not None else None,
+    }
+
+
+def _image_payload(image: CarImage) -> dict:
+    return {
+        "id": image.id,
+        "image_url": image.image_url,
+        "thumb_url": image.image_url.replace(".webp", "_thumb.webp"),
+        "is_primary": image.is_primary,
+        "order_index": image.order_index,
+    }
+
+
+def _block_payload(block: CarAvailabilityBlock) -> dict:
+    return {
+        "id": block.id,
+        "blocked_from": _dt(block.blocked_from),
+        "blocked_to": _dt(block.blocked_to),
+        "reason": block.reason,
+    }
+
+
+def _rule_payload(rule: CarPricingRule) -> dict:
+    return {
+        "id": rule.id,
+        "rule_type": rule.rule_type,
+        "discount_percent": _money(rule.discount_percent),
+        "surcharge_percent": _money(rule.surcharge_percent),
+        "min_days": rule.min_days,
+        "applies_on": rule.applies_on,
+    }
+
+
+async def _optional_user_id(request: Request) -> str | None:
+    authorization = request.headers.get("authorization", "")
+    if not authorization.lower().startswith("bearer "):
+        return None
+    try:
+        payload = await verify_token(authorization.split(" ", 1)[1])
+    except HTTPException:
+        return None
+    return payload.get("sub")
+
+
+async def _get_owned_car(car_id: str, host_id: str, db: AsyncSession) -> Car:
+    result = await db.execute(select(Car).where(Car.id == car_id, Car.host_id == host_id))
+    car = result.scalar_one_or_none()
+    if car is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Car not found")
+    return car
+
+
+def _overlap_conditions(start_dt: datetime, end_dt: datetime):
+    return (
+        Booking.pickup_datetime < end_dt,
+        Booking.return_datetime > start_dt,
+        Booking.status.in_(BOOKING_BLOCKING_STATUSES),
+    )
+
+
+def _distance_expression(lat: float, lng: float):
+    lat_rad = math.radians(lat)
+    return 6371 * func.acos(
+        func.least(
+            1,
+            func.greatest(
+                -1,
+                (func.cos(lat_rad) * func.cos(func.radians(Car.location_lat)) * func.cos(func.radians(Car.location_lng) - math.radians(lng)))
+                + (func.sin(lat_rad) * func.sin(func.radians(Car.location_lat))),
+            ),
+        )
+    )
+
+
+async def _list_rows(db: AsyncSession, conditions: list, sort_by: str, page: int, limit: int, distance_expr=None):
+    primary_image = (
+        select(CarImage.image_url)
+        .where(CarImage.car_id == Car.id)
+        .order_by(CarImage.is_primary.desc(), CarImage.order_index.asc())
+        .limit(1)
+        .scalar_subquery()
+    )
+    columns = [Car, User.full_name, primary_image.label("primary_image_url")]
+    if distance_expr is not None:
+        columns.append(distance_expr.label("distance_km"))
+
+    query = select(*columns).join(User, User.id == Car.host_id).where(*conditions)
+    if sort_by == "price_asc":
+        query = query.order_by(Car.price_per_day.asc())
+    elif sort_by == "price_desc":
+        query = query.order_by(Car.price_per_day.desc())
+    elif sort_by == "rating":
+        query = query.order_by(Car.average_rating.desc(), Car.total_trips.desc())
+    elif sort_by == "most_booked":
+        query = query.order_by(Car.total_trips.desc(), Car.average_rating.desc())
+    else:
+        score = (Car.average_rating * 0.4) + (Car.total_trips * 0.3) + (case((Car.is_featured.is_(True), 1), else_=0) * 0.3)
+        query = query.order_by(score.desc(), Car.created_at.desc())
+
+    query = query.offset((page - 1) * limit).limit(limit)
+    result = await db.execute(query)
+    return result.all()
+
+
+@router.get("/")
+async def search_cars(
+    request: Request,
+    city: str | None = None,
+    category: str | None = None,
+    transmission: str | None = None,
+    fuel_type: str | None = None,
+    seats: int | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+    lat: float | None = None,
+    lng: float | None = None,
+    radius_km: float = 10,
+    sort_by: str = "recommended",
+    features: str | None = None,
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=12, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+):
+    conditions = [Car.is_approved.is_(True), Car.is_available.is_(True)]
+    if start_date and end_date:
+        booking_overlap = select(Booking.id).where(Booking.car_id == Car.id, *_overlap_conditions(start_date, end_date)).exists()
+        block_overlap = (
+            select(CarAvailabilityBlock.id)
+            .where(
+                CarAvailabilityBlock.car_id == Car.id,
+                CarAvailabilityBlock.blocked_from < end_date,
+                CarAvailabilityBlock.blocked_to > start_date,
+            )
+            .exists()
+        )
+        conditions.append(~booking_overlap)
+        conditions.append(~block_overlap)
+    if city:
+        conditions.append(func.lower(Car.location_city) == city.lower())
+    if category:
+        conditions.append(Car.category == category)
+    if transmission:
+        conditions.append(Car.transmission == transmission)
+    if fuel_type:
+        conditions.append(Car.fuel_type == fuel_type)
+    if seats:
+        conditions.append(Car.seats >= seats)
+    if min_price is not None:
+        conditions.append(Car.price_per_day >= min_price)
+    if max_price is not None:
+        conditions.append(Car.price_per_day <= max_price)
+
+    requested_features = [item.strip() for item in (features or "").split(",") if item.strip()]
+    for feature in requested_features:
+        column = FEATURE_MAP.get(feature)
+        if column is not None:
+            conditions.append(column.is_(True))
+
+    distance_expr = None
+    if lat is not None and lng is not None:
+        distance_expr = _distance_expression(lat, lng)
+        conditions.extend([Car.location_lat.is_not(None), Car.location_lng.is_not(None), distance_expr <= radius_km])
+
+    total = await db.scalar(select(func.count()).select_from(Car).where(*conditions)) or 0
+    rows = await _list_rows(db, conditions, sort_by, page, limit, distance_expr)
+    cars = [_car_payload(row[0], row[1], row[2], row[3] if distance_expr is not None else None) for row in rows]
+    pages = math.ceil(total / limit) if total else 0
+
+    filters_dict = {
+        "category": category,
+        "transmission": transmission,
+        "fuel_type": fuel_type,
+        "seats": seats,
+        "min_price": min_price,
+        "max_price": max_price,
+        "start_date": _dt(start_date),
+        "end_date": _dt(end_date),
+        "lat": lat,
+        "lng": lng,
+        "radius_km": radius_km,
+        "features": requested_features,
+        "sort_by": sort_by,
+    }
+    await log_search(await _optional_user_id(request), city or "", filters_dict, total)
+    return {"cars": cars, "total": total, "page": page, "pages": pages, "has_next": page < pages, "has_prev": page > 1}
+
+
+@router.get("/featured")
+async def featured_cars(db: AsyncSession = Depends(get_db)):
+    rows = await _list_rows(db, [Car.is_featured.is_(True), Car.is_approved.is_(True), Car.is_available.is_(True)], "rating", 1, 6)
+    return {"cars": [_car_payload(row[0], row[1], row[2]) for row in rows]}
+
+
+@router.get("/city/{city}")
+async def city_cars(city: str, db: AsyncSession = Depends(get_db)):
+    rows = await _list_rows(
+        db,
+        [func.lower(Car.location_city) == city.lower(), Car.is_approved.is_(True), Car.is_available.is_(True)],
+        "rating",
+        1,
+        20,
+    )
+    return {"cars": [_car_payload(row[0], row[1], row[2]) for row in rows]}
+
+
+@router.get("/host/my-cars")
+async def host_my_cars(current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Car).where(Car.host_id == current_user.id).order_by(Car.created_at.desc()))
+    cars = result.scalars().all()
+    response = []
+    for car in cars:
+        image = await db.scalar(
+            select(CarImage.image_url).where(CarImage.car_id == car.id).order_by(CarImage.is_primary.desc(), CarImage.order_index.asc()).limit(1)
+        )
+        total_bookings = await db.scalar(select(func.count()).select_from(Booking).where(Booking.car_id == car.id)) or 0
+        total_earnings = await db.scalar(select(func.coalesce(func.sum(Booking.host_earnings), 0)).where(Booking.car_id == car.id)) or 0
+        pending_bookings = await db.scalar(select(func.count()).select_from(Booking).where(Booking.car_id == car.id, Booking.status == "pending")) or 0
+        item = _car_payload(car, current_user.full_name, image)
+        item.update(
+            {
+                "total_bookings": total_bookings,
+                "total_earnings": _money(total_earnings),
+                "pending_bookings_count": pending_bookings,
+            }
+        )
+        response.append(item)
+    return {"cars": response}
+
+
+@router.patch("/host/{car_id}/toggle-availability")
+async def toggle_availability(car_id: str, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+    car = await _get_owned_car(car_id, current_user.id, db)
+    car.is_available = not car.is_available
+    await db.commit()
+    return {"is_available": car.is_available}
+
+
+@router.post("/", status_code=status.HTTP_201_CREATED)
+async def create_car(payload: CarCreate, current_user: User = Depends(require_kyc_user), db: AsyncSession = Depends(get_db)):
+    if not current_user.is_host:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Host access required")
+
+    host_profile = await db.scalar(select(HostProfile).where(HostProfile.user_id == current_user.id))
+    if host_profile is None:
+        host_profile = HostProfile(user_id=current_user.id)
+        db.add(host_profile)
+
+    data = payload.model_dump()
+    title = data.pop("title") or f"{payload.year} {payload.make} {payload.car_model}"
+    car = Car(host_id=current_user.id, title=title, is_approved=False, is_available=True, **data)
+    db.add(car)
+    await db.flush()
+    host_profile.total_listings += 1
+    await db.commit()
+
+    admins = (await db.execute(select(User).where(User.role == "admin", User.is_active.is_(True)))).scalars().all()
+    for admin in admins:
+        await create_notification(
+            admin.id,
+            "New car listing pending review",
+            f"{current_user.full_name} listed {car.title} in {car.location_city}.",
+            "host",
+            action_url=f"/admin/cars/{car.id}",
+            meta={"car_id": car.id, "title": car.title, "city": car.location_city},
+        )
+    await log_activity(current_user.id, "car_listed", "car", car.id, {"title": car.title, "city": car.location_city})
+    return {"car_id": car.id, "message": "Listing submitted for review. You'll be notified within 24 hours."}
+
+
+@router.get("/{car_id}")
+async def get_car_detail(car_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Car, User, HostProfile).join(User, User.id == Car.host_id).outerjoin(HostProfile, HostProfile.user_id == Car.host_id).where(Car.id == car_id))
+    row = result.one_or_none()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Car not found")
+    car, host, host_profile = row
+
+    images = (await db.execute(select(CarImage).where(CarImage.car_id == car_id).order_by(CarImage.order_index.asc()))).scalars().all()
+    rules = (await db.execute(select(CarPricingRule).where(CarPricingRule.car_id == car_id))).scalars().all()
+    blocks = (
+        await db.execute(
+            select(CarAvailabilityBlock)
+            .where(CarAvailabilityBlock.car_id == car_id, CarAvailabilityBlock.blocked_from <= datetime.utcnow() + timedelta(days=90))
+            .order_by(CarAvailabilityBlock.blocked_from.asc())
+        )
+    ).scalars().all()
+    review_data = await get_car_reviews(car_id, page=1, limit=5)
+    await log_car_view(car_id, await _optional_user_id(request), car.location_city)
+    await get_redis().incr(f"car_views:{car_id}")
+
+    payload = _car_payload(car, host.full_name, images[0].image_url if images else None)
+    payload.update(
+        {
+            "description": car.description,
+            "registration_number": car.registration_number,
+            "location_address": car.location_address,
+            "min_trip_hours": car.min_trip_hours,
+            "max_trip_days": car.max_trip_days,
+            "security_deposit": _money(car.security_deposit),
+            "extra_km_charge": _money(car.extra_km_charge),
+            "included_km_per_day": car.included_km_per_day,
+            "auto_accept_bookings": car.auto_accept_bookings,
+            "images": [_image_payload(image) for image in images],
+            "host_profile": {
+                "name": host.full_name,
+                "photo": host.profile_picture,
+                "rating": _money(host_profile.average_rating) if host_profile else 0,
+                "response_time": host_profile.response_time if host_profile else None,
+                "is_superhost": host_profile.is_superhost if host_profile else False,
+                "joined_date": _dt(host_profile.joined_as_host_at) if host_profile else None,
+                "total_reviews": host_profile.total_reviews if host_profile else 0,
+            },
+            "car_pricing_rules": [_rule_payload(rule) for rule in rules],
+            "availability_blocks": [_block_payload(block) for block in blocks],
+            "reviews": review_data["reviews"],
+            "review_stats": {
+                "avg_rating": review_data["avg_rating"],
+                "rating_breakdown": review_data["rating_breakdown"],
+                "total": review_data["total"],
+            },
+        }
+    )
+    return payload
+
+
+@router.patch("/{car_id}")
+async def update_car(car_id: str, payload: CarUpdate, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+    car = await _get_owned_car(car_id, current_user.id, db)
+    changes = payload.model_dump(exclude_unset=True)
+    price_changed = any(field in changes for field in ("price_per_hour", "price_per_day"))
+    for field, value in changes.items():
+        if field in CAR_UPDATE_FIELDS:
+            setattr(car, field, value)
+    await db.commit()
+
+    if price_changed:
+        guest_ids = (
+            await db.execute(select(distinct(Booking.guest_id)).where(Booking.car_id == car.id, Booking.status == "pending"))
+        ).scalars().all()
+        for guest_id in guest_ids:
+            await create_notification(
+                guest_id,
+                "Price updated for your pending booking",
+                f"The host updated pricing for {car.title}.",
+                "booking",
+                meta={"car_id": car.id, "title": car.title},
+            )
+    return {"message": "Car updated successfully"}
+
+
+@router.delete("/{car_id}")
+async def delete_car(car_id: str, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+    car = await _get_owned_car(car_id, current_user.id, db)
+    active_count = await db.scalar(
+        select(func.count()).select_from(Booking).where(Booking.car_id == car.id, Booking.status.in_(("confirmed", "active")))
+    )
+    if active_count:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete a car with active or confirmed bookings")
+    car.is_available = False
+    await db.commit()
+    return {"message": "Car removed from availability"}
+
+
+@router.post("/{car_id}/images")
+async def upload_car_image(
+    car_id: str,
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_host),
+    db: AsyncSession = Depends(get_db),
+):
+    await _get_owned_car(car_id, current_user.id, db)
+    existing_count = await db.scalar(select(func.count()).select_from(CarImage).where(CarImage.car_id == car_id)) or 0
+    if existing_count >= 10:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A car can have at most 10 images")
+    if file.content_type not in {"image/jpeg", "image/png", "image/webp"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only jpg, png, and webp files are allowed")
+
+    raw = await file.read()
+    if len(raw) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Image must be 5MB or smaller")
+
+    try:
+        image = Image.open(BytesIO(raw)).convert("RGB")
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid image file") from exc
+
+    upload_dir = os.path.join(settings.UPLOAD_DIR, "cars", car_id)
+    os.makedirs(upload_dir, exist_ok=True)
+    image_id = str(uuid4())
+    image_filename = f"{image_id}.webp"
+    thumb_filename = f"{image_id}_thumb.webp"
+
+    image.thumbnail((1920, 1080))
+    image.save(os.path.join(upload_dir, image_filename), "WEBP", quality=85)
+    thumb = image.copy()
+    thumb.thumbnail((400, 300))
+    thumb.save(os.path.join(upload_dir, thumb_filename), "WEBP", quality=75)
+
+    image_url = f"/uploads/cars/{car_id}/{image_filename}"
+    is_primary = existing_count == 0
+    record = CarImage(car_id=car_id, image_url=image_url, is_primary=is_primary, order_index=existing_count)
+    db.add(record)
+    await db.commit()
+    await db.refresh(record)
+    return {"image_id": record.id, "image_url": image_url, "thumb_url": f"/uploads/cars/{car_id}/{thumb_filename}"}
+
+
+@router.delete("/{car_id}/images/{image_id}")
+async def delete_car_image(car_id: str, image_id: str, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+    await _get_owned_car(car_id, current_user.id, db)
+    image = await db.scalar(select(CarImage).where(CarImage.id == image_id, CarImage.car_id == car_id))
+    if image is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
+    await db.delete(image)
+    await db.commit()
+    return {"message": "Image deleted"}
+
+
+@router.post("/{car_id}/images/{image_id}/set-primary")
+async def set_primary_image(car_id: str, image_id: str, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+    await _get_owned_car(car_id, current_user.id, db)
+    image = await db.scalar(select(CarImage).where(CarImage.id == image_id, CarImage.car_id == car_id))
+    if image is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
+    await db.execute(update(CarImage).where(CarImage.car_id == car_id).values(is_primary=False))
+    image.is_primary = True
+    await db.commit()
+    return {"message": "Primary image updated"}
+
+
+@router.patch("/{car_id}/images/reorder")
+async def reorder_images(car_id: str, payload: list[ImageReorderItem], current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+    await _get_owned_car(car_id, current_user.id, db)
+    for item in payload:
+        await db.execute(update(CarImage).where(CarImage.id == item.image_id, CarImage.car_id == car_id).values(order_index=item.order_index))
+    await db.commit()
+    return {"message": "Images reordered"}
+
+
+@router.post("/{car_id}/block-dates", status_code=status.HTTP_201_CREATED)
+async def block_dates(car_id: str, payload: DateBlockRequest, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+    await _get_owned_car(car_id, current_user.id, db)
+    if payload.blocked_to <= payload.blocked_from:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="blocked_to must be after blocked_from")
+    block = CarAvailabilityBlock(car_id=car_id, blocked_from=payload.blocked_from, blocked_to=payload.blocked_to, reason=payload.reason)
+    db.add(block)
+    await db.commit()
+    await db.refresh(block)
+    return _block_payload(block)
+
+
+@router.delete("/{car_id}/block-dates/{block_id}")
+async def delete_block(car_id: str, block_id: str, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+    await _get_owned_car(car_id, current_user.id, db)
+    block = await db.scalar(select(CarAvailabilityBlock).where(CarAvailabilityBlock.id == block_id, CarAvailabilityBlock.car_id == car_id))
+    if block is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Block not found")
+    await db.delete(block)
+    await db.commit()
+    return {"message": "Date block removed"}
+
+
+@router.get("/{car_id}/availability")
+async def get_availability(car_id: str, month: str, db: AsyncSession = Depends(get_db)):
+    try:
+        year, month_number = [int(part) for part in month.split("-", 1)]
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="month must be YYYY-MM") from exc
+    days_in_month = calendar.monthrange(year, month_number)[1]
+    month_start = datetime.combine(date(year, month_number, 1), time.min)
+    month_end = datetime.combine(date(year, month_number, days_in_month), time.max)
+
+    blocks = (
+        await db.execute(
+            select(CarAvailabilityBlock).where(
+                CarAvailabilityBlock.car_id == car_id,
+                CarAvailabilityBlock.blocked_from <= month_end,
+                CarAvailabilityBlock.blocked_to >= month_start,
+            )
+        )
+    ).scalars().all()
+    bookings = (
+        await db.execute(
+            select(Booking).where(
+                Booking.car_id == car_id,
+                Booking.status.in_(BOOKING_BLOCKING_STATUSES),
+                Booking.pickup_datetime <= month_end,
+                Booking.return_datetime >= month_start,
+            )
+        )
+    ).scalars().all()
+
+    availability = []
+    for day in range(1, days_in_month + 1):
+        current = date(year, month_number, day)
+        status_value = "available"
+        if any(block.blocked_from.date() <= current <= block.blocked_to.date() for block in blocks):
+            status_value = "unavailable"
+        if any(booking.pickup_datetime.date() <= current <= booking.return_datetime.date() for booking in bookings):
+            status_value = "booked"
+        availability.append({"date": current.isoformat(), "status": status_value})
+    return availability
+
+
+@router.post("/{car_id}/pricing-rules", status_code=status.HTTP_201_CREATED)
+async def create_pricing_rule(car_id: str, payload: PricingRuleRequest, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+    await _get_owned_car(car_id, current_user.id, db)
+    rule = CarPricingRule(car_id=car_id, **payload.model_dump())
+    db.add(rule)
+    await db.commit()
+    await db.refresh(rule)
+    return _rule_payload(rule)
+
+
+@router.delete("/{car_id}/pricing-rules/{rule_id}")
+async def delete_pricing_rule(car_id: str, rule_id: str, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+    await _get_owned_car(car_id, current_user.id, db)
+    rule = await db.scalar(select(CarPricingRule).where(CarPricingRule.id == rule_id, CarPricingRule.car_id == car_id))
+    if rule is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pricing rule not found")
+    await db.delete(rule)
+    await db.commit()
+    return {"message": "Pricing rule deleted"}
