@@ -1,6 +1,5 @@
 import asyncio
 from datetime import datetime, timedelta
-from decimal import Decimal
 
 from sqlalchemy import select
 
@@ -11,6 +10,7 @@ from app.models.host import HostProfile
 from app.models.payment import Payment
 from app.models.user import User
 from app.mongo_models.notification import create_notification
+from app.services.superhost import check_and_update_superhost
 from app.tasks import email_tasks
 from app.tasks.email_tasks import send_review_request_email, send_trip_reminder_email
 
@@ -95,21 +95,9 @@ def update_superhost_status() -> int:
             profiles = (await db.execute(select(HostProfile))).scalars().all()
             for profile in profiles:
                 was_superhost = profile.is_superhost
-                profile.is_superhost = (
-                    Decimal(str(profile.average_rating)) >= Decimal("4.70")
-                    and profile.total_reviews >= 10
-                    and Decimal(str(profile.acceptance_rate)) >= Decimal("90.00")
-                    and profile.total_listings >= 1
-                )
+                await check_and_update_superhost(profile.user_id, db)
                 if profile.is_superhost != was_superhost:
                     updated += 1
-                    await create_notification(
-                        profile.user_id,
-                        "Superhost status updated",
-                        "Your host badge status has been refreshed.",
-                        "host",
-                        action_url="/host/dashboard",
-                    )
             await db.commit()
         return updated
 

@@ -21,8 +21,13 @@ import WriteReviewPage from './pages/booking/WriteReviewPage'
 import ActiveTripsPage from './pages/host/ActiveTripsPage'
 import BookingRequestsPage from './pages/host/BookingRequestsPage'
 import EditCarPage from './pages/host/EditCarPage'
+import HostDashboardPage from './pages/host/HostDashboardPage'
+import HostEarningsPage from './pages/host/HostEarningsPage'
+import HostLayout from './pages/host/HostLayout'
+import HostProfilePage from './pages/host/HostProfilePage'
 import ListCarPage from './pages/host/ListCarPage'
 import ManageCarsPage from './pages/host/ManageCarsPage'
+import PayoutsPage from './pages/host/PayoutsPage'
 import DashboardPage from './pages/user/DashboardPage'
 import KYCPage from './pages/user/KYCPage'
 import NotificationsPage from './pages/user/NotificationsPage'
@@ -123,12 +128,17 @@ export default function App() {
             <Route path="/dashboard/bookings/:bookingId" element={<BookingDetailsPage />} />
           </Route>
           <Route element={<HostRoute />}>
-            <Route path="/host/dashboard" element={<ManageCarsPage />} />
-            <Route path="/host/bookings" element={<BookingRequestsPage />} />
-            <Route path="/host/active-trips" element={<ActiveTripsPage />} />
-            <Route path="/host/list-car" element={<ListCarPage />} />
-            <Route path="/host/my-cars" element={<ManageCarsPage />} />
-            <Route path="/host/cars/:carId/edit" element={<EditCarPage />} />
+            <Route path="/host" element={<HostLayout />}>
+              <Route path="dashboard" element={<HostDashboardPage />} />
+              <Route path="bookings" element={<BookingRequestsPage />} />
+              <Route path="active-trips" element={<ActiveTripsPage />} />
+              <Route path="list-car" element={<ListCarPage />} />
+              <Route path="my-cars" element={<ManageCarsPage />} />
+              <Route path="earnings" element={<HostEarningsPage />} />
+              <Route path="payouts" element={<PayoutsPage />} />
+              <Route path="profile" element={<HostProfilePage />} />
+              <Route path="cars/:carId/edit" element={<EditCarPage />} />
+            </Route>
           </Route>
           <Route element={<AdminRoute />}>
             <Route path="/admin" element={<AdminLayout />}>

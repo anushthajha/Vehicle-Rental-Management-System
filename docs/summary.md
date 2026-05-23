@@ -244,3 +244,26 @@ Verification:
 - Backend Docker image builds successfully.
 - Docker import check confirms the admin router registers 35 routes.
 - `npm run build` passes with the expected large chunk warning.
+
+## Phase 12 - Host Earnings, Payouts, and Superhost System
+
+Built the host finance and reputation workflow across FastAPI, wallet accounting, payout requests, superhost criteria, and React host pages.
+
+Implemented:
+- `backend/app/routers/host_earnings.py` with host-only `/api/host/*` routes for earnings summary, monthly earnings, per-car earnings, credit transactions, payout requests/history, bank details, and host profile stats.
+- Payout request validation for minimum ₹500, wallet balance, bank details, duplicate pending/processing payouts, immediate wallet hold, payout request creation, and admin notification.
+- Bank account update flow with IFSC validation and masked account summary responses.
+- `backend/app/services/superhost.py` with criteria-based superhost evaluation: 10+ completed trips, 4.7+ host rating, 85%+ acceptance rate, and no host-initiated cancellation in the last 90 days.
+- Booking completion now refreshes superhost status, and scheduled maintenance reuses the shared superhost service.
+- `frontend/src/pages/host/HostLayout.jsx` adds a host-specific sidebar shell.
+- `HostDashboardPage.jsx` adds animated summary counters, superhost banner, earnings/trips charts, active listings, recent bookings, and quick actions.
+- `HostEarningsPage.jsx` adds summary cards, per-car earnings table, monthly stacked area chart, transaction history filters, and CSV export.
+- `PayoutsPage.jsx` adds wallet balance, bank account side panel, payout request confirmation, and payout history with status badges.
+- `HostProfilePage.jsx` adds host stats, superhost badge, bio/response-time editing, notification preferences, and verification status.
+- React host routes are now nested under `/host/*` with the new host console layout.
+
+Verification:
+- `python3 -m compileall backend/app` passes.
+- Backend Docker image builds successfully.
+- Docker import check confirms the host earnings router registers 9 routes and the superhost service imports.
+- `npm run build` passes with the expected large chunk warning.

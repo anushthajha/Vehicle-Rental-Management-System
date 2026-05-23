@@ -26,6 +26,7 @@ from app.services.booking_flow import (
     money,
 )
 from app.services.pricing import calculate_booking_price
+from app.services.superhost import check_and_update_superhost
 from app.tasks.email_tasks import send_booking_cancelled_email, send_booking_request_to_host_email
 from app.tasks.maintenance_tasks import send_review_request_task
 from app.utils.auth import get_current_active_user, require_host, require_kyc_user
@@ -456,6 +457,7 @@ async def end_trip(booking_id: str, payload: EndTripRequest, current_user: User 
     if profile:
         profile.acceptance_rate = min(Decimal("100.00"), max(Decimal(str(profile.acceptance_rate)), Decimal("95.00")))
     guest = await db.scalar(select(User).where(User.id == booking.guest_id))
+    await check_and_update_superhost(booking.host_id, db)
     await db.commit()
     if guest:
         try:
