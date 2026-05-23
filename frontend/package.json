@@ -19,6 +19,7 @@
     "axios": "latest",
     "date-fns": "latest",
     "framer-motion": "latest",
+    "html2canvas": "^1.4.1",
     "leaflet": "latest",
     "lucide-react": "latest",
     "qrcode": "^1.5.4",

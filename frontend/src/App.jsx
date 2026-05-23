@@ -30,6 +30,15 @@ import ProfilePage from './pages/user/ProfilePage'
 import ReviewsPage from './pages/user/ReviewsPage'
 import SupportPage from './pages/user/SupportPage'
 import WalletPage from './pages/user/WalletPage'
+import AdminAnalyticsPage from './pages/admin/AdminAnalyticsPage'
+import AdminCarsPage from './pages/admin/AdminCarsPage'
+import AdminCouponsPage from './pages/admin/AdminCouponsPage'
+import AdminDashboardPage from './pages/admin/AdminDashboardPage'
+import { AdminBookingsPage, AdminPaymentsPage, AdminPayoutsPage, AdminSettingsPage } from './pages/admin/AdminDataPages'
+import AdminKYCPage from './pages/admin/AdminKYCPage'
+import AdminLayout from './pages/admin/AdminLayout'
+import AdminSupportPage from './pages/admin/AdminSupportPage'
+import AdminUsersPage from './pages/admin/AdminUsersPage'
 
 function HomePage() {
   const { user, logout } = useAuthStore()
@@ -122,7 +131,19 @@ export default function App() {
             <Route path="/host/cars/:carId/edit" element={<EditCarPage />} />
           </Route>
           <Route element={<AdminRoute />}>
-            <Route path="/admin" element={<Placeholder title="Admin dashboard" />} />
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<AdminDashboardPage />} />
+              <Route path="users" element={<AdminUsersPage />} />
+              <Route path="cars" element={<AdminCarsPage />} />
+              <Route path="bookings" element={<AdminBookingsPage />} />
+              <Route path="kyc" element={<AdminKYCPage />} />
+              <Route path="payments" element={<AdminPaymentsPage />} />
+              <Route path="coupons" element={<AdminCouponsPage />} />
+              <Route path="support" element={<AdminSupportPage />} />
+              <Route path="analytics" element={<AdminAnalyticsPage />} />
+              <Route path="payouts" element={<AdminPayoutsPage />} />
+              <Route path="settings" element={<AdminSettingsPage />} />
+            </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

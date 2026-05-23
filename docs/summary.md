@@ -225,3 +225,22 @@ Verification:
 - `docker compose exec backend alembic upgrade head` applies the support-ticket migration.
 - `docker compose exec backend python -m compileall app` passes inside the backend container.
 - `npm run build` passes with the expected large chunk warning.
+
+## Phase 11 - Complete Admin Dashboard
+
+Built the admin operations dashboard as a separate React layout and added the protected FastAPI admin API surface.
+
+Implemented:
+- `backend/app/routers/admin.py` with role-protected `/api/admin/*` routes for overview stats, revenue/city/top-car analytics, activity feed, users, cars, bookings, KYC, payments/refunds, support, coupons, and host payouts.
+- Admin stats aggregate users, hosts, cars, bookings, revenue, pending queues, booking status distribution, daily bookings, monthly revenue, user growth, category distribution, and booking funnel data.
+- Admin actions for user suspension/role change, car approval/rejection/feature toggles, KYC approval/rejection, manual wallet refunds, support replies/status/priority, coupon CRUD, and payout process/complete/fail workflows.
+- MongoDB notifications and activity-feed logging for major admin actions, with Redis caching for active-booking counts.
+- `frontend/src/pages/admin/` with a standalone admin layout, dark collapsible sidebar, red accents, admin header, and routes under `/admin/*`.
+- Admin pages for dashboard, users, cars, KYC review, analytics with Recharts and PNG export, coupons, support split view, bookings, payments, payouts, and settings.
+- `html2canvas` added for chart export.
+
+Verification:
+- `python3 -m compileall backend/app` passes.
+- Backend Docker image builds successfully.
+- Docker import check confirms the admin router registers 35 routes.
+- `npm run build` passes with the expected large chunk warning.
