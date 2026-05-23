@@ -4,7 +4,7 @@ import { BarChart3, CalendarDays, Car, Gauge, IndianRupee, Plus, UserRound, Wall
 
 const links = [
   { to: '/host/dashboard', label: 'Dashboard', icon: Gauge },
-  { to: '/host/my-cars', label: 'Listings', icon: Car },
+  { to: '/host/cars', label: 'Listings', icon: Car },
   { to: '/host/bookings', label: 'Bookings', icon: CalendarDays },
   { to: '/host/earnings', label: 'Earnings', icon: BarChart3 },
   { to: '/host/payouts', label: 'Payouts', icon: Wallet },
@@ -26,7 +26,7 @@ export default function HostLayout() {
           })}
         </nav>
         <div className="absolute bottom-4 left-3 right-3">
-          <NavLink to="/host/list-car" className="flex items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 py-3 font-black text-white"><Plus size={18} /> List New Car</NavLink>
+          <NavLink to="/host/cars/new" className="flex items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 py-3 font-black text-white"><Plus size={18} /> List New Car</NavLink>
         </div>
       </aside>
       <section className="lg:pl-60">

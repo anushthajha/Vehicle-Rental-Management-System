@@ -56,7 +56,7 @@ export default function BookingRequestsPage() {
       <section className="mx-auto max-w-6xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div><p className="text-sm font-black uppercase text-zoomcar">Host</p><h1 className="text-3xl font-black text-zinc-950">Bookings</h1></div>
-          <Link to="/host/active-trips" className="rounded-md bg-zinc-950 px-4 py-3 font-black text-white">Active Trips</Link>
+          <Link to="/host/trips/active" className="rounded-md bg-zinc-950 px-4 py-3 font-black text-white">Active Trips</Link>
         </div>
         <div className="mt-5 flex flex-wrap gap-2">{Object.keys(TABS).map((item) => <button key={item} onClick={() => setTab(item)} className={`rounded-md px-4 py-2 font-black capitalize ${tab === item ? 'bg-zoomcar text-white' : 'bg-white text-zinc-700'}`}>{item === 'pending' ? 'Pending Requests' : item}</button>)}</div>
         {loading ? <div className="grid h-64 place-items-center"><Loader2 className="animate-spin text-zoomcar" /></div> : <div className="mt-5 grid gap-4">{bookings.map((booking) => <HostBookingCard key={booking.id} booking={booking} onAccept={accept} onReject={setRejecting} onStart={start} onEnd={setEnding} />)}{!bookings.length && <div className="rounded-lg border border-dashed border-zinc-300 bg-white p-12 text-center font-black text-zinc-500">No bookings in this view.</div>}</div>}

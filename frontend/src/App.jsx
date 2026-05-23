@@ -1,96 +1,66 @@
-import React from 'react'
+import React, { lazy, Suspense } from 'react'
 import { Toaster } from 'react-hot-toast'
-import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom'
-import { AuthProvider, useAuthStore } from './context/AuthContext'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AdminRoute, GuestRoute, HostRoute, PrivateRoute } from './components/RouteGuards'
-import EmailVerificationPage from './pages/auth/EmailVerificationPage'
-import ForgotPasswordPage from './pages/auth/ForgotPasswordPage'
-import LoginPage from './pages/auth/LoginPage'
-import RegisterPage from './pages/auth/RegisterPage'
-import ResetPasswordPage from './pages/auth/ResetPasswordPage'
-import SearchBar from './components/search/SearchBar'
-import CarDetailPage from './pages/CarDetailPage'
-import SearchPage from './pages/SearchPage'
-import WishlistPage from './pages/WishlistPage'
-import BookingConfirmPage from './pages/booking/BookingConfirmPage'
-import BookingDetailsPage from './pages/booking/BookingDetailsPage'
-import BookingSuccessPage from './pages/booking/BookingSuccessPage'
-import MyBookingsPage from './pages/booking/MyBookingsPage'
-import PaymentPage from './pages/booking/PaymentPage'
-import WriteReviewPage from './pages/booking/WriteReviewPage'
-import ActiveTripsPage from './pages/host/ActiveTripsPage'
-import BookingRequestsPage from './pages/host/BookingRequestsPage'
-import EditCarPage from './pages/host/EditCarPage'
-import HostDashboardPage from './pages/host/HostDashboardPage'
-import HostEarningsPage from './pages/host/HostEarningsPage'
-import HostLayout from './pages/host/HostLayout'
-import HostProfilePage from './pages/host/HostProfilePage'
-import ListCarPage from './pages/host/ListCarPage'
-import ManageCarsPage from './pages/host/ManageCarsPage'
-import PayoutsPage from './pages/host/PayoutsPage'
-import DashboardPage from './pages/user/DashboardPage'
-import KYCPage from './pages/user/KYCPage'
-import NotificationsPage from './pages/user/NotificationsPage'
-import ProfilePage from './pages/user/ProfilePage'
-import ReviewsPage from './pages/user/ReviewsPage'
-import SupportPage from './pages/user/SupportPage'
-import WalletPage from './pages/user/WalletPage'
-import AdminAnalyticsPage from './pages/admin/AdminAnalyticsPage'
-import AdminCarsPage from './pages/admin/AdminCarsPage'
-import AdminCouponsPage from './pages/admin/AdminCouponsPage'
-import AdminDashboardPage from './pages/admin/AdminDashboardPage'
-import { AdminBookingsPage, AdminPaymentsPage, AdminPayoutsPage, AdminSettingsPage } from './pages/admin/AdminDataPages'
-import AdminKYCPage from './pages/admin/AdminKYCPage'
-import AdminLayout from './pages/admin/AdminLayout'
-import AdminSupportPage from './pages/admin/AdminSupportPage'
-import AdminUsersPage from './pages/admin/AdminUsersPage'
+import { AuthProvider } from './context/AuthContext'
 
-function HomePage() {
-  const { user, logout } = useAuthStore()
-  return (
-    <main className="min-h-screen bg-zinc-50 px-6 py-10">
-      <section className="mx-auto max-w-6xl">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-black uppercase text-zoomcar">Zoomcar Clone</p>
-            <h1 className="mt-2 text-4xl font-black text-zinc-950">Find your next self-drive car.</h1>
-          </div>
-          <div className="flex gap-3">
-            {user ? (
-              <>
-                <Link className="rounded-md border border-zinc-300 px-4 py-3 font-bold text-zinc-900" to="/wishlist">Wishlist</Link>
-                <Link className="rounded-md bg-zoomcar px-4 py-3 font-bold text-white" to="/host/my-cars">My Cars</Link>
-                <button onClick={logout} className="rounded-md bg-zinc-950 px-4 py-3 font-bold text-white">Log out</button>
-              </>
-            ) : (
-              <>
-                <Link className="rounded-md border border-zinc-300 px-4 py-3 font-bold text-zinc-900" to="/auth/login">Log in</Link>
-                <Link className="rounded-md bg-zoomcar px-4 py-3 font-bold text-white" to="/auth/register">Register</Link>
-              </>
-            )}
-          </div>
-        </div>
-        <SearchBar className="mt-8" />
-        {user && (
-          <div className="mt-8 rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-black text-zinc-950">Signed in as {user.full_name}</h2>
-            <p className="mt-2 text-zinc-600">{user.email}</p>
-          </div>
-        )}
-      </section>
-    </main>
-  )
-}
+const HomePage = lazy(() => import('./pages/HomePage'))
+const SearchPage = lazy(() => import('./pages/SearchPage'))
+const CarDetailPage = lazy(() => import('./pages/CarDetailPage'))
+const CityPage = lazy(() => import('./pages/CityPage'))
+const WishlistPage = lazy(() => import('./pages/WishlistPage'))
+const LoginPage = lazy(() => import('./pages/auth/LoginPage'))
+const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'))
+const EmailVerificationPage = lazy(() => import('./pages/auth/EmailVerificationPage'))
+const ForgotPasswordPage = lazy(() => import('./pages/auth/ForgotPasswordPage'))
+const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'))
+const DashboardPage = lazy(() => import('./pages/user/DashboardPage'))
+const ProfilePage = lazy(() => import('./pages/user/ProfilePage'))
+const KYCPage = lazy(() => import('./pages/user/KYCPage'))
+const MyBookingsPage = lazy(() => import('./pages/booking/MyBookingsPage'))
+const BookingDetailsPage = lazy(() => import('./pages/booking/BookingDetailsPage'))
+const WalletPage = lazy(() => import('./pages/user/WalletPage'))
+const NotificationsPage = lazy(() => import('./pages/user/NotificationsPage'))
+const ReviewsPage = lazy(() => import('./pages/user/ReviewsPage'))
+const SupportPage = lazy(() => import('./pages/user/SupportPage'))
+const HostLayout = lazy(() => import('./pages/host/HostLayout'))
+const HostDashboardPage = lazy(() => import('./pages/host/HostDashboardPage'))
+const ManageCarsPage = lazy(() => import('./pages/host/ManageCarsPage'))
+const ListCarPage = lazy(() => import('./pages/host/ListCarPage'))
+const EditCarPage = lazy(() => import('./pages/host/EditCarPage'))
+const BookingRequestsPage = lazy(() => import('./pages/host/BookingRequestsPage'))
+const ActiveTripsPage = lazy(() => import('./pages/host/ActiveTripsPage'))
+const HostEarningsPage = lazy(() => import('./pages/host/HostEarningsPage'))
+const HostProfilePage = lazy(() => import('./pages/host/HostProfilePage'))
+const PayoutsPage = lazy(() => import('./pages/host/PayoutsPage'))
+const BookingConfirmPage = lazy(() => import('./pages/booking/BookingConfirmPage'))
+const PaymentPage = lazy(() => import('./pages/booking/PaymentPage'))
+const BookingSuccessPage = lazy(() => import('./pages/booking/BookingSuccessPage'))
+const WriteReviewPage = lazy(() => import('./pages/booking/WriteReviewPage'))
+const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'))
+const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'))
+const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage'))
+const AdminCarsPage = lazy(() => import('./pages/admin/AdminCarsPage'))
+const AdminKYCPage = lazy(() => import('./pages/admin/AdminKYCPage'))
+const AdminSupportPage = lazy(() => import('./pages/admin/AdminSupportPage'))
+const AdminCouponsPage = lazy(() => import('./pages/admin/AdminCouponsPage'))
+const AdminAnalyticsPage = lazy(() => import('./pages/admin/AdminAnalyticsPage'))
+const AdminBookingsPage = lazy(() => import('./pages/admin/AdminDataPages').then((module) => ({ default: module.AdminBookingsPage })))
+const AdminPaymentsPage = lazy(() => import('./pages/admin/AdminDataPages').then((module) => ({ default: module.AdminPaymentsPage })))
+const AdminPayoutsPage = lazy(() => import('./pages/admin/AdminDataPages').then((module) => ({ default: module.AdminPayoutsPage })))
+const HowItWorksPage = lazy(() => import('./pages/HowItWorksPage'))
+const SafetyPage = lazy(() => import('./pages/SafetyPage'))
+const InsurancePage = lazy(() => import('./pages/InsurancePage'))
+const BecomeHostPage = lazy(() => import('./pages/BecomeHostPage'))
+const AboutPage = lazy(() => import('./pages/AboutPage'))
+const ContactPage = lazy(() => import('./pages/ContactPage'))
+const TermsPage = lazy(() => import('./pages/LegalPages').then((module) => ({ default: module.TermsPage })))
+const PrivacyPage = lazy(() => import('./pages/LegalPages').then((module) => ({ default: module.PrivacyPage })))
+const RefundPage = lazy(() => import('./pages/LegalPages').then((module) => ({ default: module.RefundPage })))
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 
-function Placeholder({ title }) {
-  return (
-    <main className="grid min-h-screen place-items-center bg-zinc-50 px-4">
-      <div className="rounded-lg border border-zinc-200 bg-white p-8 text-center shadow-sm">
-        <h1 className="text-2xl font-black text-zinc-950">{title}</h1>
-        <Link className="mt-5 inline-flex rounded-md bg-zoomcar px-4 py-3 font-bold text-white" to="/">Back home</Link>
-      </div>
-    </main>
-  )
+function PageLoader() {
+  return <main className="grid min-h-screen place-items-center bg-[#F9FAFB]"><div className="h-11 w-11 animate-spin rounded-full border-4 border-zinc-200 border-t-[#E31837]" /></main>
 }
 
 export default function App() {
@@ -98,65 +68,80 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Toaster position="top-right" />
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/search" element={<SearchPage />} />
-          <Route path="/cars/:carId" element={<CarDetailPage />} />
-          <Route path="/wishlist" element={<WishlistPage />} />
-          <Route element={<GuestRoute />}>
-            <Route path="/auth/login" element={<LoginPage />} />
-            <Route path="/auth/register" element={<RegisterPage />} />
-            <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/search" element={<SearchPage />} />
+            <Route path="/cars/:carId" element={<CarDetailPage />} />
+            <Route path="/cities/:city" element={<CityPage />} />
+            <Route path="/wishlist" element={<WishlistPage />} />
+            <Route element={<GuestRoute />}>
+              <Route path="/auth/login" element={<LoginPage />} />
+              <Route path="/auth/register" element={<RegisterPage />} />
+              <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
+            </Route>
             <Route path="/auth/verify-email" element={<EmailVerificationPage />} />
-          </Route>
-          <Route element={<PrivateRoute />}>
-            <Route path="/account" element={<Placeholder title="Account" />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/dashboard/kyc" element={<KYCPage />} />
-            <Route path="/dashboard/wallet" element={<WalletPage />} />
-            <Route path="/dashboard/notifications" element={<NotificationsPage />} />
-            <Route path="/dashboard/profile" element={<ProfilePage />} />
-            <Route path="/dashboard/reviews" element={<ReviewsPage />} />
-            <Route path="/dashboard/support" element={<SupportPage />} />
-            <Route path="/support" element={<SupportPage />} />
-            <Route path="/booking/confirm/:carId" element={<BookingConfirmPage />} />
-            <Route path="/booking/pay/:bookingId" element={<PaymentPage />} />
-            <Route path="/booking/success" element={<BookingSuccessPage />} />
-            <Route path="/booking/review/:bookingId" element={<WriteReviewPage />} />
-            <Route path="/dashboard/bookings" element={<MyBookingsPage />} />
-            <Route path="/dashboard/bookings/:bookingId" element={<BookingDetailsPage />} />
-          </Route>
-          <Route element={<HostRoute />}>
-            <Route path="/host" element={<HostLayout />}>
-              <Route path="dashboard" element={<HostDashboardPage />} />
-              <Route path="bookings" element={<BookingRequestsPage />} />
-              <Route path="active-trips" element={<ActiveTripsPage />} />
-              <Route path="list-car" element={<ListCarPage />} />
-              <Route path="my-cars" element={<ManageCarsPage />} />
-              <Route path="earnings" element={<HostEarningsPage />} />
-              <Route path="payouts" element={<PayoutsPage />} />
-              <Route path="profile" element={<HostProfilePage />} />
-              <Route path="cars/:carId/edit" element={<EditCarPage />} />
+            <Route element={<PrivateRoute />}>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/dashboard/profile" element={<ProfilePage />} />
+              <Route path="/dashboard/kyc" element={<KYCPage />} />
+              <Route path="/dashboard/bookings" element={<MyBookingsPage />} />
+              <Route path="/dashboard/bookings/:bookingId" element={<BookingDetailsPage />} />
+              <Route path="/dashboard/wallet" element={<WalletPage />} />
+              <Route path="/dashboard/notifications" element={<NotificationsPage />} />
+              <Route path="/dashboard/reviews" element={<ReviewsPage />} />
+              <Route path="/dashboard/wishlist" element={<WishlistPage />} />
+              <Route path="/dashboard/support" element={<SupportPage />} />
+              <Route path="/support" element={<SupportPage />} />
+              <Route path="/booking/confirm/:carId" element={<BookingConfirmPage />} />
+              <Route path="/booking/pay/:bookingId" element={<PaymentPage />} />
+              <Route path="/booking/success" element={<BookingSuccessPage />} />
+              <Route path="/booking/review/:bookingId" element={<WriteReviewPage />} />
             </Route>
-          </Route>
-          <Route element={<AdminRoute />}>
-            <Route path="/admin" element={<AdminLayout />}>
-              <Route index element={<AdminDashboardPage />} />
-              <Route path="users" element={<AdminUsersPage />} />
-              <Route path="cars" element={<AdminCarsPage />} />
-              <Route path="bookings" element={<AdminBookingsPage />} />
-              <Route path="kyc" element={<AdminKYCPage />} />
-              <Route path="payments" element={<AdminPaymentsPage />} />
-              <Route path="coupons" element={<AdminCouponsPage />} />
-              <Route path="support" element={<AdminSupportPage />} />
-              <Route path="analytics" element={<AdminAnalyticsPage />} />
-              <Route path="payouts" element={<AdminPayoutsPage />} />
-              <Route path="settings" element={<AdminSettingsPage />} />
+            <Route element={<HostRoute />}>
+              <Route path="/host" element={<HostLayout />}>
+                <Route index element={<Navigate to="/host/dashboard" replace />} />
+                <Route path="dashboard" element={<HostDashboardPage />} />
+                <Route path="cars" element={<ManageCarsPage />} />
+                <Route path="cars/new" element={<ListCarPage />} />
+                <Route path="cars/:carId/edit" element={<EditCarPage />} />
+                <Route path="bookings" element={<BookingRequestsPage />} />
+                <Route path="trips/active" element={<ActiveTripsPage />} />
+                <Route path="earnings" element={<HostEarningsPage />} />
+                <Route path="profile" element={<HostProfilePage />} />
+                <Route path="payouts" element={<PayoutsPage />} />
+                <Route path="my-cars" element={<Navigate to="/host/cars" replace />} />
+                <Route path="list-car" element={<Navigate to="/host/cars/new" replace />} />
+                <Route path="active-trips" element={<Navigate to="/host/trips/active" replace />} />
+              </Route>
             </Route>
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+            <Route element={<AdminRoute />}>
+              <Route path="/admin" element={<AdminLayout />}>
+                <Route index element={<AdminDashboardPage />} />
+                <Route path="users" element={<AdminUsersPage />} />
+                <Route path="cars" element={<AdminCarsPage />} />
+                <Route path="kyc" element={<AdminKYCPage />} />
+                <Route path="bookings" element={<AdminBookingsPage />} />
+                <Route path="payments" element={<AdminPaymentsPage />} />
+                <Route path="support" element={<AdminSupportPage />} />
+                <Route path="coupons" element={<AdminCouponsPage />} />
+                <Route path="analytics" element={<AdminAnalyticsPage />} />
+                <Route path="payouts" element={<AdminPayoutsPage />} />
+              </Route>
+            </Route>
+            <Route path="/how-it-works" element={<HowItWorksPage />} />
+            <Route path="/safety" element={<SafetyPage />} />
+            <Route path="/insurance" element={<InsurancePage />} />
+            <Route path="/become-a-host" element={<BecomeHostPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/refund-policy" element={<RefundPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </Suspense>
       </AuthProvider>
     </BrowserRouter>
   )

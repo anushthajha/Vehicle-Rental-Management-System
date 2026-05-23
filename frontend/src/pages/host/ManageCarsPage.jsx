@@ -12,7 +12,7 @@ export default function ManageCarsPage() {
   async function loadCars() {
     setLoading(true)
     try {
-      const response = await api.get('/cars/host/my-cars')
+      const response = await api.get('/cars/host/cars')
       setCars(response.data.cars || [])
     } catch (err) {
       setError(err.response?.data?.detail || 'Unable to load cars.')
@@ -57,7 +57,7 @@ export default function ManageCarsPage() {
             <p className="text-sm font-black uppercase text-zoomcar">Host garage</p>
             <h1 className="text-3xl font-black text-zinc-950">My Cars</h1>
           </div>
-          <Link to="/host/list-car" className="rounded-md bg-zoomcar px-5 py-3 font-bold text-white">List a car</Link>
+          <Link to="/host/cars/new" className="rounded-md bg-zoomcar px-5 py-3 font-bold text-white">List a car</Link>
         </div>
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard icon={Car} label="Total Cars" value={stats.total} />

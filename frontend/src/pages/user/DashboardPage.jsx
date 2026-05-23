@@ -73,7 +73,7 @@ export default function DashboardPage() {
             <h2 className="text-xl font-black">Quick Actions</h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <QuickAction icon="🚗" label="Book a Car" to="/search" />
-              <QuickAction icon="🏠" label="List Your Car" to="/host/list-car" />
+              <QuickAction icon="🏠" label="List Your Car" to="/host/cars/new" />
               <QuickAction icon="📋" label="Complete KYC" to="/dashboard/kyc" />
               <QuickAction icon="🎫" label="Refer a Friend" to="/dashboard" />
             </div>

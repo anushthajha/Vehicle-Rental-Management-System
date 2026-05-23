@@ -418,7 +418,7 @@ function SubmittedState() {
         <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-emerald-100 text-emerald-700"><Check size={34} /></div>
         <h2 className="mt-5 text-3xl font-black text-zinc-950">Listing Submitted for Review</h2>
         <p className="mt-3 text-zinc-600">We'll review your listing within 24 hours and notify you.</p>
-        <a href="/host/my-cars" className="mt-6 inline-flex rounded-md bg-zoomcar px-5 py-3 font-bold text-white">Go to My Cars</a>
+        <a href="/host/cars" className="mt-6 inline-flex rounded-md bg-zoomcar px-5 py-3 font-bold text-white">Go to My Cars</a>
       </div>
     </div>
   )
