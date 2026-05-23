@@ -16,6 +16,7 @@ export default function SearchBar({ className = '', compact = false }) {
   const now = useMemo(() => new Date(), [])
   const defaultPickup = addHours(now, 24)
   const [city, setCity] = useState(params.get('city') || 'Bengaluru')
+  const [cityDraft, setCityDraft] = useState(params.get('city') || 'Bengaluru')
   const [pickup, setPickup] = useState(parseDate(params.get('start_date'), defaultPickup))
   const [returnAt, setReturnAt] = useState(parseDate(params.get('end_date'), addHours(defaultPickup, 28)))
 
@@ -23,10 +24,18 @@ export default function SearchBar({ className = '', compact = false }) {
     const nextCity = params.get('city')
     const nextStart = params.get('start_date')
     const nextEnd = params.get('end_date')
-    if (nextCity) setCity(nextCity)
+    if (nextCity) {
+      setCity(nextCity)
+      setCityDraft(nextCity)
+    }
     if (nextStart) setPickup(parseDate(nextStart, defaultPickup))
     if (nextEnd) setReturnAt(parseDate(nextEnd, addHours(defaultPickup, 28)))
   }, [defaultPickup, params])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setCity(cityDraft), 300)
+    return () => window.clearTimeout(timer)
+  }, [cityDraft])
 
   function onPickupChange(date) {
     setPickup(date)
@@ -51,8 +60,8 @@ export default function SearchBar({ className = '', compact = false }) {
           <input
             className="input mt-2 h-12"
             list="zoomcar-cities"
-            value={city}
-            onChange={(event) => setCity(event.target.value)}
+            value={cityDraft}
+            onChange={(event) => setCityDraft(event.target.value)}
             placeholder="Select city"
           />
           <datalist id="zoomcar-cities">
@@ -63,7 +72,10 @@ export default function SearchBar({ className = '', compact = false }) {
               <button
                 key={item}
                 type="button"
-                onClick={() => setCity(item)}
+                onClick={() => {
+                  setCityDraft(item)
+                  setCity(item)
+                }}
                 className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold ${city === item ? 'border-zoomcar bg-red-50 text-zoomcar' : 'border-zinc-200 bg-zinc-50 text-zinc-600'}`}
               >
                 {item}

@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Grid3X3, List, Loader2, Map as MapIcon, SlidersHorizontal, X } from 'lucide-react'
-import { useLocation, useSearchParams } from 'react-router-dom'
+import { AlertTriangle, Grid3X3, List, Loader2, Map as MapIcon, SlidersHorizontal, X } from 'lucide-react'
+import { Helmet } from 'react-helmet-async'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { DivIcon } from 'leaflet'
 import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet'
 import api from '../services/api'
@@ -124,7 +125,11 @@ export default function SearchPage() {
   const resultDates = dateRangeLabel(params.get('start_date'), params.get('end_date'))
 
   return (
-    <main className="min-h-screen bg-zinc-50">
+    <main id="main-content" className="min-h-screen bg-zinc-50 dark:bg-gray-900">
+      <Helmet>
+        <title>{`Search Cars — ${city} | Zoomcar Clone`}</title>
+        <meta name="description" content={`Find self-drive rental cars in ${city} with verified hosts, live filters, and flexible booking.`} />
+      </Helmet>
       <div className="sticky top-0 z-30 border-b border-zinc-200 bg-zinc-50/95 p-3 backdrop-blur">
         <div className="mx-auto max-w-[1500px]">
           <SearchBar compact />
@@ -158,10 +163,10 @@ export default function SearchPage() {
             </div>
           </div>
 
-          {error && <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div>}
-
           {loading ? (
             <SkeletonGrid />
+          ) : error ? (
+            <ErrorState message={error} onRetry={() => loadCars(1, false)} />
           ) : cars.length === 0 ? (
             <EmptyState onClear={clearFilters} />
           ) : viewMode === 'map' ? (
@@ -189,7 +194,7 @@ export default function SearchPage() {
         </Dialog.Trigger>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
-          <Dialog.Content className="fixed inset-x-0 bottom-0 z-50 max-h-[88vh] overflow-hidden rounded-t-2xl bg-white shadow-2xl">
+          <Dialog.Content className="fixed inset-x-0 bottom-0 z-50 max-h-[90vh] overflow-hidden rounded-t-2xl bg-white shadow-2xl dark:bg-gray-900">
             <Dialog.Title className="sr-only">Filters</Dialog.Title>
             <button onClick={() => setFilterOpen(false)} className="absolute right-3 top-3 z-20 grid h-9 w-9 place-items-center rounded-full bg-zinc-100"><X size={18} /></button>
             <FilterSidebar filters={filters} setFilters={setFilters} cars={cars} histogram={histogram} onClear={clearFilters} activeCount={activeCount} showSort onApply={() => setFilterOpen(false)} />
@@ -282,9 +287,23 @@ function EmptyState({ onClear }) {
   return (
     <div className="grid min-h-[420px] place-items-center rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center">
       <div>
-        <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-red-50 text-4xl">🚗</div>
+        <svg className="mx-auto h-24 w-24 text-zoomcar" viewBox="0 0 120 120" fill="none" aria-hidden="true"><rect x="18" y="54" width="84" height="26" rx="10" fill="currentColor" opacity=".12"/><path d="M32 58l10-17h36l12 17" stroke="currentColor" strokeWidth="6" strokeLinecap="round"/><circle cx="42" cy="82" r="8" fill="currentColor"/><circle cx="82" cy="82" r="8" fill="currentColor"/></svg>
         <h2 className="mt-5 text-2xl font-black text-zinc-950">No cars found. Try adjusting your filters.</h2>
         <button onClick={onClear} className="mt-5 rounded-md bg-zoomcar px-5 py-3 font-black text-white">Clear All Filters</button>
+        <Link to="/" className="ml-3 mt-5 inline-flex rounded-md border border-zinc-300 px-5 py-3 font-black text-zinc-800">Start over</Link>
+      </div>
+    </div>
+  )
+}
+
+function ErrorState({ message, onRetry }) {
+  return (
+    <div className="grid min-h-[420px] place-items-center rounded-lg border border-red-200 bg-white p-8 text-center">
+      <div>
+        <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-red-50 text-zoomcar"><AlertTriangle size={36} /></div>
+        <h2 className="mt-5 text-2xl font-black text-zinc-950">We could not load cars right now</h2>
+        <p className="mt-2 max-w-md font-semibold text-zinc-600">{message || 'Please check your connection and try again.'}</p>
+        <button onClick={onRetry} className="mt-5 rounded-md bg-zoomcar px-5 py-3 font-black text-white">Retry</button>
       </div>
     </div>
   )

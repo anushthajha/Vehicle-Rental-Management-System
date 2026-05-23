@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { memo, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Armchair, Fuel, Heart, MapPin, Music, Snowflake, Star, Zap } from 'lucide-react'
 import api from '../../services/api'
@@ -17,7 +17,7 @@ function titleCase(value) {
   return String(value || '').replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
-export default function CarCard({ car, viewMode = 'grid', onRemoved }) {
+function CarCard({ car, viewMode = 'grid', onRemoved }) {
   const { user } = useAuthStore()
   const [saved, setSaved] = useState(Boolean(car.is_saved || isLocallySaved(car.id)))
   const image = car.primary_image_url || car.images?.[0]?.image_url || FALLBACK_IMAGE
@@ -52,7 +52,7 @@ export default function CarCard({ car, viewMode = 'grid', onRemoved }) {
       <article className="group overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
         <Link to={`/cars/${car.id}`} className="grid gap-4 p-3 sm:grid-cols-[200px_1fr_auto]">
           <div className="relative h-48 overflow-hidden rounded-md bg-zinc-100 sm:h-full">
-            <img src={image} alt={car.title} loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+            <img src={image} alt={`${car.title} rental car in ${car.location_city}`} loading="lazy" decoding="async" width="400" height="260" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
             <CategoryBadge category={car.category} />
           </div>
           <div className="min-w-0">
@@ -90,7 +90,7 @@ export default function CarCard({ car, viewMode = 'grid', onRemoved }) {
       <Link to={`/cars/${car.id}`} className="block">
         <div className="relative aspect-video overflow-hidden bg-zinc-100">
           <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-zinc-100 via-zinc-200 to-zinc-100" />
-          <img src={image} alt={car.title} loading="lazy" className="relative h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+          <img src={image} alt={`${car.title} rental car in ${car.location_city}`} loading="lazy" decoding="async" width="480" height="270" className="relative h-full w-full object-cover transition duration-500 group-hover:scale-105" />
           <CategoryBadge category={car.category} />
           <button onClick={toggleWishlist} className={`absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full bg-white/95 shadow ${saved ? 'text-zoomcar' : 'text-zinc-600'}`} aria-label="Toggle wishlist">
             <Heart size={19} fill={saved ? 'currentColor' : 'none'} />
@@ -117,6 +117,12 @@ export default function CarCard({ car, viewMode = 'grid', onRemoved }) {
     </article>
   )
 }
+
+export default memo(CarCard, (prev, next) => (
+  prev.car.id === next.car.id
+  && prev.viewMode === next.viewMode
+  && Boolean(prev.car.is_saved) === Boolean(next.car.is_saved)
+))
 
 function CategoryBadge({ category }) {
   return (

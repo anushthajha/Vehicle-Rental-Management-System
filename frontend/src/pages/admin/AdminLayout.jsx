@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import * as Dialog from '@radix-ui/react-dialog'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   BadgeIndianRupee,
@@ -36,6 +37,7 @@ const navItems = [
 export default function AdminLayout() {
   const { user, logout } = useAuthStore()
   const [collapsed, setCollapsed] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
   const [pending, setPending] = useState({})
   const location = useLocation()
 
@@ -47,7 +49,7 @@ export default function AdminLayout() {
 
   return (
     <main className="min-h-screen bg-white text-zinc-950">
-      <aside className={`fixed inset-y-0 left-0 z-40 flex flex-col bg-[#1F2937] text-white transition-all ${collapsed ? 'w-16' : 'w-60'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-40 hidden flex-col bg-[#1F2937] text-white transition-all lg:flex ${collapsed ? 'w-16' : 'w-60'}`}>
         <div className="flex h-16 items-center justify-between border-b border-white/10 px-4">
           {!collapsed && <div className="text-lg font-black tracking-wide">Zoom Admin</div>}
           <button title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => setCollapsed((value) => !value)} className="grid h-9 w-9 place-items-center rounded-md text-white hover:bg-white/10">
@@ -76,11 +78,14 @@ export default function AdminLayout() {
           })}
         </nav>
       </aside>
-      <section className={`min-h-screen transition-all ${collapsed ? 'pl-16' : 'pl-60'}`}>
+      <section className={`min-h-screen transition-all ${collapsed ? 'lg:pl-16' : 'lg:pl-60'}`}>
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-zinc-200 bg-white px-6">
-          <div>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setMobileOpen(true)} className="grid h-11 w-11 place-items-center rounded-md border border-zinc-200 text-zinc-700 lg:hidden" aria-label="Open admin menu"><Menu size={20} /></button>
+            <div>
             <p className="text-xs font-black uppercase tracking-wide text-[#E31837]">Admin Console</p>
             <h1 className="text-lg font-black text-zinc-950">Operations Dashboard</h1>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="grid h-10 w-10 place-items-center rounded-full bg-zinc-900 text-sm font-black text-white">{initials(user?.full_name)}</div>
@@ -97,6 +102,28 @@ export default function AdminLayout() {
           <Outlet />
         </div>
       </section>
+      <Dialog.Root open={mobileOpen} onOpenChange={setMobileOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/45 lg:hidden" />
+          <Dialog.Content className="fixed inset-y-0 left-0 z-50 w-[min(88vw,18rem)] bg-[#1F2937] p-3 text-white lg:hidden">
+            <Dialog.Title className="sr-only">Admin navigation</Dialog.Title>
+            <div className="px-3 py-4 text-lg font-black">Zoom Admin</div>
+            <nav className="space-y-1">
+              {navItems.map((item) => {
+                const Icon = item.icon
+                const count = pending[item.badgeKey] || 0
+                return (
+                  <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setMobileOpen(false)} className={({ isActive }) => `flex h-11 items-center gap-3 rounded-md px-3 text-sm font-bold ${isActive ? 'bg-[#E31837]' : 'text-zinc-200 hover:bg-white/10'}`}>
+                    <Icon size={20} />
+                    <span className="flex-1">{item.label}</span>
+                    {count > 0 && <span className="rounded-full bg-white px-2 py-0.5 text-xs font-black text-[#E31837]">{count}</span>}
+                  </NavLink>
+                )
+              })}
+            </nav>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </main>
   )
 }

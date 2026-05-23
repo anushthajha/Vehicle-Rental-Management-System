@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Bell, CalendarDays, Car, CheckCircle2, Heart, Home, Loader2, ShieldAlert, ShieldCheck, Wallet } from 'lucide-react'
+import { Helmet } from 'react-helmet-async'
 import { Link } from 'react-router-dom'
 import { formatDistanceToNow, isFuture, parseISO } from 'date-fns'
 import api from '../../services/api'
@@ -34,6 +35,7 @@ export default function DashboardPage() {
 
   return (
     <DashboardShell title={`Good morning, ${firstName}! 👋`} eyebrow="Dashboard">
+      <Helmet><title>Dashboard | Zoomcar Clone</title><meta name="robots" content="noindex" /></Helmet>
       {loading ? (
         <div className="grid h-80 place-items-center"><Loader2 className="animate-spin text-zoomcar" size={32} /></div>
       ) : (
@@ -120,7 +122,7 @@ function TripCard({ booking }) {
   const countdown = pickup && isFuture(pickup) ? `Trip in ${formatDistanceToNow(pickup)}` : 'Trip starts soon'
   return (
     <Link to={`/dashboard/bookings/${booking.id}`} className="grid gap-3 rounded-lg border border-zinc-200 p-3 transition hover:border-zoomcar sm:grid-cols-[92px_1fr]">
-      <img src={booking.car?.primary_image_url || 'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=400&q=80'} alt="" className="h-20 w-full rounded-md object-cover sm:w-24" />
+      <img src={booking.car?.primary_image_url || 'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=400&q=80'} alt={`${booking.car?.title || 'Booked car'} thumbnail`} loading="lazy" decoding="async" width="96" height="80" className="h-20 w-full rounded-md object-cover sm:w-24" />
       <div>
         <h3 className="font-black">{booking.car?.title || 'Car booking'}</h3>
         <p className="mt-1 text-sm font-bold text-zinc-500">{pickup ? pickup.toLocaleDateString() : 'Date pending'}</p>

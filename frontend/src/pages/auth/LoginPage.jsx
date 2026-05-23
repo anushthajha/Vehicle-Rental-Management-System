@@ -1,9 +1,12 @@
 import React, { useState } from 'react'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Helmet } from 'react-helmet-async'
+import toast from 'react-hot-toast'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import AuthLayout from './AuthLayout'
 import api from '../../services/api'
 import { useAuthStore } from '../../context/AuthContext'
+import { collectZodErrors, loginSchema } from '../../utils/validationSchemas'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -14,6 +17,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [needsVerification, setNeedsVerification] = useState(false)
   const [resendMessage, setResendMessage] = useState('')
 
@@ -21,13 +25,20 @@ export default function LoginPage() {
 
   async function submit(event) {
     event.preventDefault()
+    const parsed = loginSchema.safeParse(form)
+    if (!parsed.success) {
+      setFieldErrors(collectZodErrors(parsed.error))
+      return
+    }
     setIsLoading(true)
     setError('')
+    setFieldErrors({})
     setNeedsVerification(false)
     try {
       const response = await api.post('/auth/login', form)
       setTokens({ accessToken: response.data.access_token, refreshToken: response.data.refresh_token })
       setUser(response.data.user)
+      toast.success('Logged in successfully')
       const next = location.state?.from?.pathname || searchParams.get('next') || '/'
       navigate(next, { replace: true })
     } catch (err) {
@@ -38,6 +49,7 @@ export default function LoginPage() {
       } else {
         setError(typeof detail === 'string' ? detail : 'Unable to log in. Please try again.')
       }
+      toast.error('Login failed')
     } finally {
       setIsLoading(false)
     }
@@ -47,10 +59,12 @@ export default function LoginPage() {
     setResendMessage('')
     await api.post('/auth/resend-verification', { email: form.email })
     setResendMessage('A new verification link has been sent if this email is unverified.')
+    toast.success('Verification email sent')
   }
 
   return (
     <AuthLayout>
+      <Helmet><title>Login | Zoomcar Clone</title><meta name="robots" content="noindex" /></Helmet>
       <form onSubmit={submit} className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-8 shadow-sm">
         <h2 className="text-3xl font-black text-zinc-950">Log in</h2>
         <p className="mt-2 text-sm text-zinc-500">Manage bookings, wallet, and trips from one secure account.</p>
@@ -69,7 +83,8 @@ export default function LoginPage() {
 
         <label className="mt-6 block text-sm font-bold text-zinc-800">
           Email
-          <input name="email" type="email" value={form.email} onChange={update} required className="mt-2 w-full rounded-md border-zinc-300" />
+          <input name="email" type="email" value={form.email} onChange={update} required className={`mt-2 w-full rounded-md border-zinc-300 ${fieldErrors.email ? 'border-red-500' : ''}`} />
+          {fieldErrors.email && <span className="mt-1 block text-xs font-bold text-red-600">{fieldErrors.email}</span>}
         </label>
 
         <label className="mt-4 block text-sm font-bold text-zinc-800">
@@ -81,12 +96,13 @@ export default function LoginPage() {
               value={form.password}
               onChange={update}
               required
-              className="w-full rounded-md border-zinc-300 pr-12"
+              className={`w-full rounded-md border-zinc-300 pr-12 ${fieldErrors.password ? 'border-red-500' : ''}`}
             />
             <button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500" aria-label="Toggle password visibility">
               {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
           </div>
+          {fieldErrors.password && <span className="mt-1 block text-xs font-bold text-red-600">{fieldErrors.password}</span>}
         </label>
 
         <div className="mt-3 text-right">

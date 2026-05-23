@@ -304,3 +304,20 @@ Verification:
 - Fresh isolated Docker verification with project `seedverify` ran Alembic migrations and `python -m app.seed` successfully.
 - Fresh seed counts: 16 users, 25 cars, 125 car images, 3 pricing rules, 18 bookings, 2 booking extensions, 18 payments, 33 wallet transactions, 5 coupons, 3 support tickets, 6 reviews, 54 notifications, 5 support messages, 20 search logs, and 50 car view events.
 - Re-running the seed reports `Demo data already exists; skipping seed.`
+
+## Phase 15 - Final Polish, Responsiveness, and Production Readiness
+
+Completed a broad frontend and DevOps polish pass focused on shared foundations and the highest-traffic user flows.
+
+Implemented:
+- Added React Query defaults, Helmet provider, bottom-right toast configuration, skip-to-content link, global touch target sizing, iOS-safe form input sizing, and Tailwind class-based dark mode.
+- Added dark mode support controls to the public navbar with persisted `zoomcar-theme` preference, plus a Radix mobile drawer containing nav links, auth actions, wallet, and notification count.
+- Added `frontend/src/utils/validationSchemas.js` with Zod schemas for auth, car listing steps, booking, review, KYC, bank details, and support tickets.
+- Wired validation and toast feedback into login/register, and added SEO/noindex Helmet tags for public and dashboard entry pages.
+- Improved Search page mobile filter bottom sheet, retryable error state, contextual empty state illustration, SEO metadata, and map debounce behavior.
+- Improved Car detail page with mobile booking sheet, retryable error handling, SEO/OG tags, coupon debounce/toasts, copy toast, and optimized/accessible image tags.
+- Memoized `CarCard`, `FilterSidebar`, and shared `ReviewCard`, and added lazy/async image attributes with stable dimensions for major car/review imagery.
+- Added mobile admin navigation drawer and root `README.md` with quick start, credentials, architecture, URLs, checklist, and phase summary.
+
+Verification:
+- `npm run build` passes.

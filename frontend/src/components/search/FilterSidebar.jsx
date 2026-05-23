@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { memo } from 'react'
 import * as Slider from '@radix-ui/react-slider'
 import { Check, SlidersHorizontal, X } from 'lucide-react'
 import { CATEGORIES, FEATURE_OPTIONS, FUEL_TYPES, formatMoney, SEAT_OPTIONS, SORT_OPTIONS } from '../../utils/searchData'
@@ -15,7 +15,7 @@ function countBy(cars, key) {
   }, {})
 }
 
-export default function FilterSidebar({ filters, setFilters, cars = [], histogram = [], onClear, showSort = false, onApply, activeCount = 0 }) {
+function FilterSidebar({ filters, setFilters, cars = [], histogram = [], onClear, showSort = false, onApply, activeCount = 0 }) {
   const categoryCounts = countBy(cars, 'category')
   const fuelCounts = countBy(cars, 'fuel_type')
 
@@ -148,6 +148,14 @@ export default function FilterSidebar({ filters, setFilters, cars = [], histogra
     </aside>
   )
 }
+
+export default memo(FilterSidebar, (prev, next) => (
+  prev.filters === next.filters
+  && prev.cars === next.cars
+  && prev.histogram === next.histogram
+  && prev.activeCount === next.activeCount
+  && prev.showSort === next.showSort
+))
 
 function FilterSection({ title, children }) {
   return (

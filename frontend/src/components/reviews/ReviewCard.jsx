@@ -1,7 +1,7 @@
-import React, { useState } from 'react'
+import React, { memo, useState } from 'react'
 import { Star } from 'lucide-react'
 
-export default function ReviewCard({ review }) {
+function ReviewCard({ review }) {
   const [expanded, setExpanded] = useState(false)
   const body = review.body || ''
   const shouldCollapse = body.length > 200
@@ -12,7 +12,7 @@ export default function ReviewCard({ review }) {
     <article className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
       <div className="flex items-start gap-3">
         {review.reviewer_photo ? (
-          <img src={review.reviewer_photo} alt="" className="h-10 w-10 rounded-full object-cover" />
+          <img src={review.reviewer_photo} alt={`${name} profile photo`} loading="lazy" decoding="async" width="40" height="40" className="h-10 w-10 rounded-full object-cover" />
         ) : (
           <div className="grid h-10 w-10 place-items-center rounded-full bg-zinc-100 font-black text-zinc-600">{initials(name)}</div>
         )}
@@ -42,6 +42,8 @@ export default function ReviewCard({ review }) {
     </article>
   )
 }
+
+export default memo(ReviewCard)
 
 function initials(name) {
   return name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()

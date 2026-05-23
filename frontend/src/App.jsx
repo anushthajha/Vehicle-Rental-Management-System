@@ -1,4 +1,4 @@
-import React, { lazy, Suspense } from 'react'
+import React, { lazy, Suspense, useEffect } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AdminRoute, GuestRoute, HostRoute, PrivateRoute } from './components/RouteGuards'
@@ -60,14 +60,27 @@ const RefundPage = lazy(() => import('./pages/LegalPages').then((module) => ({ d
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 
 function PageLoader() {
-  return <main className="grid min-h-screen place-items-center bg-[#F9FAFB]"><div className="h-11 w-11 animate-spin rounded-full border-4 border-zinc-200 border-t-[#E31837]" /></main>
+  return <main className="grid min-h-screen place-items-center bg-[#F9FAFB] dark:bg-gray-900"><div className="h-11 w-11 animate-spin rounded-full border-4 border-zinc-200 border-t-[#E31837]" /></main>
 }
 
 export default function App() {
+  useEffect(() => {
+    const stored = localStorage.getItem('zoomcar-theme')
+    const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches
+    document.documentElement.classList.toggle('dark', stored ? stored === 'dark' : prefersDark)
+  }, [])
+
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Toaster position="top-right" />
+        <a href="#main-content" className="skip-link">Skip to main content</a>
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            success: { duration: 3000, style: { background: '#10B981', color: '#fff' } },
+            error: { duration: 5000, style: { background: '#EF4444', color: '#fff' } },
+          }}
+        />
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/" element={<HomePage />} />

@@ -4,7 +4,9 @@ import DatePicker from 'react-datepicker'
 import ImageGallery from 'react-image-gallery'
 import { DivIcon } from 'leaflet'
 import { MapContainer, Marker, Circle, TileLayer } from 'react-leaflet'
-import { Check, Copy, Heart, Loader2, MapPin, ShieldCheck, Star, X } from 'lucide-react'
+import { AlertTriangle, Check, Copy, Heart, Loader2, MapPin, ShieldCheck, Star, X } from 'lucide-react'
+import { Helmet } from 'react-helmet-async'
+import toast from 'react-hot-toast'
 import { Link, useParams } from 'react-router-dom'
 import api from '../services/api'
 import CarCard from '../components/car/CarCard'
@@ -24,6 +26,7 @@ export default function CarDetailPage() {
   const { user } = useAuthStore()
   const [car, setCar] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [sticky, setSticky] = useState(false)
   const [activeImage, setActiveImage] = useState(0)
   const [lightboxOpen, setLightboxOpen] = useState(false)
@@ -36,9 +39,15 @@ export default function CarDetailPage() {
   useEffect(() => {
     async function loadDetail() {
       setLoading(true)
-      const response = await api.get(`/cars/${carId}`)
-      setCar(response.data)
-      setLoading(false)
+      setError('')
+      try {
+        const response = await api.get(`/cars/${carId}`)
+        setCar(response.data)
+      } catch {
+        setError('The car details could not be loaded. Please try again.')
+      } finally {
+        setLoading(false)
+      }
     }
     loadDetail()
   }, [carId])
@@ -64,10 +73,12 @@ export default function CarDetailPage() {
   if (loading) {
     return <main className="grid min-h-screen place-items-center bg-zinc-50"><Loader2 className="animate-spin text-zoomcar" /></main>
   }
+  if (error) return <DetailError message={error} onRetry={() => window.location.reload()} />
   if (!car) return null
 
   const images = car.images?.length ? car.images : [{ image_url: car.primary_image_url || FALLBACK_IMAGE, thumb_url: car.primary_image_url || FALLBACK_IMAGE }]
   const galleryItems = images.map((image) => ({ original: image.image_url, thumbnail: image.thumb_url || image.image_url }))
+  const primaryImage = images[0]?.image_url || FALLBACK_IMAGE
 
   async function loadMoreReviews() {
     const nextPage = reviewPage + 1
@@ -77,7 +88,13 @@ export default function CarDetailPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-50 pb-28 lg:pb-0">
+    <main id="main-content" className="min-h-screen bg-zinc-50 pb-28 dark:bg-gray-900 lg:pb-0">
+      <Helmet>
+        <title>{`${car.title} ${car.year || ''} — ₹${formatMoney(car.price_per_day)}/day | Zoomcar Clone`}</title>
+        <meta name="description" content={`Book ${car.title} in ${car.location_city} from ₹${formatMoney(car.price_per_day)} per day.`} />
+        <meta property="og:image" content={primaryImage} />
+        <meta property="og:title" content={`${car.title} — ₹${formatMoney(car.price_per_day)}/day`} />
+      </Helmet>
       {sticky && (
         <div className="fixed inset-x-0 top-0 z-40 border-b border-zinc-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur">
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
@@ -150,13 +167,13 @@ function HeroGallery({ images, activeImage, setActiveImage, onOpen }) {
   return (
     <section className="bg-zinc-950">
       <button onClick={onOpen} className="relative block h-[60vh] w-full overflow-hidden text-left">
-        <img src={images[activeImage]?.image_url || FALLBACK_IMAGE} alt="" className="h-full w-full object-cover" />
+        <img src={images[activeImage]?.image_url || FALLBACK_IMAGE} alt="Selected car gallery view" loading="eager" decoding="async" width="1600" height="900" className="h-full w-full object-cover" />
         <span className="absolute bottom-4 right-4 rounded-full bg-black/70 px-4 py-2 text-sm font-black text-white">{images.length} photos</span>
       </button>
       <div className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 py-3">
         {images.map((image, index) => (
           <button key={image.id || index} onClick={() => setActiveImage(index)} className={`h-20 w-32 shrink-0 overflow-hidden rounded-md border-2 ${index === activeImage ? 'border-zoomcar' : 'border-transparent'}`}>
-            <img src={image.thumb_url || image.image_url} alt="" className="h-full w-full object-cover" />
+            <img src={image.thumb_url || image.image_url} alt={`Car gallery thumbnail ${index + 1}`} loading="lazy" decoding="async" width="160" height="100" className="h-full w-full object-cover" />
           </button>
         ))}
       </div>
@@ -180,6 +197,7 @@ function CarHeader({ car }) {
 
   async function share() {
     await navigator.clipboard?.writeText(window.location.href)
+    toast.success('Link copied to clipboard')
   }
 
   return (
@@ -222,9 +240,18 @@ function BookingWidget({ car, user, borderless = false }) {
     return { billableDays, base, insuranceAmount, discount, platformFee, total: base + insuranceAmount + platformFee - discount }
   }, [car.price_per_day, couponState, insurance, pickup, returnAt])
 
-  function applyCoupon() {
-    setCouponState(coupon.trim().toUpperCase() === 'ZOOM100' ? 'valid' : 'invalid')
-  }
+  useEffect(() => {
+    if (!coupon.trim()) {
+      setCouponState(null)
+      return undefined
+    }
+    const timer = window.setTimeout(() => {
+      const valid = coupon.trim().toUpperCase() === 'FLAT100'
+      setCouponState(valid ? 'valid' : 'invalid')
+      toast[valid ? 'success' : 'error'](valid ? 'FLAT100 applied! Saving ₹100' : 'Invalid or expired coupon')
+    }, 800)
+    return () => window.clearTimeout(timer)
+  }, [coupon])
 
   function onPickup(date) {
     setPickup(date)
@@ -256,7 +283,7 @@ function BookingWidget({ car, user, borderless = false }) {
 
       <div className="mt-5 flex gap-2">
         <input className="input h-11" value={coupon} onChange={(event) => setCoupon(event.target.value)} placeholder="Coupon code" />
-        <button onClick={applyCoupon} className="rounded-md bg-zinc-950 px-4 font-black text-white">Apply</button>
+        <button onClick={() => setCoupon(coupon.trim().toUpperCase())} className="rounded-md bg-zinc-950 px-4 font-black text-white">Apply</button>
       </div>
       {couponState === 'valid' && <p className="mt-2 text-sm font-bold text-emerald-700">✓ ₹100 discount applied</p>}
       {couponState === 'invalid' && <p className="mt-2 text-sm font-bold text-red-700">Invalid coupon code</p>}
@@ -347,7 +374,8 @@ function DayCell({ day, status }) {
 function HostSection({ car }) {
   const host = car.host_profile || {}
   const year = host.joined_date ? new Date(host.joined_date).getFullYear() : new Date().getFullYear()
-  return <Section title="Host"><div className="flex flex-wrap items-center justify-between gap-4"><div className="flex items-center gap-4"><img src={host.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(host.name || car.host_name || 'Host')}`} alt="" className="h-16 w-16 rounded-full object-cover" /><div><p className="text-xl font-black text-zinc-950">{host.name || car.host_name}</p><p className="font-bold text-zinc-500">Member since {year}</p><p className="mt-1 text-sm font-bold text-zinc-600">★ {host.rating || 0} · {host.total_reviews || 0} reviews · {host.response_time || 'Responds within a few hours'} · {host.acceptance_rate || 95}% accepted</p></div></div>{host.is_superhost && <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-black text-amber-800">Superhost</span>}<Link to={`/search?host_id=${car.host_id}`} className="font-black text-zoomcar">View all listings by this host</Link></div></Section>
+  const name = host.name || car.host_name || 'Host'
+  return <Section title="Host"><div className="flex flex-wrap items-center justify-between gap-4"><div className="flex items-center gap-4"><img src={host.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}`} alt={`${name} profile photo`} loading="lazy" decoding="async" width="64" height="64" className="h-16 w-16 rounded-full object-cover" /><div><p className="text-xl font-black text-zinc-950">{name}</p><p className="font-bold text-zinc-500">Member since {year}</p><p className="mt-1 text-sm font-bold text-zinc-600">★ {host.rating || 0} · {host.total_reviews || 0} reviews · {host.response_time || 'Responds within a few hours'} · {host.acceptance_rate || 95}% accepted</p></div></div>{host.is_superhost && <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-black text-amber-800">Superhost</span>}<Link to={`/search?host_id=${car.host_id}`} className="font-black text-zoomcar">View all listings by this host</Link></div></Section>
 }
 
 function ReviewsSection({ data, filter, setFilter, onMore }) {
@@ -356,7 +384,21 @@ function ReviewsSection({ data, filter, setFilter, onMore }) {
 }
 
 function ReviewCard({ review }) {
-  return <article className="rounded-md border border-zinc-200 bg-white p-4"><div className="flex gap-3"><img src={review.reviewer_photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(review.reviewer_name || 'Guest')}`} alt="" className="h-11 w-11 rounded-full" /><div><p className="font-black text-zinc-950">{review.reviewer_name || 'Guest'}</p><p className="text-sm font-bold text-zinc-500">{relativeDate(review.created_at)}</p></div></div><p className="mt-3 font-black text-amber-500">{'★'.repeat(review.rating || 0)}</p><p className="mt-2 leading-6 text-zinc-700">{review.body || review.title || 'Great trip.'}</p>{review.host_reply && <div className="mt-3 rounded-md bg-zinc-50 p-3 text-sm"><p className="font-black text-zinc-950">Response from host</p><p className="mt-1 text-zinc-600">{review.host_reply}</p></div>}<span className="mt-3 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-xs font-black text-emerald-700"><Check size={13} /> Verified trip</span></article>
+  const name = review.reviewer_name || 'Guest'
+  return <article className="rounded-md border border-zinc-200 bg-white p-4"><div className="flex gap-3"><img src={review.reviewer_photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}`} alt={`${name} profile photo`} loading="lazy" decoding="async" width="44" height="44" className="h-11 w-11 rounded-full" /><div><p className="font-black text-zinc-950">{name}</p><p className="text-sm font-bold text-zinc-500">{relativeDate(review.created_at)}</p></div></div><p className="mt-3 font-black text-amber-500">{'★'.repeat(review.rating || 0)}</p><p className="mt-2 leading-6 text-zinc-700">{review.body || review.title || 'Great trip.'}</p>{review.host_reply && <div className="mt-3 rounded-md bg-zinc-50 p-3 text-sm"><p className="font-black text-zinc-950">Response from host</p><p className="mt-1 text-zinc-600">{review.host_reply}</p></div>}<span className="mt-3 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-xs font-black text-emerald-700"><Check size={13} /> Verified trip</span></article>
+}
+
+function DetailError({ message, onRetry }) {
+  return (
+    <main id="main-content" className="grid min-h-screen place-items-center bg-zinc-50 p-6">
+      <div className="max-w-md rounded-lg border border-red-200 bg-white p-8 text-center shadow-sm">
+        <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-red-50 text-zoomcar"><AlertTriangle size={36} /></div>
+        <h1 className="mt-5 text-2xl font-black text-zinc-950">Car details unavailable</h1>
+        <p className="mt-2 font-semibold text-zinc-600">{message}</p>
+        <button onClick={onRetry} className="mt-5 rounded-md bg-zoomcar px-5 py-3 font-black text-white">Retry</button>
+      </div>
+    </main>
+  )
 }
 
 function LocationMap({ car }) {
