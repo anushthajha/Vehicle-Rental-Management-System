@@ -26,30 +26,8 @@ echo ">>> MongoDB ready."
 echo ">>> Running Alembic migrations..."
 alembic upgrade head
 
-echo ">>> Checking if seed is needed..."
-SEED_NEEDED=$(python -c "
-import asyncio
-from app.database import async_session_maker
-from app.database import engine
-from app.models.user import User
-from sqlalchemy import select, func
-async def main():
-    async with async_session_maker() as s:
-        r = await s.execute(select(func.count(User.id)))
-        count = r.scalar()
-    await engine.dispose()
-    return count
-count = asyncio.run(main())
-print('YES' if count == 0 else 'NO')
-")
-
-if [ "$SEED_NEEDED" = "YES" ]; then
-  echo ">>> Seeding database..."
-  python -m app.seed
-  echo ">>> Seed complete."
-else
-  echo ">>> Database already seeded. Skipping."
-fi
+echo ">>> Running seed check..."
+python -m app.seed
 
 echo ">>> Starting FastAPI server..."
 exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
