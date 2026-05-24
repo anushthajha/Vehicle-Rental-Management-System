@@ -21,15 +21,16 @@ import { useAuthStore } from '../../context/AuthContext'
 import { getAdmin, initials } from './adminApi'
 
 const navItems = [
-  { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/admin/users', label: 'Users', icon: Users },
-  { to: '/admin/cars', label: 'Cars', icon: Car, badgeKey: 'car_approval_count' },
-  { to: '/admin/categories', label: 'Categories', icon: Tags },
+  { to: '/admin/vehicles', label: 'Vehicles', icon: Car, badgeKey: 'car_approval_count' },
+  { to: '/admin/categories', label: 'Vehicle Categories', icon: Tags },
   { to: '/admin/bookings', label: 'Bookings', icon: CalendarDays },
   { to: '/admin/kyc', label: 'KYC', icon: IdCard, badgeKey: 'kyc_count' },
   { to: '/admin/payments', label: 'Payments', icon: CreditCard },
   { to: '/admin/coupons', label: 'Coupons', icon: Tags },
   { to: '/admin/support', label: 'Support', icon: Headphones, badgeKey: 'support_tickets_count' },
+  { to: '/admin/users/managers', label: 'Vehicle Managers', icon: Users },
   { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
   { to: '/admin/payouts', label: 'Payouts', icon: BadgeIndianRupee, badgeKey: 'payout_requests_count' },
   { to: '/admin/settings', label: 'Settings', icon: Settings },

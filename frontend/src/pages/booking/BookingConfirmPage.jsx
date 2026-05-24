@@ -34,7 +34,7 @@ export default function BookingConfirmPage() {
   const [policyOpen, setPolicyOpen] = useState(false)
 
   useEffect(() => {
-    api.get(`/cars/${carId}`).then((response) => setCar(response.data)).finally(() => setLoading(false))
+    api.get(`/vehicles/${carId}`).then((response) => setCar(response.data)).finally(() => setLoading(false))
   }, [carId])
 
   useEffect(() => {
@@ -95,7 +95,7 @@ export default function BookingConfirmPage() {
             <Row label="Return" value={formatDateTime(returnAt)} />
             <Row label="Duration" value={formatDuration(pickup, returnAt)} />
             <Row label="Pickup location" value={car.location_address || `${car.location_area}, ${car.location_city}`} />
-            <Link to={`/cars/${car.id}`} className="mt-3 inline-flex font-black text-sigfleet">Change dates</Link>
+            <Link to={`/vehicles/${car.id}`} className="mt-3 inline-flex font-black text-sigfleet">Change dates</Link>
           </InfoBlock>
         </div>
 
@@ -121,14 +121,14 @@ export default function BookingConfirmPage() {
             <div className="flex justify-between border-t border-zinc-200 pt-3 text-xl font-black text-zinc-950"><span>Total</span><span>₹{formatMoney(breakdown.total_amount)}</span></div>
             <p className="text-sm font-bold text-zinc-500">Security deposit: ₹{formatMoney(breakdown.security_deposit || car.security_deposit || 500)} refundable</p>
           </div>
-          <textarea className="input mt-5 min-h-24" value={guestNotes} onChange={(event) => setGuestNotes(event.target.value)} placeholder="Any specific instructions for the host?" />
+          <textarea className="input mt-5 min-h-24" value={guestNotes} onChange={(event) => setGuestNotes(event.target.value)} placeholder="Any specific instructions for the manager?" />
           {!kycOk && <div className="mt-4 flex gap-2 rounded-md bg-amber-50 p-3 text-sm font-bold text-amber-800"><AlertTriangle size={18} /> Complete KYC before booking.</div>}
           {error && <p className="mt-3 rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p>}
           <button disabled={!kycOk || submitting} onClick={submit} className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-sigfleet px-5 py-3 font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-300">
             {submitting && <Loader2 size={18} className="animate-spin" />} Confirm & Proceed
           </button>
           <button onClick={() => setPolicyOpen(!policyOpen)} className="mt-4 text-sm font-black text-zinc-700">Cancellation policy</button>
-          {policyOpen && <p className="mt-2 text-sm leading-6 text-zinc-600">Guest cancellations get 90% refund before 48 hours, 50% refund between 24 and 48 hours, and no refund within 24 hours. Host cancellations are fully refunded.</p>}
+          {policyOpen && <p className="mt-2 text-sm leading-6 text-zinc-600">Guest cancellations get 90% refund before 48 hours, 50% refund between 24 and 48 hours, and no refund within 24 hours. Manager cancellations are fully refunded.</p>}
         </aside>
       </section>
     </main>

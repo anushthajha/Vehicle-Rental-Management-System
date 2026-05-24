@@ -3,14 +3,14 @@ import api from '../../services/api'
 
 const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-export default function AvailabilityOverviewPage() {
+export default function ManagerAvailabilityPage() {
   const [cars, setCars] = useState([])
   const [selected, setSelected] = useState('all')
   const today = new Date()
   const days = useMemo(() => Array.from({ length: new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate() }, (_, index) => new Date(today.getFullYear(), today.getMonth(), index + 1)), [today.getFullYear(), today.getMonth()])
 
   useEffect(() => {
-    api.get('/cars/manager/cars').then((response) => setCars(response.data.cars || []))
+    api.get('/vehicles/manager/vehicles').then((response) => setCars(response.data.cars || []))
   }, [])
 
   const visibleCars = selected === 'all' ? cars : cars.filter((car) => car.id === selected)

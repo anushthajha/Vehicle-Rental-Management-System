@@ -17,7 +17,7 @@ function titleCase(value) {
   return String(value || '').replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
-function CarCard({ car, viewMode = 'grid', onRemoved }) {
+function VehicleCard({ car, viewMode = 'grid', onRemoved }) {
   const { user } = useAuthStore()
   const [saved, setSaved] = useState(Boolean(car.is_saved || isLocallySaved(car.id)))
   const image = car.primary_image_url || car.images?.[0]?.image_url || FALLBACK_IMAGE
@@ -50,7 +50,7 @@ function CarCard({ car, viewMode = 'grid', onRemoved }) {
   if (viewMode === 'list') {
     return (
       <article className="group overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
-        <Link to={`/cars/${car.id}`} className="grid gap-4 p-3 sm:grid-cols-[200px_1fr_auto]">
+        <Link to={`/vehicles/${car.id}`} className="grid gap-4 p-3 sm:grid-cols-[200px_1fr_auto]">
           <div className="relative h-48 overflow-hidden rounded-md bg-zinc-100 sm:h-full">
             <img src={image} alt={`${car.title} rental car in ${car.location_city}`} loading="lazy" decoding="async" width="400" height="260" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
             <CategoryBadge category={car.category} label={car.category_name} />
@@ -66,7 +66,7 @@ function CarCard({ car, viewMode = 'grid', onRemoved }) {
               </button>
             </div>
             <RatingLine car={car} />
-            <p className="mt-3 line-clamp-2 text-sm leading-6 text-zinc-600">{car.description || 'A clean, city-ready car with flexible pickup and host-managed availability.'}</p>
+            <p className="mt-3 line-clamp-2 text-sm leading-6 text-zinc-600">{car.description || 'A clean, city-ready car with flexible pickup and manager-managed availability.'}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {featureLabels.concat([titleCase(car.transmission), `${car.seats} Seats`, titleCase(car.fuel_type)]).slice(0, 9).map((feature) => (
                 <span key={feature} className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-bold text-zinc-700">{feature}</span>
@@ -87,7 +87,7 @@ function CarCard({ car, viewMode = 'grid', onRemoved }) {
 
   return (
     <article className="group overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
-      <Link to={`/cars/${car.id}`} className="block">
+      <Link to={`/vehicles/${car.id}`} className="block">
         <div className="relative aspect-video overflow-hidden bg-zinc-100">
           <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-zinc-100 via-zinc-200 to-zinc-100" />
           <img src={image} alt={`${car.title} rental car in ${car.location_city}`} loading="lazy" decoding="async" width="480" height="270" className="relative h-full w-full object-cover transition duration-500 group-hover:scale-105" />
@@ -118,7 +118,7 @@ function CarCard({ car, viewMode = 'grid', onRemoved }) {
   )
 }
 
-export default memo(CarCard, (prev, next) => (
+export default memo(VehicleCard, (prev, next) => (
   prev.car.id === next.car.id
   && prev.viewMode === next.viewMode
   && Boolean(prev.car.is_saved) === Boolean(next.car.is_saved)

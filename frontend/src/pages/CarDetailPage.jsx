@@ -9,7 +9,7 @@ import { Helmet } from 'react-helmet-async'
 import toast from 'react-hot-toast'
 import { Link, useParams } from 'react-router-dom'
 import api from '../services/api'
-import CarCard from '../components/car/CarCard'
+import VehicleCard from '../components/vehicle/VehicleCard'
 import { useAuthStore } from '../context/AuthContext'
 import { addHours, dateRangeLabel, formatDuration, formatMoney } from '../utils/searchData'
 import { isLocallySaved, removeLocalWishlistCar, saveLocalWishlistCar } from '../utils/wishlist'
@@ -41,7 +41,7 @@ export default function CarDetailPage() {
       setLoading(true)
       setError('')
       try {
-        const response = await api.get(`/cars/${carId}`)
+        const response = await api.get(`/vehicles/${carId}`)
         setCar(response.data)
       } catch {
         setError('The car details could not be loaded. Please try again.')
@@ -67,7 +67,7 @@ export default function CarDetailPage() {
       setReviews(response.data)
       setReviewPage(1)
     })
-    api.get('/cars/', { params: { city: car.location_city, category_id: car.category_id, exclude: car.id, limit: 4 } }).then((response) => setSimilar(response.data.cars || []))
+    api.get('/vehicles/', { params: { city: car.location_city, category_id: car.category_id, exclude: car.id, limit: 4 } }).then((response) => setSimilar(response.data.cars || []))
   }, [car, reviewFilter])
 
   if (loading) {
@@ -115,7 +115,7 @@ export default function CarDetailPage() {
           <FeaturesGrid car={car} />
           <Description text={car.description} />
           <AvailabilityCalendar carId={car.id} onPickRange={() => {}} />
-          <HostSection car={car} />
+          <ManagerSection car={car} />
           <ReviewsSection data={reviews} filter={reviewFilter} setFilter={setReviewFilter} onMore={loadMoreReviews} />
           <LocationMap car={car} />
           <SimilarCars cars={similar} />
@@ -317,14 +317,14 @@ function Line({ label, value, strong }) {
 }
 
 function FeaturesGrid({ car }) {
-  const items = [`${car.seats} Seats`, car.transmission, car.fuel_type, 'AC', car.features?.includes('music') ? 'Music' : 'Audio', car.features?.includes('gps') ? 'GPS' : 'Verified location', car.features?.includes('keyless') ? 'Keyless' : 'Host handoff', car.included_km_per_day ? `${car.included_km_per_day} km/day` : 'Fair use']
+  const items = [`${car.seats} Seats`, car.transmission, car.fuel_type, 'AC', car.features?.includes('music') ? 'Music' : 'Audio', car.features?.includes('gps') ? 'GPS' : 'Verified location', car.features?.includes('keyless') ? 'Keyless' : 'Manager handoff', car.included_km_per_day ? `${car.included_km_per_day} km/day` : 'Fair use']
   return <Section title="Features"><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{items.map((item) => <div key={item} className="rounded-md border border-zinc-200 bg-white p-4 text-center font-black text-zinc-800"><ShieldCheck className="mx-auto mb-2 text-sigfleet" size={20} />{item}</div>)}</div></Section>
 }
 
 function Description({ text }) {
   const [open, setOpen] = useState(false)
   const display = open || !text || text.length <= 200 ? text : `${text.slice(0, 200)}...`
-  return <Section title="Description"><p className="leading-7 text-zinc-700">{display || 'This host has not added a detailed description yet.'} {text?.length > 200 && <button onClick={() => setOpen(!open)} className="font-black text-sigfleet">{open ? 'Read less' : 'Read more'}</button>}</p></Section>
+  return <Section title="Description"><p className="leading-7 text-zinc-700">{display || 'This manager has not added a detailed description yet.'} {text?.length > 200 && <button onClick={() => setOpen(!open)} className="font-black text-sigfleet">{open ? 'Read less' : 'Read more'}</button>}</p></Section>
 }
 
 function AvailabilityCalendar({ carId }) {
@@ -332,7 +332,7 @@ function AvailabilityCalendar({ carId }) {
   const [availability, setAvailability] = useState({})
   useEffect(() => {
     const key = month.toISOString().slice(0, 7)
-    api.get(`/cars/${carId}/availability`, { params: { month: key } }).then((response) => {
+    api.get(`/vehicles/${carId}/availability`, { params: { month: key } }).then((response) => {
       setAvailability(Object.fromEntries((response.data || []).map((day) => [day.date, day.status])))
     })
   }, [carId, month])
@@ -371,11 +371,11 @@ function DayCell({ day, status }) {
   return <button className={`aspect-square rounded-md text-sm font-black ${color}`}>{day.date.getDate()}</button>
 }
 
-function HostSection({ car }) {
-  const host = car.host_profile || {}
-  const year = host.joined_date ? new Date(host.joined_date).getFullYear() : new Date().getFullYear()
-  const name = host.name || car.host_name || 'Host'
-  return <Section title="Host"><div className="flex flex-wrap items-center justify-between gap-4"><div className="flex items-center gap-4"><img src={host.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}`} alt={`${name} profile photo`} loading="lazy" decoding="async" width="64" height="64" className="h-16 w-16 rounded-full object-cover" /><div><p className="text-xl font-black text-zinc-950">{name}</p><p className="font-bold text-zinc-500">Member since {year}</p><p className="mt-1 text-sm font-bold text-zinc-600">★ {host.rating || 0} · {host.total_reviews || 0} reviews · {host.response_time || 'Responds within a few hours'} · {host.acceptance_rate || 95}% accepted</p></div></div>{host.is_superhost && <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-black text-amber-800">Superhost</span>}<Link to={`/search?host_id=${car.host_id}`} className="font-black text-sigfleet">View all listings by this host</Link></div></Section>
+function ManagerSection({ car }) {
+  const manager = car.manager_profile || {}
+  const year = manager.joined_date ? new Date(manager.joined_date).getFullYear() : new Date().getFullYear()
+  const name = manager.name || car.manager_name || 'Manager'
+  return <Section title="Manager"><div className="flex flex-wrap items-center justify-between gap-4"><div className="flex items-center gap-4"><img src={manager.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}`} alt={`${name} profile photo`} loading="lazy" decoding="async" width="64" height="64" className="h-16 w-16 rounded-full object-cover" /><div><p className="text-xl font-black text-zinc-950">{name}</p><p className="font-bold text-zinc-500">Member since {year}</p><p className="mt-1 text-sm font-bold text-zinc-600">★ {manager.rating || 0} · {manager.total_reviews || 0} reviews · {manager.response_time || 'Responds within a few hours'} · {manager.acceptance_rate || 95}% accepted</p></div></div>{manager.is_super_manager && <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-black text-amber-800">Super Manager</span>}<Link to={`/vehicles?manager_id=${car.manager_id}`} className="font-black text-sigfleet">View all listings by this manager</Link></div></Section>
 }
 
 function ReviewsSection({ data, filter, setFilter, onMore }) {
@@ -385,7 +385,7 @@ function ReviewsSection({ data, filter, setFilter, onMore }) {
 
 function ReviewCard({ review }) {
   const name = review.reviewer_name || 'Guest'
-  return <article className="rounded-md border border-zinc-200 bg-white p-4"><div className="flex gap-3"><img src={review.reviewer_photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}`} alt={`${name} profile photo`} loading="lazy" decoding="async" width="44" height="44" className="h-11 w-11 rounded-full" /><div><p className="font-black text-zinc-950">{name}</p><p className="text-sm font-bold text-zinc-500">{relativeDate(review.created_at)}</p></div></div><p className="mt-3 font-black text-amber-500">{'★'.repeat(review.rating || 0)}</p><p className="mt-2 leading-6 text-zinc-700">{review.body || review.title || 'Great trip.'}</p>{review.host_reply && <div className="mt-3 rounded-md bg-zinc-50 p-3 text-sm"><p className="font-black text-zinc-950">Response from host</p><p className="mt-1 text-zinc-600">{review.host_reply}</p></div>}<span className="mt-3 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-xs font-black text-emerald-700"><Check size={13} /> Verified trip</span></article>
+  return <article className="rounded-md border border-zinc-200 bg-white p-4"><div className="flex gap-3"><img src={review.reviewer_photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}`} alt={`${name} profile photo`} loading="lazy" decoding="async" width="44" height="44" className="h-11 w-11 rounded-full" /><div><p className="font-black text-zinc-950">{name}</p><p className="text-sm font-bold text-zinc-500">{relativeDate(review.created_at)}</p></div></div><p className="mt-3 font-black text-amber-500">{'★'.repeat(review.rating || 0)}</p><p className="mt-2 leading-6 text-zinc-700">{review.body || review.title || 'Great trip.'}</p>{review.manager_reply && <div className="mt-3 rounded-md bg-zinc-50 p-3 text-sm"><p className="font-black text-zinc-950">Response from manager</p><p className="mt-1 text-zinc-600">{review.manager_reply}</p></div>}<span className="mt-3 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-xs font-black text-emerald-700"><Check size={13} /> Verified trip</span></article>
 }
 
 function DetailError({ message, onRetry }) {
@@ -408,7 +408,7 @@ function LocationMap({ car }) {
 
 function SimilarCars({ cars }) {
   if (!cars.length) return null
-  return <Section title="Similar Cars"><div className="flex gap-4 overflow-x-auto pb-2 lg:grid lg:grid-cols-4">{cars.map((car) => <div key={car.id} className="w-80 shrink-0 lg:w-auto"><CarCard car={car} /></div>)}</div></Section>
+  return <Section title="Similar Cars"><div className="flex gap-4 overflow-x-auto pb-2 lg:grid lg:grid-cols-4">{cars.map((car) => <div key={car.id} className="w-80 shrink-0 lg:w-auto"><VehicleCard car={car} /></div>)}</div></Section>
 }
 
 function Section({ title, children }) {

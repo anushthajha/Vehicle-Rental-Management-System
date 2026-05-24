@@ -1,5 +1,22 @@
 # SigFleet Phase Summary
 
+## Phase D - Role-Separated Dashboard Experiences
+
+Implemented the PRD role dashboard separation and final frontend Host-to-Vehicle-Manager rename.
+
+- Reworked customer dashboard at `/customer/dashboard` into a white/red top-nav experience with KYC status, rental stats, active rental cards, upcoming rentals, and recent activity.
+- Added dedicated customer rental history at `/customer/bookings/history` with filters, status badges, copyable booking refs, contextual actions, and pagination.
+- Added dedicated customer tracking at `/customer/track/:bookingId` with booking header, animated status timeline, trip details, payment state, review CTA, and active-rental emergency contact.
+- Renamed frontend manager files and components from Host/host naming to Manager/manager naming, including `ManagerLayout`, `ManagerDashboardPage`, `ManagerVehiclesPage`, `AddVehiclePage`, `EditVehiclePage`, `ManagerBookingsPage`, `ManagerStatisticsPage`, and `managerApi`.
+- Added `frontend/src/components/layout/ManagerSidebar.jsx` and kept manager layout separate from customer and admin layouts with a dark-blue sidebar and teal active state.
+- Added `/manager/*` route structure for dashboard, vehicles, add/edit, bookings, availability, statistics, profile, earnings, and payouts.
+- Added admin sidebar items for Vehicle Categories and Vehicle Managers, admin manager routes, create-manager UI, user-management tabs, and the manager-specific table/actions.
+- Added Admin Dashboard revenue statistics widget with all-time/monthly revenue, platform-fee vs manager-payout metrics, sparkline, and donut breakdown.
+- Renamed shared vehicle card surface from `CarCard` to `VehicleCard` and updated route aliases for public `/vehicles`, `/categories/:categorySlug`, and `/vehicle-types/:typeSlug`.
+
+Verification:
+- `npm run build` from `frontend/` passes with the existing large-chunk warning.
+
 ## Phase C - Dynamic Vehicle Categories and Types
 
 Implemented the PRD Admin-managed vehicle taxonomy.

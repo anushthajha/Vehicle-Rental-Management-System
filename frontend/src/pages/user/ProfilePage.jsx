@@ -13,7 +13,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState(null)
   const [form, setForm] = useState({ full_name: '', phone: '' })
   const [passwords, setPasswords] = useState({ current_password: '', new_password: '', confirm_new_password: '' })
-  const [prefs, setPrefs] = useState({ booking: true, promos: false, host: true })
+  const [prefs, setPrefs] = useState({ booking: true, promos: false, manager: true })
   const [showPassword, setShowPassword] = useState(false)
   const [deleteText, setDeleteText] = useState('')
   const [saving, setSaving] = useState(false)
@@ -116,7 +116,7 @@ export default function ProfilePage() {
               <div className="mt-4 grid gap-3">
                 <Pref checked={prefs.booking} onChange={() => setPrefs((current) => ({ ...current, booking: !current.booking }))} label="✉ Booking updates via email" />
                 <Pref checked={prefs.promos} onChange={() => setPrefs((current) => ({ ...current, promos: !current.promos }))} label="📢 Promotions and offers" />
-                <Pref checked={prefs.host} onChange={() => setPrefs((current) => ({ ...current, host: !current.host }))} label="🏠 Host activity updates" />
+                <Pref checked={prefs.manager} onChange={() => setPrefs((current) => ({ ...current, manager: !current.manager }))} label="🏠 Manager activity updates" />
               </div>
             </section>
 

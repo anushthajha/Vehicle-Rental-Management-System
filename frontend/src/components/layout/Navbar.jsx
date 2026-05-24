@@ -42,9 +42,9 @@ export default function Navbar() {
 
   const role = user?.role
   const nav = role === 'admin'
-    ? [['Dashboard', '/admin/dashboard'], ['Users', '/admin/users'], ['Vehicles', '/admin/cars'], ['Bookings', '/admin/bookings'], ['Analytics', '/admin/analytics']]
+    ? [['Dashboard', '/admin/dashboard'], ['Users', '/admin/users'], ['Vehicles', '/admin/vehicles'], ['Bookings', '/admin/bookings'], ['Analytics', '/admin/analytics']]
     : role === 'vehicle_manager'
-      ? [['My Vehicles', '/manager/cars'], ['Bookings', '/manager/bookings'], ['Availability', '/manager/cars']]
+      ? [['My Vehicles', '/manager/vehicles'], ['Bookings', '/manager/bookings'], ['Availability', '/manager/vehicles']]
       : [['Browse Vehicles', '/search'], ['How it Works', '/how-it-works'], ['Become a Manager', '/contact']]
 
   const dashboardPath = roleDashboards[role] || '/'
@@ -114,7 +114,7 @@ export default function Navbar() {
                     {role === 'vehicle_manager' && (
                       <>
                         <MenuItem to="/manager/dashboard">Manager Dashboard</MenuItem>
-                        <MenuItem to="/manager/cars">My Vehicles</MenuItem>
+                        <MenuItem to="/manager/vehicles">My Vehicles</MenuItem>
                         <MenuItem to="/manager/bookings">Booking Requests</MenuItem>
                         <MenuItem to="/manager/earnings">Rental Statistics</MenuItem>
                       </>
@@ -123,7 +123,7 @@ export default function Navbar() {
                       <>
                         <MenuItem to="/admin/dashboard">Admin Dashboard</MenuItem>
                         <MenuItem to="/admin/users">User Management</MenuItem>
-                        <MenuItem to="/admin/cars">Vehicles</MenuItem>
+                        <MenuItem to="/admin/vehicles">Vehicles</MenuItem>
                         <MenuItem to="/admin/analytics">Analytics</MenuItem>
                       </>
                     )}

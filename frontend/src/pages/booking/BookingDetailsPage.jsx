@@ -61,7 +61,7 @@ export default function BookingDetailsPage() {
               <div><h2 className="text-2xl font-black text-zinc-950">{booking.car?.title}</h2><p className="font-bold text-zinc-500">{confirmed ? booking.car?.registration_number : 'Registration shown after confirmation'}</p></div>
             </div>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <Info label="Host" value={`${booking.counterparty?.name || 'Host'}${confirmed && booking.counterparty?.phone ? ` · ${booking.counterparty.phone}` : ''}`} />
+              <Info label="Manager" value={`${booking.counterparty?.name || 'Manager'}${confirmed && booking.counterparty?.phone ? ` · ${booking.counterparty.phone}` : ''}`} />
               <Info label="Pickup" value={formatDateTime(booking.pickup_datetime)} />
               <Info label="Return" value={formatDateTime(booking.return_datetime)} />
               <Info label="Duration" value={bookingDuration(booking)} />

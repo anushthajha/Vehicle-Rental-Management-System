@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Car, Eye, IndianRupee, Loader2, Pencil, Power, Trash2 } from 'lucide-react'
 import api from '../../services/api'
 
-export default function ManageCarsPage() {
+export default function ManagerVehiclesPage() {
   const [cars, setCars] = useState([])
   const [filter, setFilter] = useState('all')
   const [isLoading, setLoading] = useState(true)
@@ -12,7 +12,7 @@ export default function ManageCarsPage() {
   async function loadCars() {
     setLoading(true)
     try {
-      const response = await api.get('/cars/manager/cars')
+      const response = await api.get('/vehicles/manager/vehicles')
       setCars(response.data.cars || [])
     } catch (err) {
       setError(err.response?.data?.detail || 'Unable to load cars.')
@@ -40,12 +40,12 @@ export default function ManageCarsPage() {
   }
 
   async function toggle(carId) {
-    const response = await api.patch(`/cars/host/${carId}/toggle-availability`)
+    const response = await api.patch(`/vehicles/manager/${carId}/toggle-availability`)
     setCars((current) => current.map((car) => car.id === carId ? { ...car, is_available: response.data.is_available } : car))
   }
 
   async function remove(carId) {
-    await api.delete(`/cars/${carId}`)
+    await api.delete(`/vehicles/${carId}`)
     setCars((current) => current.map((car) => car.id === carId ? { ...car, is_available: false } : car))
   }
 
@@ -57,7 +57,7 @@ export default function ManageCarsPage() {
             <p className="text-sm font-black uppercase text-sigfleet">Manager garage</p>
             <h1 className="text-3xl font-black text-zinc-950">My Cars</h1>
           </div>
-          <Link to="/manager/cars/new" className="rounded-md bg-sigfleet px-5 py-3 font-bold text-white">List a car</Link>
+          <Link to="/manager/vehicles/add" className="rounded-md bg-sigfleet px-5 py-3 font-bold text-white">List a car</Link>
         </div>
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard icon={Car} label="Total Cars" value={stats.total} />
@@ -89,8 +89,8 @@ export default function ManageCarsPage() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button onClick={() => toggle(car.id)} className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-bold text-zinc-700">Toggle availability</button>
-                    <Link to={`/manager/cars/${car.id}/edit`} className="grid h-10 w-10 place-items-center rounded-md bg-zinc-100 text-zinc-700"><Pencil size={18} /></Link>
-                    <Link to={`/manager/cars/${car.id}/bookings`} className="rounded-md bg-zinc-950 px-3 py-2 text-sm font-bold text-white">Bookings</Link>
+                    <Link to={`/manager/vehicles/${car.id}/edit`} className="grid h-10 w-10 place-items-center rounded-md bg-zinc-100 text-zinc-700"><Pencil size={18} /></Link>
+                    <Link to={`/manager/vehicles/${car.id}/bookings`} className="rounded-md bg-zinc-950 px-3 py-2 text-sm font-bold text-white">Bookings</Link>
                     <button onClick={() => remove(car.id)} className="grid h-10 w-10 place-items-center rounded-md bg-red-50 text-red-700"><Trash2 size={18} /></button>
                   </div>
                 </div>

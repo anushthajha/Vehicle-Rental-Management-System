@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Download } from 'lucide-react'
-import { dateLabel, downloadCsv, getHost, money } from './hostApi'
+import { dateLabel, downloadCsv, getManager, money } from './managerApi'
 
-export default function HostEarningsPage() {
+export default function ManagerEarningsPage() {
   const [summary, setSummary] = useState(null)
   const [monthly, setMonthly] = useState([])
   const [cars, setCars] = useState([])
@@ -14,10 +14,10 @@ export default function HostEarningsPage() {
 
   useEffect(() => {
     Promise.all([
-      getHost('/earnings/summary'),
-      getHost('/earnings/monthly', { year }),
-      getHost('/earnings/per-car'),
-      getHost('/earnings/transactions', { limit: 100 }),
+      getManager('/earnings/summary'),
+      getManager('/earnings/monthly', { year }),
+      getManager('/earnings/per-car'),
+      getManager('/earnings/transactions', { limit: 100 }),
     ]).then(([s, m, c, t]) => { setSummary(s); setMonthly(m); setCars(c); setTransactions(t.items || []) })
   }, [year])
 

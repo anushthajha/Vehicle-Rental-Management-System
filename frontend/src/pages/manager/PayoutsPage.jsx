@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { X } from 'lucide-react'
-import { dateLabel, getHost, money, postHost } from './hostApi'
+import { dateLabel, getManager, money, postManager } from './managerApi'
 
 export default function PayoutsPage() {
   const [summary, setSummary] = useState(null)
@@ -10,11 +10,11 @@ export default function PayoutsPage() {
   const [bankOpen, setBankOpen] = useState(false)
   const [confirm, setConfirm] = useState(false)
 
-  const load = () => Promise.all([getHost('/earnings/summary'), getHost('/payouts')]).then(([s, h]) => { setSummary(s); setHistory(h) })
+  const load = () => Promise.all([getManager('/earnings/summary'), getManager('/payouts')]).then(([s, h]) => { setSummary(s); setHistory(h) })
   useEffect(load, [])
 
   const request = async () => {
-    const response = await postHost('/payouts/request', { amount: Number(amount) })
+    const response = await postManager('/payouts/request', { amount: Number(amount) })
     toast.success(response.message)
     setConfirm(false)
     setAmount('')
@@ -42,7 +42,7 @@ function Badge({ value }) {
 function BankPanel({ onClose, onDone }) {
   const [form, setForm] = useState({ bank_name: '', account_number: '', ifsc: '', account_holder: '' })
   const save = async () => {
-    await postHost('/profile/bank-details', form)
+    await postManager('/profile/bank-details', form)
     toast.success('Bank account saved')
     onDone()
     onClose()

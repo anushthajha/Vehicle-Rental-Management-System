@@ -1,14 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Area, AreaChart, Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { downloadCsv, getHost, getManager, money } from './hostApi'
+import { downloadCsv, getManager, money } from './managerApi'
 
-export default function RentalStatisticsPage() {
+export default function ManagerStatisticsPage() {
   const [stats, setStats] = useState(null)
   const [perCar, setPerCar] = useState([])
   const [range, setRange] = useState('30d')
 
   useEffect(() => {
-    Promise.all([getManager('/stats'), getHost('/earnings/per-car')]).then(([statsData, perCarData]) => {
+    Promise.all([getManager('/stats'), getManager('/earnings/per-car')]).then(([statsData, perCarData]) => {
       setStats(statsData)
       setPerCar(perCarData)
     })

@@ -32,11 +32,11 @@ function ReviewCard({ review }) {
       <p className="mt-2 whitespace-pre-wrap font-medium leading-7 text-zinc-700">{visibleBody}</p>
       {shouldCollapse && <button onClick={() => setExpanded((value) => !value)} className="mt-2 text-sm font-black text-sigfleet">{expanded ? 'Show less' : 'Read more'}</button>}
 
-      {review.host_reply && (
+      {review.manager_reply && (
         <div className="mt-5 border-l-4 border-sigfleet bg-red-50 p-4">
-          <p className="font-black text-zinc-950">Response from {review.host_name || 'Host'}</p>
-          <p className="mt-2 whitespace-pre-wrap text-sm font-medium text-zinc-700">{review.host_reply}</p>
-          <p className="mt-2 text-xs font-bold text-zinc-500">{monthLabel(review.host_replied_at)}</p>
+          <p className="font-black text-zinc-950">Response from {review.manager_name || 'Manager'}</p>
+          <p className="mt-2 whitespace-pre-wrap text-sm font-medium text-zinc-700">{review.manager_reply}</p>
+          <p className="mt-2 text-xs font-bold text-zinc-500">{monthLabel(review.manager_replied_at)}</p>
         </div>
       )}
     </article>

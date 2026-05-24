@@ -6,7 +6,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { DivIcon } from 'leaflet'
 import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet'
 import api from '../services/api'
-import CarCard from '../components/car/CarCard'
+import VehicleCard from '../components/vehicle/VehicleCard'
 import FilterSidebar from '../components/search/FilterSidebar'
 import SearchBar from '../components/search/SearchBar'
 import { dateRangeLabel, DEFAULT_FILTERS, formatMoney, SORT_OPTIONS } from '../utils/searchData'
@@ -98,7 +98,7 @@ export default function SearchPage() {
       query.set('radius_km', mapBounds.radius)
     }
     try {
-      const response = await api.get(`/cars/?${query.toString()}`)
+      const response = await api.get(`/vehicles/?${query.toString()}`)
       const nextCars = response.data.cars || []
       setCars((current) => append ? [...current, ...nextCars] : nextCars)
       setTotal(response.data.total || 0)
@@ -136,7 +136,7 @@ export default function SearchPage() {
     <main id="main-content" className="min-h-screen bg-zinc-50 dark:bg-gray-900">
       <Helmet>
         <title>{`Search Cars — ${city} | SigFleet`}</title>
-        <meta name="description" content={`Find self-drive rental cars in ${city} with verified hosts, live filters, and flexible booking.`} />
+        <meta name="description" content={`Find self-drive rental cars in ${city} with verified managers, live filters, and flexible booking.`} />
       </Helmet>
       <div className="sticky top-0 z-30 border-b border-zinc-200 bg-zinc-50/95 p-3 backdrop-blur">
         <div className="mx-auto max-w-[1500px]">
@@ -183,7 +183,7 @@ export default function SearchPage() {
             <div className={viewMode === 'grid' ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-3' : 'space-y-4'}>
               {cars.map((car, index) => (
                 <div key={`${car.id}-${index}`} ref={index === cars.length - 1 ? lastCardRef : undefined}>
-                  <CarCard car={car} viewMode={viewMode} />
+                  <VehicleCard car={car} viewMode={viewMode} />
                 </div>
               ))}
             </div>
@@ -242,7 +242,7 @@ function SearchMap({ cars, selectedCar, onSelect, onBoundsChange }) {
       {selectedCar && (
         <div className="absolute bottom-3 right-3 top-3 z-[500] w-[360px] max-w-[calc(100%-24px)] overflow-y-auto rounded-lg bg-white p-3 shadow-2xl">
           <button onClick={() => onSelect(null)} className="mb-2 rounded-md bg-zinc-100 px-3 py-1 text-sm font-black">Close</button>
-          <CarCard car={selectedCar} />
+          <VehicleCard car={selectedCar} />
         </div>
       )}
     </div>

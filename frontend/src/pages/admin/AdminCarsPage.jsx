@@ -18,12 +18,12 @@ export default function AdminCarsPage() {
   useEffect(load, [tab, filters])
 
   const approve = async (car) => {
-    await patchAdmin(`/cars/${car.id}/approve`)
+    await patchAdmin(`/vehicles/${car.id}/approve`)
     toast.success('Car approved')
     load()
   }
   const feature = async (car) => {
-    await patchAdmin(`/cars/${car.id}/feature`)
+    await patchAdmin(`/vehicles/${car.id}/feature`)
     toast.success('Featured status updated')
     load()
   }
@@ -71,7 +71,7 @@ function Info({ label, value }) {
 function RejectModal({ car, onClose, onDone }) {
   const [reason, setReason] = useState('')
   const save = async () => {
-    await patchAdmin(`/cars/${car.id}/reject`, { reason })
+    await patchAdmin(`/vehicles/${car.id}/reject`, { reason })
     toast.success('Car rejected')
     onDone()
     onClose()

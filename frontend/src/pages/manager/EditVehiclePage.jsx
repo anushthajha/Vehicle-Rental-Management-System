@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
-import ListCarPage from './ListCarPage'
+import AddVehiclePage from './AddVehiclePage'
 import api from '../../services/api'
 
-export default function EditCarPage() {
+export default function EditVehiclePage() {
   const { carId } = useParams()
   const [car, setCar] = useState(null)
   const [blocks, setBlocks] = useState([])
@@ -13,7 +13,7 @@ export default function EditCarPage() {
   const [ruleForm, setRuleForm] = useState({ rule_type: 'long_trip_discount', discount_percent: 10, surcharge_percent: 0, min_days: 7, applies_on: '' })
 
   async function load() {
-    const response = await api.get(`/cars/${carId}`)
+    const response = await api.get(`/vehicles/${carId}`)
     setCar(response.data)
     setBlocks(response.data.availability_blocks || [])
     setRules(response.data.car_pricing_rules || [])
@@ -25,24 +25,24 @@ export default function EditCarPage() {
 
   async function addBlock(event) {
     event.preventDefault()
-    const response = await api.post(`/cars/${carId}/block-dates`, blockForm)
+    const response = await api.post(`/vehicles/${carId}/block-dates`, blockForm)
     setBlocks((current) => [...current, response.data])
     setBlockForm({ blocked_from: '', blocked_to: '', reason: '' })
   }
 
   async function removeBlock(blockId) {
-    await api.delete(`/cars/${carId}/block-dates/${blockId}`)
+    await api.delete(`/vehicles/${carId}/block-dates/${blockId}`)
     setBlocks((current) => current.filter((block) => block.id !== blockId))
   }
 
   async function addRule(event) {
     event.preventDefault()
-    const response = await api.post(`/cars/${carId}/pricing-rules`, ruleForm)
+    const response = await api.post(`/vehicles/${carId}/pricing-rules`, ruleForm)
     setRules((current) => [...current, response.data])
   }
 
   async function removeRule(ruleId) {
-    await api.delete(`/cars/${carId}/pricing-rules/${ruleId}`)
+    await api.delete(`/vehicles/${carId}/pricing-rules/${ruleId}`)
     setRules((current) => current.filter((rule) => rule.id !== ruleId))
   }
 
@@ -59,7 +59,7 @@ export default function EditCarPage() {
 
   return (
     <>
-      <ListCarPage editMode carId={carId} initialData={initialData} />
+      <AddVehiclePage editMode carId={carId} initialData={initialData} />
       <main className="bg-zinc-50 px-4 pb-10">
         <section className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-2">
           <div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Heart, Loader2 } from 'lucide-react'
 import api from '../services/api'
-import CarCard from '../components/car/CarCard'
+import VehicleCard from '../components/vehicle/VehicleCard'
 import { useAuthStore } from '../context/AuthContext'
 import { getLocalWishlistCars, removeLocalWishlistCar } from '../utils/wishlist'
 
@@ -55,7 +55,7 @@ export default function WishlistPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {cars.map((car) => (
               <div key={car.id} className={`transition duration-200 ${removing[car.id] ? 'scale-95 opacity-0' : 'opacity-100'}`}>
-                <CarCard car={{ ...car, is_saved: true }} onRemoved={onRemoved} />
+                <VehicleCard car={{ ...car, is_saved: true }} onRemoved={onRemoved} />
               </div>
             ))}
           </div>

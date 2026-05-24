@@ -14,7 +14,7 @@ const TYPE_ICONS = {
   system: [Settings, 'bg-zinc-100 text-zinc-700'],
   promotion: [Tag, 'bg-red-50 text-sigfleet'],
   review: [MessageSquare, 'bg-violet-50 text-violet-700'],
-  host: [Info, 'bg-cyan-50 text-cyan-700'],
+  manager: [Info, 'bg-cyan-50 text-cyan-700'],
 }
 
 export default function NotificationsPage() {

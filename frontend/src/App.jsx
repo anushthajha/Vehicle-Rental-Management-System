@@ -15,6 +15,8 @@ const EmailVerificationPage = lazy(() => import('./pages/auth/EmailVerificationP
 const ForgotPasswordPage = lazy(() => import('./pages/auth/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'))
 const DashboardPage = lazy(() => import('./pages/user/DashboardPage'))
+const RentalHistoryPage = lazy(() => import('./pages/user/RentalHistoryPage'))
+const TrackRentalPage = lazy(() => import('./pages/user/TrackRentalPage'))
 const ProfilePage = lazy(() => import('./pages/user/ProfilePage'))
 const KYCPage = lazy(() => import('./pages/user/KYCPage'))
 const MyBookingsPage = lazy(() => import('./pages/booking/MyBookingsPage'))
@@ -23,18 +25,18 @@ const WalletPage = lazy(() => import('./pages/user/WalletPage'))
 const NotificationsPage = lazy(() => import('./pages/user/NotificationsPage'))
 const ReviewsPage = lazy(() => import('./pages/user/ReviewsPage'))
 const SupportPage = lazy(() => import('./pages/user/SupportPage'))
-const HostLayout = lazy(() => import('./pages/host/HostLayout'))
-const HostDashboardPage = lazy(() => import('./pages/host/HostDashboardPage'))
-const ManageCarsPage = lazy(() => import('./pages/host/ManageCarsPage'))
-const ListCarPage = lazy(() => import('./pages/host/ListCarPage'))
-const EditCarPage = lazy(() => import('./pages/host/EditCarPage'))
-const BookingRequestsPage = lazy(() => import('./pages/host/BookingRequestsPage'))
-const ActiveTripsPage = lazy(() => import('./pages/host/ActiveTripsPage'))
-const HostEarningsPage = lazy(() => import('./pages/host/HostEarningsPage'))
-const HostProfilePage = lazy(() => import('./pages/host/HostProfilePage'))
-const PayoutsPage = lazy(() => import('./pages/host/PayoutsPage'))
-const AvailabilityOverviewPage = lazy(() => import('./pages/host/AvailabilityOverviewPage'))
-const RentalStatisticsPage = lazy(() => import('./pages/host/RentalStatisticsPage'))
+const ManagerLayout = lazy(() => import('./pages/manager/ManagerLayout'))
+const ManagerDashboardPage = lazy(() => import('./pages/manager/ManagerDashboardPage'))
+const ManagerVehiclesPage = lazy(() => import('./pages/manager/ManagerVehiclesPage'))
+const AddVehiclePage = lazy(() => import('./pages/manager/AddVehiclePage'))
+const EditVehiclePage = lazy(() => import('./pages/manager/EditVehiclePage'))
+const ManagerBookingsPage = lazy(() => import('./pages/manager/ManagerBookingsPage'))
+const ActiveTripsPage = lazy(() => import('./pages/manager/ActiveTripsPage'))
+const ManagerEarningsPage = lazy(() => import('./pages/manager/ManagerEarningsPage'))
+const ManagerProfilePage = lazy(() => import('./pages/manager/ManagerProfilePage'))
+const PayoutsPage = lazy(() => import('./pages/manager/PayoutsPage'))
+const ManagerAvailabilityPage = lazy(() => import('./pages/manager/ManagerAvailabilityPage'))
+const ManagerStatisticsPage = lazy(() => import('./pages/manager/ManagerStatisticsPage'))
 const BookingConfirmPage = lazy(() => import('./pages/booking/BookingConfirmPage'))
 const PaymentPage = lazy(() => import('./pages/booking/PaymentPage'))
 const BookingSuccessPage = lazy(() => import('./pages/booking/BookingSuccessPage'))
@@ -42,6 +44,8 @@ const WriteReviewPage = lazy(() => import('./pages/booking/WriteReviewPage'))
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'))
 const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'))
 const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage'))
+const AdminVehicleManagersPage = lazy(() => import('./pages/admin/AdminVehicleManagersPage'))
+const CreateManagerPage = lazy(() => import('./pages/admin/CreateManagerPage'))
 const AdminCarsPage = lazy(() => import('./pages/admin/AdminCarsPage'))
 const AdminCategoriesPage = lazy(() => import('./pages/admin/AdminCategoriesPage'))
 const AdminKYCPage = lazy(() => import('./pages/admin/AdminKYCPage'))
@@ -87,8 +91,11 @@ export default function App() {
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/" element={<HomePage />} />
-            <Route path="/search" element={<SearchPage />} />
-            <Route path="/cars/:carId" element={<CarDetailPage />} />
+            <Route path="/vehicles" element={<SearchPage />} />
+            <Route path="/search" element={<Navigate to="/vehicles" replace />} />
+            <Route path="/vehicles/:carId" element={<CarDetailPage />} />
+            <Route path="/categories/:categorySlug" element={<SearchPage />} />
+            <Route path="/vehicle-types/:typeSlug" element={<SearchPage />} />
             <Route path="/cities/:city" element={<CityPage />} />
             <Route path="/wishlist" element={<WishlistPage />} />
             <Route element={<GuestRoute />}>
@@ -116,39 +123,48 @@ export default function App() {
             <Route element={<CustomerRoute />}>
               <Route path="/customer/dashboard" element={<DashboardPage />} />
               <Route path="/customer/bookings" element={<MyBookingsPage />} />
-              <Route path="/customer/rental-history" element={<MyBookingsPage />} />
-              <Route path="/customer/track-rental" element={<MyBookingsPage />} />
+              <Route path="/customer/bookings/history" element={<RentalHistoryPage />} />
+              <Route path="/customer/bookings/:bookingId" element={<BookingDetailsPage />} />
+              <Route path="/customer/track/:bookingId" element={<TrackRentalPage />} />
+              <Route path="/customer/wallet" element={<WalletPage />} />
+              <Route path="/customer/kyc" element={<KYCPage />} />
+              <Route path="/customer/profile" element={<ProfilePage />} />
+              <Route path="/customer/notifications" element={<NotificationsPage />} />
+              <Route path="/customer/support" element={<SupportPage />} />
+              <Route path="/customer/wishlist" element={<WishlistPage />} />
             </Route>
             <Route path="/dashboard" element={<Navigate to="/customer/dashboard" replace />} />
             <Route path="/dashboard/bookings" element={<Navigate to="/customer/bookings" replace />} />
             <Route element={<VehicleManagerRoute />}>
-              <Route path="/manager" element={<HostLayout />}>
+              <Route path="/manager" element={<ManagerLayout />}>
                 <Route index element={<Navigate to="/manager/dashboard" replace />} />
-                <Route path="dashboard" element={<HostDashboardPage />} />
-                <Route path="cars" element={<ManageCarsPage />} />
-                <Route path="cars/new" element={<ListCarPage />} />
-                <Route path="cars/:carId/edit" element={<EditCarPage />} />
-                <Route path="vehicles" element={<ManageCarsPage />} />
-                <Route path="vehicles/add" element={<ListCarPage />} />
-                <Route path="vehicles/:carId/edit" element={<EditCarPage />} />
-                <Route path="bookings" element={<BookingRequestsPage />} />
-                <Route path="availability" element={<AvailabilityOverviewPage />} />
-                <Route path="statistics" element={<RentalStatisticsPage />} />
+                <Route path="dashboard" element={<ManagerDashboardPage />} />
+                <Route path="vehicles" element={<ManagerVehiclesPage />} />
+                <Route path="vehicles/add" element={<AddVehiclePage />} />
+                <Route path="vehicles/:carId" element={<EditVehiclePage />} />
+                <Route path="vehicles/:carId/edit" element={<EditVehiclePage />} />
+                <Route path="bookings" element={<ManagerBookingsPage />} />
+                <Route path="availability" element={<ManagerAvailabilityPage />} />
+                <Route path="statistics" element={<ManagerStatisticsPage />} />
                 <Route path="trips/active" element={<ActiveTripsPage />} />
-                <Route path="earnings" element={<HostEarningsPage />} />
-                <Route path="profile" element={<HostProfilePage />} />
+                <Route path="earnings" element={<ManagerEarningsPage />} />
+                <Route path="profile" element={<ManagerProfilePage />} />
                 <Route path="payouts" element={<PayoutsPage />} />
-                <Route path="my-cars" element={<Navigate to="/manager/cars" replace />} />
-                <Route path="list-car" element={<Navigate to="/manager/cars/new" replace />} />
+                <Route path="my-cars" element={<Navigate to="/manager/vehicles" replace />} />
+                <Route path="list-car" element={<Navigate to="/manager/vehicles/add" replace />} />
                 <Route path="active-trips" element={<Navigate to="/manager/trips/active" replace />} />
               </Route>
             </Route>
-            <Route path="/host/*" element={<Navigate to="/manager/dashboard" replace />} />
+            <Route path="/manager/*" element={<Navigate to="/manager/dashboard" replace />} />
             <Route element={<AdminRoute />}>
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<AdminDashboardPage />} />
+                <Route path="dashboard" element={<AdminDashboardPage />} />
                 <Route path="users" element={<AdminUsersPage />} />
-                <Route path="cars" element={<AdminCarsPage />} />
+                <Route path="users/managers" element={<AdminVehicleManagersPage />} />
+                <Route path="users/managers/create" element={<CreateManagerPage />} />
+                <Route path="vehicles" element={<AdminCarsPage />} />
+                <Route path="cars" element={<Navigate to="/admin/vehicles" replace />} />
                 <Route path="categories" element={<AdminCategoriesPage />} />
                 <Route path="kyc" element={<AdminKYCPage />} />
                 <Route path="bookings" element={<AdminBookingsPage />} />
@@ -159,11 +175,10 @@ export default function App() {
                 <Route path="payouts" element={<AdminPayoutsPage />} />
               </Route>
             </Route>
-            <Route path="/admin/dashboard" element={<Navigate to="/admin" replace />} />
             <Route path="/how-it-works" element={<HowItWorksPage />} />
             <Route path="/safety" element={<SafetyPage />} />
             <Route path="/insurance" element={<InsurancePage />} />
-            <Route path="/become-a-host" element={<Navigate to="/contact" replace />} />
+            <Route path="/become-a-manager" element={<Navigate to="/contact" replace />} />
             <Route path="/become-a-manager" element={<ContactPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/terms" element={<TermsPage />} />

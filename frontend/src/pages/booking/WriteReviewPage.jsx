@@ -7,8 +7,8 @@ import { useAuthStore } from '../../context/AuthContext'
 
 const REVIEW_LABELS = {
   guest_to_car: 'Rate the Car',
-  guest_to_host: 'Rate the Host',
-  host_to_guest: 'Rate the Guest',
+  guest_to_manager: 'Rate the Manager',
+  manager_to_guest: 'Rate the Guest',
 }
 
 export default function WriteReviewPage() {
@@ -38,7 +38,7 @@ export default function WriteReviewPage() {
 
   const pendingTypes = useMemo(() => {
     if (!booking || !user) return []
-    const allowed = user.id === booking.guest_id ? ['guest_to_car', 'guest_to_host'] : user.id === booking.host_id ? ['host_to_guest'] : []
+    const allowed = user.id === booking.guest_id ? ['guest_to_car', 'guest_to_manager'] : user.id === booking.manager_id ? ['manager_to_guest'] : []
     return allowed.filter((type) => !existing.some((review) => review.review_type === type))
   }, [booking, existing, user])
 
@@ -65,7 +65,7 @@ export default function WriteReviewPage() {
   if (success) return <SuccessState bookingId={bookingId} />
   if (!pendingTypes.length) return <main className="grid min-h-screen place-items-center bg-zinc-50 px-4 text-center"><div><CheckCircle2 className="mx-auto text-emerald-600" size={54} /><h1 className="mt-4 text-2xl font-black">All reviews are complete</h1><Link to={`/dashboard/bookings/${bookingId}`} className="mt-5 inline-flex rounded-md bg-sigfleet px-5 py-3 font-black text-white">Back to booking</Link></div></main>
 
-  const target = activeType === 'host_to_guest' ? booking.counterparty : activeType === 'guest_to_host' ? booking.counterparty : booking.car
+  const target = activeType === 'manager_to_guest' ? booking.counterparty : activeType === 'guest_to_manager' ? booking.counterparty : booking.car
 
   return (
     <main className="min-h-screen bg-zinc-50 px-4 py-8">

@@ -11,7 +11,7 @@ const ICONS = {
   kyc: [FileCheck2, 'text-amber-700 bg-amber-50'],
   review: [MessageSquare, 'text-violet-700 bg-violet-50'],
   promotion: [Tag, 'text-sigfleet bg-red-50'],
-  host: [Info, 'text-cyan-700 bg-cyan-50'],
+  manager: [Info, 'text-cyan-700 bg-cyan-50'],
   system: [Settings, 'text-zinc-700 bg-zinc-100'],
 }
 

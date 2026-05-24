@@ -1,10 +1,5 @@
 import api from '../../services/api'
 
-export async function getHost(path, params = {}) {
-  const response = await api.get(`/host${path}`, { params })
-  return response.data
-}
-
 export async function getManager(path, params = {}) {
   const response = await api.get(`/manager${path}`, { params })
   return response.data
@@ -15,13 +10,8 @@ export async function patchManager(path, body = {}) {
   return response.data
 }
 
-export async function postHost(path, body = {}) {
-  const response = await api.post(`/host${path}`, body)
-  return response.data
-}
-
-export async function patchHost(path, body = {}) {
-  const response = await api.patch(`/host${path}`, body)
+export async function postManager(path, body = {}) {
+  const response = await api.post(`/manager${path}`, body)
   return response.data
 }
 

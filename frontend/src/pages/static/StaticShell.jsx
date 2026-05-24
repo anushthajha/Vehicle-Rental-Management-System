@@ -33,20 +33,20 @@ export function CTA({ title = 'Ready to drive?', to = '/search', label = 'Explor
 }
 
 function Footer() {
-  return <footer className="border-t border-zinc-200 bg-white px-4 py-10"><div className="mx-auto grid max-w-7xl gap-6 md:grid-cols-[1fr_auto]"><div><Link to="/" className="font-display text-2xl font-black"><span className="text-[#E31837]">Zoom</span>car</Link><p className="mt-2 max-w-xl text-sm font-semibold text-zinc-500">A full-stack clone for self-drive car rentals, host earnings, wallet payments, KYC, support, and admin operations.</p></div><div className="flex flex-wrap gap-4 text-sm font-black text-zinc-700"><Link to="/terms">Terms</Link><Link to="/privacy">Privacy</Link><Link to="/refund-policy">Refunds</Link><Link to="/contact">Contact</Link></div></div></footer>
+  return <footer className="border-t border-zinc-200 bg-white px-4 py-10"><div className="mx-auto grid max-w-7xl gap-6 md:grid-cols-[1fr_auto]"><div><Link to="/" className="font-display text-2xl font-black"><span className="text-[#E31837]">Zoom</span>car</Link><p className="mt-2 max-w-xl text-sm font-semibold text-zinc-500">A full-stack clone for self-drive car rentals, manager earnings, wallet payments, KYC, support, and admin operations.</p></div><div className="flex flex-wrap gap-4 text-sm font-black text-zinc-700"><Link to="/terms">Terms</Link><Link to="/privacy">Privacy</Link><Link to="/refund-policy">Refunds</Link><Link to="/contact">Contact</Link></div></div></footer>
 }
 
 export const guestFlow = [
   { title: 'Search', text: 'Pick your city, trip dates, and preferred car category.' },
-  { title: 'Select', text: 'Compare verified host cars by price, rating, location, and features.' },
+  { title: 'Select', text: 'Compare verified manager cars by price, rating, location, and features.' },
   { title: 'KYC', text: 'Upload identity and driving documents for secure approval.' },
   { title: 'Book', text: 'Pay securely through wallet or simulated payment methods.' },
-  { title: 'Pickup', text: 'Meet the host, inspect the car, and start your trip.' },
+  { title: 'Pickup', text: 'Meet the manager, inspect the car, and start your trip.' },
   { title: 'Return', text: 'Return on time, settle extras, and review the experience.' },
 ]
 
-export const hostFlow = [
-  { title: 'Register', text: 'Create a host account and complete profile verification.' },
+export const managerFlow = [
+  { title: 'Register', text: 'Create a manager account and complete profile verification.' },
   { title: 'Photos', text: 'Upload clear car photos and ownership details.' },
   { title: 'Pricing', text: 'Set day/hour prices, limits, and availability blocks.' },
   { title: 'Receive bookings', text: 'Approve suitable guests and manage requests.' },

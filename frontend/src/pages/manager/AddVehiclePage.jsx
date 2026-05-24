@@ -118,7 +118,7 @@ function LocationPicker({ form, updateForm }) {
   )
 }
 
-export default function ListCarPage({ editMode = false, carId = null, initialData = null }) {
+export default function AddVehiclePage({ editMode = false, carId = null, initialData = null }) {
   const { step, setStep, form, updateForm, reset } = useCarWizardStore()
   const [error, setError] = useState('')
   const [isSubmitting, setSubmitting] = useState(false)
@@ -161,13 +161,13 @@ export default function ListCarPage({ editMode = false, carId = null, initialDat
     setError('')
     try {
       const body = buildCarPayload(activeForm)
-      const response = editMode ? await api.patch(`/cars/${carId}`, body) : await api.post('/cars', body)
+      const response = editMode ? await api.patch(`/vehicles/${carId}`, body) : await api.post('/cars', body)
       const targetCarId = carId || response.data.car_id
       if (!editMode) {
         for (const photo of activeForm.photos) {
           const data = new FormData()
           data.append('file', photo.file)
-          await api.post(`/cars/${targetCarId}/images`, data)
+          await api.post(`/vehicles/${targetCarId}/images`, data)
         }
         reset()
       }
@@ -426,7 +426,7 @@ function SubmittedState() {
         <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-emerald-100 text-emerald-700"><Check size={34} /></div>
         <h2 className="mt-5 text-3xl font-black text-zinc-950">Listing Submitted for Review</h2>
         <p className="mt-3 text-zinc-600">We'll review your listing within 24 hours and notify you.</p>
-        <a href="/manager/cars" className="mt-6 inline-flex rounded-md bg-sigfleet px-5 py-3 font-bold text-white">Go to My Cars</a>
+        <a href="/manager/vehicles" className="mt-6 inline-flex rounded-md bg-sigfleet px-5 py-3 font-bold text-white">Go to My Cars</a>
       </div>
     </div>
   )

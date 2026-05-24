@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
+import { Link } from 'react-router-dom'
 import { MoreVertical, Search, ShieldCheck, UserX, X } from 'lucide-react'
 import { formatDate, formatMoney, getAdmin, initials, patchAdmin } from './adminApi'
 
-export default function AdminUsersPage() {
+export default function AdminUsersPage({ initialTab = 'customers' }) {
   const [rows, setRows] = useState([])
   const [filters, setFilters] = useState({ search: '', role: '', is_active: '' })
+  const [tab, setTab] = useState(initialTab)
   const [selected, setSelected] = useState([])
   const [details, setDetails] = useState(null)
   const [roleUser, setRoleUser] = useState(null)
@@ -13,14 +15,14 @@ export default function AdminUsersPage() {
   const load = () => {
     const params = {
       search: filters.search || undefined,
-      role: filters.role || undefined,
+      role: filters.role || (tab === 'customers' ? 'customer' : tab === 'managers' ? 'vehicle_manager' : undefined),
       is_active: filters.is_active === '' ? undefined : filters.is_active === 'true',
       limit: 50,
     }
     getAdmin('/users', params).then((data) => setRows(data.items || []))
   }
 
-  useEffect(load, [filters.role, filters.is_active])
+  useEffect(load, [filters.role, filters.is_active, tab])
 
   const suspend = async (user, active = false) => {
     await patchAdmin(`/users/${user.id}`, { is_active: active })
@@ -48,6 +50,12 @@ export default function AdminUsersPage() {
         </div>
         {selected.length > 0 && <button onClick={bulkSuspend} className="rounded-md bg-[#E31837] px-4 py-2 text-sm font-black text-white">Bulk Suspend ({selected.length})</button>}
       </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-white p-2 shadow-sm">
+        <div className="flex gap-1">
+          {[['customers', 'Customers'], ['managers', 'Vehicle Managers'], ['all', 'All Users']].map(([key, label]) => <button key={key} onClick={() => { setTab(key); setFilters((value) => ({ ...value, role: '' })) }} className={`rounded-md px-4 py-2 text-sm font-black ${tab === key ? 'bg-[#E31837] text-white' : 'text-zinc-600 hover:bg-zinc-100'}`}>{label}</button>)}
+        </div>
+        {tab === 'managers' && <Link to="/admin/users/managers/create" className="rounded-md bg-zinc-950 px-4 py-2 text-sm font-black text-white">+ Create Vehicle Manager</Link>}
+      </div>
 
       <div className="flex flex-wrap gap-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
         <div className="relative min-w-72 flex-1">
@@ -63,7 +71,7 @@ export default function AdminUsersPage() {
         <button onClick={load} className="rounded-md bg-zinc-950 px-4 py-2 text-sm font-black text-white">Search</button>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
+      {tab === 'managers' ? <ManagerTable rows={rows} openDetails={openDetails} suspend={suspend} /> : <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
         <table className="w-full min-w-[980px] text-left text-sm">
           <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
             <tr>
@@ -89,12 +97,16 @@ export default function AdminUsersPage() {
             ))}
           </tbody>
         </table>
-      </div>
+      </div>}
 
       {details && <UserPanel details={details} onClose={() => setDetails(null)} />}
       {roleUser && <RoleModal user={roleUser} onClose={() => setRoleUser(null)} onSaved={load} />}
     </div>
   )
+}
+
+function ManagerTable({ rows, openDetails, suspend }) {
+  return <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm"><table className="w-full min-w-[1050px] text-left text-sm"><thead className="bg-zinc-50 text-xs uppercase text-zinc-500"><tr><th className="p-4">Manager name</th><th className="p-4">Email</th><th className="p-4">Assigned by</th><th className="p-4">Vehicles Count</th><th className="p-4">Active Bookings</th><th className="p-4">Revenue</th><th className="p-4">Status</th><th className="p-4">Actions</th></tr></thead><tbody>{rows.map((manager) => <tr key={manager.id} className="border-t border-zinc-100"><td className="p-4 font-black">{manager.full_name}</td><td className="p-4">{manager.email}</td><td className="p-4">{manager.assigned_by_name || 'Admin'}</td><td className="p-4 font-bold">{manager.vehicles_count || manager.cars_count || 0}</td><td className="p-4 font-bold">{manager.active_bookings || 0}</td><td className="p-4 font-black">{formatMoney(manager.revenue || 0)}</td><td className="p-4"><Badge value={manager.is_active ? 'active' : 'suspended'} /></td><td className="p-4"><div className="flex flex-wrap gap-2"><button onClick={() => openDetails(manager)} className="rounded-md border border-zinc-200 px-3 py-2 text-xs font-black">View Details</button><button onClick={() => suspend(manager, false)} className="rounded-md border border-red-200 px-3 py-2 text-xs font-black text-[#E31837]">Suspend</button><button onClick={() => toast('Demotion action is available through role controls')} className="rounded-md bg-zinc-950 px-3 py-2 text-xs font-black text-white">Demote to Customer</button></div></td></tr>)}</tbody></table></div>
 }
 
 function Badge({ value }) {

@@ -79,6 +79,14 @@ export default function AdminDashboardPage() {
   }
 
   const statusData = Object.entries(data.bookings.status_distribution || {}).map(([name, value]) => ({ name, value }))
+  const totalPlatformFees = revenue.reduce((sum, row) => sum + Number(row.platform_fee || 0), 0)
+  const totalManagerPayouts = revenue.reduce((sum, row) => sum + Number(row.manager_payouts || 0), 0)
+  const totalRefunds = revenue.reduce((sum, row) => sum + Number(row.refunds || 0), 0)
+  const revenueBreakdown = [
+    { name: 'Platform fees', value: totalPlatformFees },
+    { name: 'Manager payouts', value: totalManagerPayouts },
+    { name: 'Refunds issued', value: totalRefunds },
+  ].filter((item) => item.value > 0)
 
   return (
     <div className="space-y-6">
@@ -93,6 +101,29 @@ export default function AdminDashboardPage() {
         <StatCard title="Payout Requests" value={data.pending.payout_requests_count} subtitle="Manager payouts" icon={IndianRupee} trend={data.pending.payout_requests_count ? 'up' : 'down'} />
       </section>
 
+      <section className="grid gap-5 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm xl:grid-cols-[1fr_1.1fr_0.9fr]">
+        <div>
+          <p className="text-sm font-black uppercase text-[#E31837]">Revenue Statistics</p>
+          <h2 className="mt-1 text-2xl font-black">Platform revenue</h2>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <Metric label="Total platform revenue" value={formatMoney(data.revenue.total || totalPlatformFees)} />
+            <Metric label="This month's revenue" value={formatMoney(data.revenue.this_month)} />
+            <Metric label="Platform fee collected" value={formatMoney(totalPlatformFees)} />
+            <Metric label="Manager payouts" value={formatMoney(totalManagerPayouts)} />
+          </div>
+        </div>
+        <div className="h-56">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={revenue}><Tooltip /><Line type="monotone" dataKey="platform_fee" stroke="#E31837" strokeWidth={3} dot={false} /><Line type="monotone" dataKey="manager_payouts" stroke="#111827" strokeWidth={2} dot={false} /></LineChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="h-56">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart><Pie data={revenueBreakdown.length ? revenueBreakdown : [{ name: 'No revenue', value: 1 }]} dataKey="value" innerRadius={52} outerRadius={82}>{(revenueBreakdown.length ? revenueBreakdown : [{ name: 'No revenue' }]).map((entry, index) => <Cell key={entry.name} fill={colors[index % colors.length]} />)}</Pie><Tooltip /></PieChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
       <section className="grid gap-5 xl:grid-cols-2">
         <ChartCard title="Daily Bookings">
           <ResponsiveContainer width="100%" height="85%">
@@ -101,7 +132,7 @@ export default function AdminDashboardPage() {
         </ChartCard>
         <ChartCard title="Monthly Revenue">
           <ResponsiveContainer width="100%" height="85%">
-            <BarChart data={revenue}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" /><YAxis /><Tooltip /><Bar dataKey="platform_fee" stackId="a" fill="#E31837" /><Bar dataKey="host_payouts" stackId="a" fill="#111827" /></BarChart>
+            <BarChart data={revenue}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" /><YAxis /><Tooltip /><Bar dataKey="platform_fee" stackId="a" fill="#E31837" /><Bar dataKey="manager_payouts" stackId="a" fill="#111827" /></BarChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="Booking Status">
@@ -121,7 +152,7 @@ export default function AdminDashboardPage() {
           <h2 className="text-base font-black">Pending Actions</h2>
           <div className="mt-4 grid gap-3">
             <Link className="rounded-md border border-zinc-200 p-4 font-black hover:border-[#E31837]" to="/admin/kyc">KYC Queue: {data.pending.kyc_count}</Link>
-            <Link className="rounded-md border border-zinc-200 p-4 font-black hover:border-[#E31837]" to="/admin/cars">Car Approvals: {data.pending.car_approval_count}</Link>
+            <Link className="rounded-md border border-zinc-200 p-4 font-black hover:border-[#E31837]" to="/admin/vehicles">Vehicle Approvals: {data.pending.car_approval_count}</Link>
             <Link className="rounded-md border border-zinc-200 p-4 font-black hover:border-[#E31837]" to="/admin/support">Support Tickets: {data.pending.support_tickets_count}</Link>
           </div>
         </div>
@@ -143,4 +174,8 @@ export default function AdminDashboardPage() {
       </section>
     </div>
   )
+}
+
+function Metric({ label, value }) {
+  return <div className="rounded-md bg-zinc-50 p-4"><p className="text-xs font-black uppercase text-zinc-500">{label}</p><p className="mt-1 text-xl font-black text-zinc-950">{value}</p></div>
 }

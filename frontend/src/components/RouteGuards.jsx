@@ -28,5 +28,3 @@ export function VehicleManagerRoute() {
 export function AdminRoute() {
   return <AdminRouteGuard />
 }
-
-export const HostRoute = VehicleManagerRoute

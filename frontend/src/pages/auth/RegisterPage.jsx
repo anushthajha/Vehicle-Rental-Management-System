@@ -68,7 +68,7 @@ export default function RegisterPage() {
       <Helmet><title>Sign Up | SigFleet</title><meta name="robots" content="noindex" /></Helmet>
       <form onSubmit={submit} className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-8 shadow-sm">
         <h2 className="text-3xl font-black text-zinc-950">Create account</h2>
-        <p className="mt-2 text-sm text-zinc-500">Verify your email once, then book and host securely.</p>
+        <p className="mt-2 text-sm text-zinc-500">Verify your email once, then book and manager securely.</p>
         {error && <div className="mt-5 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
         <FieldError name="full_name" error={fieldErrors.full_name}><label className="mt-6 block text-sm font-bold text-zinc-800">Full Name<input name="full_name" value={form.full_name} onChange={update} required className={`mt-2 w-full rounded-md border-zinc-300 ${fieldErrors.full_name ? 'border-red-500' : ''}`} /></label></FieldError>
