@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import DatePicker from 'react-datepicker'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AlertTriangle, Check, Loader2, ShieldCheck } from 'lucide-react'
 import api from '../../services/api'
@@ -20,8 +21,8 @@ export default function BookingConfirmPage() {
   const { user } = useAuthStore()
   const now = useMemo(() => new Date(), [])
   const [car, setCar] = useState(null)
-  const [pickup] = useState(params.get('pickup') || params.get('start_date') || location.state?.pickup_datetime || addHours(now, 24).toISOString())
-  const [returnAt] = useState(params.get('return') || params.get('end_date') || location.state?.return_datetime || addHours(now, 52).toISOString())
+  const [pickup, setPickup] = useState(new Date(params.get('pickup') || params.get('start_date') || location.state?.pickup_datetime || addHours(now, 24).toISOString()))
+  const [returnAt, setReturnAt] = useState(new Date(params.get('return') || params.get('end_date') || location.state?.return_datetime || addHours(now, 52).toISOString()))
   const [insurance, setInsurance] = useState(params.get('insurance') || location.state?.insurance_plan || 'standard')
   const [coupon, setCoupon] = useState('')
   const [appliedCoupon, setAppliedCoupon] = useState('')
@@ -31,6 +32,8 @@ export default function BookingConfirmPage() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [unavailableDates, setUnavailableDates] = useState([])
+  const [availability, setAvailability] = useState({ available: true, reason: 'Available' })
   const [policyOpen, setPolicyOpen] = useState(false)
 
   useEffect(() => {
@@ -42,8 +45,8 @@ export default function BookingConfirmPage() {
     async function loadPreview() {
       const response = await api.post('/bookings/preview', {
         car_id: carId,
-        pickup_datetime: pickup,
-        return_datetime: returnAt,
+        pickup_datetime: pickup.toISOString(),
+        return_datetime: returnAt.toISOString(),
         insurance_plan: insurance,
         coupon_code: appliedCoupon || undefined,
       })
@@ -53,14 +56,34 @@ export default function BookingConfirmPage() {
     loadPreview().catch((err) => setError(err.response?.data?.detail || 'Unable to preview booking.'))
   }, [appliedCoupon, car, carId, insurance, pickup, returnAt])
 
+  useEffect(() => {
+    if (!car) return
+    api.get(`/vehicles/${carId}/unavailable-dates`, { params: { from_date: pickup.toISOString() } }).then((response) => {
+      setUnavailableDates((response.data.unavailable_dates || []).map((item) => new Date(`${item}T00:00:00`)))
+    }).catch(() => setUnavailableDates([]))
+  }, [car, carId, pickup])
+
+  useEffect(() => {
+    if (!car) return
+    const timer = window.setTimeout(() => {
+      api.get(`/vehicles/${carId}/availability/check`, {
+        params: { pickup_date: pickup.toISOString(), return_date: returnAt.toISOString(), insurance_plan: insurance },
+      }).then((response) => {
+        setAvailability(response.data)
+        if (response.data.available && response.data.price_breakdown) setPreview({ price_breakdown: response.data.price_breakdown })
+      }).catch((err) => setAvailability({ available: false, reason: err.response?.data?.detail || 'Unable to check availability' }))
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [car, carId, insurance, pickup, returnAt])
+
   async function submit() {
     setSubmitting(true)
     setError('')
     try {
       const response = await api.post('/bookings/', {
         car_id: carId,
-        pickup_datetime: pickup,
-        return_datetime: returnAt,
+        pickup_datetime: pickup.toISOString(),
+        return_datetime: returnAt.toISOString(),
         insurance_plan: insurance,
         coupon_code: appliedCoupon || undefined,
         guest_notes: guestNotes,
@@ -91,9 +114,13 @@ export default function BookingConfirmPage() {
             </div>
           </div>
           <InfoBlock title="Trip Details">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <DatePicker selected={pickup} onChange={(date) => { setPickup(date); if (returnAt < addHours(date, car.min_trip_hours || 4)) setReturnAt(addHours(date, car.min_trip_hours || 4)) }} showTimeSelect timeIntervals={30} excludeDates={unavailableDates} minDate={new Date()} dateFormat="dd MMM, h:mm aa" className="input h-11" />
+              <DatePicker selected={returnAt} onChange={setReturnAt} showTimeSelect timeIntervals={30} excludeDates={unavailableDates} minDate={addHours(pickup, car.min_trip_hours || 4)} dateFormat="dd MMM, h:mm aa" className="input h-11" />
+            </div>
             <Row label="Pickup" value={formatDateTime(pickup)} />
             <Row label="Return" value={formatDateTime(returnAt)} />
-            <Row label="Duration" value={formatDuration(pickup, returnAt)} />
+            <Row label="Total duration" value={breakdown.duration?.duration_label || formatDuration(pickup, returnAt)} />
             <Row label="Pickup location" value={car.location_address || `${car.location_area}, ${car.location_city}`} />
             <Link to={`/vehicles/${car.id}`} className="mt-3 inline-flex font-black text-sigfleet">Change dates</Link>
           </InfoBlock>
@@ -123,8 +150,9 @@ export default function BookingConfirmPage() {
           </div>
           <textarea className="input mt-5 min-h-24" value={guestNotes} onChange={(event) => setGuestNotes(event.target.value)} placeholder="Any specific instructions for the manager?" />
           {!kycOk && <div className="mt-4 flex gap-2 rounded-md bg-amber-50 p-3 text-sm font-bold text-amber-800"><AlertTriangle size={18} /> Complete KYC before booking.</div>}
+          {!availability.available && <p className="mt-3 rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">{availability.reason}</p>}
           {error && <p className="mt-3 rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p>}
-          <button disabled={!kycOk || submitting} onClick={submit} className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-sigfleet px-5 py-3 font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-300">
+          <button disabled={!kycOk || submitting || !availability.available} onClick={submit} className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-sigfleet px-5 py-3 font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-300">
             {submitting && <Loader2 size={18} className="animate-spin" />} Confirm & Proceed
           </button>
           <button onClick={() => setPolicyOpen(!policyOpen)} className="mt-4 text-sm font-black text-zinc-700">Cancellation policy</button>

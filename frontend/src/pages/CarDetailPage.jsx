@@ -228,17 +228,9 @@ function BookingWidget({ car, user, borderless = false }) {
   const [coupon, setCoupon] = useState('')
   const [couponState, setCouponState] = useState(null)
   const [expanded, setExpanded] = useState(true)
-
-  const price = useMemo(() => {
-    const hours = Math.max((returnAt - pickup) / 36e5, 4)
-    const days = Math.max(hours / 24, 1)
-    const billableDays = Math.ceil(days)
-    const base = Number(car.price_per_day || 0) * billableDays
-    const insuranceAmount = Math.round(base * INSURANCE.find((item) => item.key === insurance).rate)
-    const discount = couponState === 'valid' ? 100 : 0
-    const platformFee = Math.round(Math.max(base - discount, 0) * 0.1)
-    return { billableDays, base, insuranceAmount, discount, platformFee, total: base + insuranceAmount + platformFee - discount }
-  }, [car.price_per_day, couponState, insurance, pickup, returnAt])
+  const [unavailableDates, setUnavailableDates] = useState([])
+  const [availability, setAvailability] = useState({ available: true, reason: 'Available', price_breakdown: {} })
+  const price = availability.price_breakdown || {}
 
   useEffect(() => {
     if (!coupon.trim()) {
@@ -253,21 +245,38 @@ function BookingWidget({ car, user, borderless = false }) {
     return () => window.clearTimeout(timer)
   }, [coupon])
 
+  useEffect(() => {
+    api.get(`/vehicles/${car.id}/unavailable-dates`, { params: { from_date: pickup.toISOString() } })
+      .then((response) => setUnavailableDates((response.data.unavailable_dates || []).map((item) => new Date(`${item}T00:00:00`))))
+      .catch(() => setUnavailableDates([]))
+  }, [car.id, pickup])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      api.get(`/vehicles/${car.id}/availability/check`, {
+        params: { pickup_date: pickup.toISOString(), return_date: returnAt.toISOString(), insurance_plan: insurance },
+      }).then((response) => setAvailability(response.data)).catch((err) => setAvailability({ available: false, reason: err.response?.data?.detail || 'Unable to check availability', price_breakdown: {} }))
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [car.id, insurance, pickup, returnAt])
+
   function onPickup(date) {
     setPickup(date)
-    if (returnAt < addHours(date, 4)) setReturnAt(addHours(date, 4))
+    if (returnAt < addHours(date, car.min_trip_hours || 4)) setReturnAt(addHours(date, car.min_trip_hours || 4))
   }
 
   return (
     <aside className={`${borderless ? '' : 'rounded-lg border border-zinc-200 bg-white p-4 shadow-lg'}`}>
       <div className="mb-4">
         <p className="text-3xl font-black text-zinc-950">₹{formatMoney(car.price_per_day)}<span className="text-sm font-bold text-zinc-500">/day</span></p>
-        <p className="mt-1 text-sm font-bold text-zinc-500">{formatDuration(pickup, returnAt)} · {dateRangeLabel(pickup, returnAt)}</p>
+        <p className="mt-1 text-sm font-bold text-zinc-500">{price.duration?.duration_label || formatDuration(pickup, returnAt)} · {dateRangeLabel(pickup, returnAt)}</p>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <DatePicker selected={pickup} onChange={onPickup} showTimeSelect timeIntervals={30} dateFormat="dd MMM, h:mm aa" className="input h-11" />
-        <DatePicker selected={returnAt} onChange={setReturnAt} showTimeSelect timeIntervals={30} minDate={addHours(pickup, 4)} dateFormat="dd MMM, h:mm aa" className="input h-11" />
+        <DatePicker selected={pickup} onChange={onPickup} showTimeSelect timeIntervals={30} excludeDates={unavailableDates} minDate={new Date()} dateFormat="dd MMM, h:mm aa" className="input h-11" />
+        <DatePicker selected={returnAt} onChange={setReturnAt} showTimeSelect timeIntervals={30} excludeDates={unavailableDates} minDate={addHours(pickup, car.min_trip_hours || 4)} dateFormat="dd MMM, h:mm aa" className="input h-11" />
       </div>
+      {!availability.available && <div className="mt-3 rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">{availability.reason}. {availability.next_available_date && `Next available: ${new Date(availability.next_available_date).toLocaleString('en-IN')}`}</div>}
+      {availability.available && <div className="mt-3 rounded-md bg-emerald-50 p-3 text-sm font-bold text-emerald-700">Available for this range.</div>}
 
       <h3 className="mt-5 text-sm font-black uppercase text-zinc-500">Insurance</h3>
       <div className="mt-2 grid grid-cols-3 gap-2">
@@ -291,11 +300,11 @@ function BookingWidget({ car, user, borderless = false }) {
       <button onClick={() => setExpanded(!expanded)} className="mt-5 w-full text-left text-sm font-black text-zinc-950">Price breakdown</button>
       {expanded && (
         <div className="mt-3 space-y-2 text-sm font-semibold text-zinc-600">
-          <Line label={`Base: ₹${formatMoney(car.price_per_day)} × ${price.billableDays} days`} value={`₹${formatMoney(price.base)}`} />
-          <Line label={`Insurance (${insurance})`} value={`₹${formatMoney(price.insuranceAmount)}`} />
-          <Line label="Coupon discount" value={`-₹${formatMoney(price.discount)}`} />
-          <Line label="Platform fee" value={`₹${formatMoney(price.platformFee)}`} />
-          <Line label="Total" value={`₹${formatMoney(price.total)}`} strong />
+          <Line label={`Base: ${price.duration?.duration_label || 'selected duration'}`} value={`₹${formatMoney(price.base_amount || 0)}`} />
+          <Line label={`Insurance (${insurance})`} value={`₹${formatMoney(price.insurance_amount || 0)}`} />
+          <Line label="Coupon discount" value={`-₹${formatMoney(price.coupon_discount || 0)}`} />
+          <Line label="Platform fee" value={`₹${formatMoney(price.platform_fee || 0)}`} />
+          <Line label="Total" value={`₹${formatMoney(price.total_amount || 0)}`} strong />
           <Line label="Security Deposit" value={`₹${formatMoney(car.security_deposit || 500)} refundable`} />
         </div>
       )}
@@ -304,7 +313,7 @@ function BookingWidget({ car, user, borderless = false }) {
       {user && !user.is_kyc_verified && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">KYC approval is required before booking.</p>}
       <Link
         to={`/booking/confirm/${car.id}?pickup=${encodeURIComponent(pickup.toISOString())}&return=${encodeURIComponent(returnAt.toISOString())}&insurance=${insurance}`}
-        className="mt-4 block w-full rounded-md bg-sigfleet px-5 py-3 text-center font-black text-white"
+        className={`mt-4 block w-full rounded-md px-5 py-3 text-center font-black text-white ${availability.available ? 'bg-sigfleet' : 'pointer-events-none bg-zinc-300'}`}
       >
         Book Now
       </Link>
@@ -331,9 +340,8 @@ function AvailabilityCalendar({ carId }) {
   const [month, setMonth] = useState(new Date())
   const [availability, setAvailability] = useState({})
   useEffect(() => {
-    const key = month.toISOString().slice(0, 7)
-    api.get(`/vehicles/${carId}/availability`, { params: { month: key } }).then((response) => {
-      setAvailability(Object.fromEntries((response.data || []).map((day) => [day.date, day.status])))
+    api.get(`/vehicles/${carId}/availability`, { params: { year: month.getFullYear(), month: month.getMonth() + 1 } }).then((response) => {
+      setAvailability(Object.fromEntries((response.data.days || []).map((day) => [day.date, day.status])))
     })
   }, [carId, month])
 
@@ -349,7 +357,7 @@ function AvailabilityCalendar({ carId }) {
       <div className="mt-2 grid grid-cols-7 gap-2">
         {days.map((day, index) => <DayCell key={`${day?.date}-${index}`} day={day} status={day ? availability[day.iso] : ''} />)}
       </div>
-      <div className="mt-4 flex flex-wrap gap-3 text-sm font-bold text-zinc-600"><span>🔴 Unavailable</span><span>🟢 Available</span><span>🟡 Partially booked</span><span>⬜ Past</span></div>
+      <div className="mt-4 flex flex-wrap gap-3 text-sm font-bold text-zinc-600"><span>🔴 Booked</span><span>🟢 Available</span><span>🟡 Pending booking</span><span>⬜ Past/blocked</span></div>
     </Section>
   )
 }
@@ -367,8 +375,9 @@ function buildMonth(date) {
 function DayCell({ day, status }) {
   if (!day) return <span />
   const past = day.date < new Date(new Date().toDateString())
-  const color = past ? 'bg-zinc-100 text-zinc-400' : status === 'booked' || status === 'unavailable' ? 'bg-red-100 text-red-700' : status === 'partial' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-50 text-emerald-700'
-  return <button className={`aspect-square rounded-md text-sm font-black ${color}`}>{day.date.getDate()}</button>
+  const color = past || status === 'blocked' ? 'bg-zinc-100 text-zinc-400' : status === 'booked' ? 'bg-red-100 text-red-700' : status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-50 text-emerald-700'
+  const title = status === 'booked' ? 'Booked' : status === 'pending' ? 'Pending booking' : status === 'blocked' ? 'Blocked' : 'Available'
+  return <button title={title} disabled={past || status === 'booked' || status === 'blocked'} className={`aspect-square rounded-md text-sm font-black ${color}`}>{day.date.getDate()}</button>
 }
 
 function ManagerSection({ car }) {

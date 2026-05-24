@@ -23,7 +23,7 @@ from app.mongo_models.analytics import log_activity, log_car_view, log_search
 from app.mongo_models.notification import create_notification
 from app.mongo_models.review import get_car_reviews
 from app.redis import get_redis
-from app.utils.auth import require_vehicle_manager, require_kyc_user, verify_token
+from app.utils.auth import get_current_active_user, require_vehicle_manager, require_kyc_user, verify_token
 
 
 router = APIRouter(prefix="/cars", tags=["cars"])
@@ -174,6 +174,7 @@ class DateBlockRequest(BaseModel):
     blocked_from: datetime
     blocked_to: datetime
     reason: str | None = Field(default=None, max_length=200)
+    note: str | None = Field(default=None, max_length=500)
 
 
 class PricingRuleRequest(BaseModel):
@@ -311,6 +312,12 @@ async def _get_owned_car(car_id: str, host_id: str, db: AsyncSession) -> Car:
     if car is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Car not found")
     return car
+
+
+async def _clear_availability_cache(car_id: str) -> None:
+    redis = get_redis()
+    async for key in redis.scan_iter(f"availability:{car_id}:*"):
+        await redis.delete(key)
 
 
 async def _resolve_category_id(db: AsyncSession, category_id: str | None, legacy_category: str | None = None) -> str | None:
@@ -533,6 +540,7 @@ async def city_cars(city: str, db: AsyncSession = Depends(get_db)):
     return {"cars": [_car_payload(row[0], row[1], row[2], category=row[3], vehicle_type=row[4]) for row in rows]}
 
 
+@vehicles_router.get("/manager/vehicles")
 @router.get("/host/my-cars")
 async def host_my_cars(current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Car).where(Car.managerId == current_user.id).order_by(Car.created_at.desc()))
@@ -559,11 +567,13 @@ async def host_my_cars(current_user: User = Depends(require_vehicle_manager), db
     return {"cars": response}
 
 
+@vehicles_router.patch("/manager/{car_id}/toggle-availability")
 @router.patch("/host/{car_id}/toggle-availability")
 async def toggle_availability(car_id: str, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     car = await _get_owned_car(car_id, current_user.id, db)
     car.is_available = not car.is_available
     await db.commit()
+    await _clear_availability_cache(car_id)
     return {"is_available": car.is_available}
 
 
@@ -602,6 +612,7 @@ async def create_car(payload: CarCreate, current_user: User = Depends(require_ky
     return {"car_id": car.id, "message": "Listing submitted for review. You'll be notified within 24 hours."}
 
 
+@vehicles_router.get("/{car_id}")
 @router.get("/{car_id}")
 async def get_car_detail(car_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
@@ -665,6 +676,7 @@ async def get_car_detail(car_id: str, request: Request, db: AsyncSession = Depen
     return payload
 
 
+@vehicles_router.patch("/{car_id}")
 @router.patch("/{car_id}")
 async def update_car(car_id: str, payload: CarUpdate, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     car = await _get_owned_car(car_id, current_user.id, db)
@@ -783,26 +795,32 @@ async def reorder_images(car_id: str, payload: list[ImageReorderItem], current_u
     return {"message": "Images reordered"}
 
 
+@vehicles_router.post("/{car_id}/block-dates", status_code=status.HTTP_201_CREATED)
 @router.post("/{car_id}/block-dates", status_code=status.HTTP_201_CREATED)
 async def block_dates(car_id: str, payload: DateBlockRequest, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     await _get_owned_car(car_id, current_user.id, db)
     if payload.blocked_to <= payload.blocked_from:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="blocked_to must be after blocked_from")
-    block = CarAvailabilityBlock(car_id=car_id, blocked_from=payload.blocked_from, blocked_to=payload.blocked_to, reason=payload.reason)
+    reason = payload.reason if not payload.note else f"{payload.reason or 'Other'}: {payload.note}"
+    block = CarAvailabilityBlock(car_id=car_id, blocked_from=payload.blocked_from, blocked_to=payload.blocked_to, reason=reason)
     db.add(block)
     await db.commit()
+    await _clear_availability_cache(car_id)
     await db.refresh(block)
     return _block_payload(block)
 
 
+@vehicles_router.delete("/{car_id}/block-dates/{block_id}")
 @router.delete("/{car_id}/block-dates/{block_id}")
-async def delete_block(car_id: str, block_id: str, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
-    await _get_owned_car(car_id, current_user.id, db)
+async def delete_block(car_id: str, block_id: str, current_user: User = Depends(get_current_active_user), db: AsyncSession = Depends(get_db)):
+    if current_user.role != "admin":
+        await _get_owned_car(car_id, current_user.id, db)
     block = await db.scalar(select(CarAvailabilityBlock).where(CarAvailabilityBlock.id == block_id, CarAvailabilityBlock.car_id == car_id))
     if block is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Block not found")
     await db.delete(block)
     await db.commit()
+    await _clear_availability_cache(car_id)
     return {"message": "Date block removed"}
 
 

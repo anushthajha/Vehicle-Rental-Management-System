@@ -1,5 +1,21 @@
 # SigFleet Phase Summary
 
+## Phase E - Availability Management Module
+
+Implemented the PRD Availability Management module end to end.
+
+- Added standalone `AvailabilityService` with vehicle availability checks, overlap detection, blocked-date checks, rental duration calculation, monthly availability calendars, next-available lookup, and unavailable-date generation.
+- Added `/api/vehicles/{vehicle_id}/availability`, `/availability/check`, `/availability/next-available`, and `/unavailable-dates` routes, including 60-second Redis caching for monthly calendars.
+- Strengthened booking creation and preview validation for date ranges, min/max duration, one-hour pickup buffer, vehicle availability, block conflicts, booking overlaps, extension conflicts, and same-customer overlapping rentals.
+- Availability check responses now return server-side price breakdowns with duration labels, and booking payloads expose the same duration structure for frontend display.
+- Added manager block/unblock support on `/api/vehicles/:id/block-dates`, with cache invalidation and manager/admin delete permissions.
+- Updated vehicle detail and booking confirmation date pickers to disable unavailable dates, enforce minimum return time, run live availability checks, show inline errors/next-available hints, and use server price previews.
+- Added manager-facing block-date management from the Availability Overview, Edit Vehicle page, and Vehicle card quick action.
+
+Verification:
+- `python3 -m py_compile backend/app/services/availability.py backend/app/routers/availability.py backend/app/routers/bookings.py backend/app/routers/cars.py backend/app/main.py` passes.
+- `npm run build` from `frontend/` passes with the existing large-chunk warning.
+
 ## Phase D - Role-Separated Dashboard Experiences
 
 Implemented the PRD role dashboard separation and final frontend Host-to-Vehicle-Manager rename.

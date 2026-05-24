@@ -11,6 +11,7 @@ from app.redis import close_redis
 from app.routers import (
     admin,
     auth,
+    availability,
     bookings,
     cars,
     categories,
@@ -74,6 +75,7 @@ for router in [
     users.router,
     cars.router,
     cars.vehicles_router,
+    availability.router,
     categories.router,
     bookings.router,
     payments.router,

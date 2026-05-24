@@ -89,6 +89,7 @@ export default function ManagerVehiclesPage() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button onClick={() => toggle(car.id)} className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-bold text-zinc-700">Toggle availability</button>
+                    <Link to={`/manager/availability?vehicle=${car.id}`} className="rounded-md border border-teal-300 px-3 py-2 text-sm font-bold text-teal-700">Block Dates</Link>
                     <Link to={`/manager/vehicles/${car.id}/edit`} className="grid h-10 w-10 place-items-center rounded-md bg-zinc-100 text-zinc-700"><Pencil size={18} /></Link>
                     <Link to={`/manager/vehicles/${car.id}/bookings`} className="rounded-md bg-zinc-950 px-3 py-2 text-sm font-bold text-white">Bookings</Link>
                     <button onClick={() => remove(car.id)} className="grid h-10 w-10 place-items-center rounded-md bg-red-50 text-red-700"><Trash2 size={18} /></button>

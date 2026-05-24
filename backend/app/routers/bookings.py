@@ -5,13 +5,13 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.booking import Booking, BookingExtension
-from app.models.car import Car, CarAvailabilityBlock, CarImage, CarPricingRule
+from app.models.car import Car, CarImage, CarPricingRule
 from app.models.coupon import Coupon, CouponUsage
 from app.models.host import HostProfile
 from app.models.payment import Payment
@@ -25,6 +25,7 @@ from app.services.booking_flow import (
     mark_payment_paid,
     money,
 )
+from app.services.availability import AvailabilityService
 from app.services.pricing import calculate_booking_price
 from app.services.superhost import check_and_update_superhost
 from app.tasks.email_tasks import send_booking_cancelled_email, send_booking_request_to_host_email
@@ -43,6 +44,16 @@ class BookingPreviewRequest(BaseModel):
     return_datetime: datetime
     insurance_plan: str = "standard"
     coupon_code: str | None = None
+
+    @field_validator("pickup_datetime", "return_datetime", mode="before")
+    @classmethod
+    def require_datetime_with_time(cls, value):
+        if isinstance(value, str):
+            normalized = value.replace("Z", "+00:00")
+            if "T" not in normalized and " " not in normalized:
+                raise ValueError("ISO8601 datetime with time is required")
+            datetime.fromisoformat(normalized)
+        return value
 
 
 class BookingCreateRequest(BookingPreviewRequest):
@@ -78,8 +89,8 @@ def _dt(value: datetime | None) -> str | None:
     return value.isoformat() if value else None
 
 
-def _overlap(start: datetime, end: datetime):
-    return Booking.pickup_datetime < end, Booking.return_datetime > start, Booking.status.in_(BLOCKING_STATUSES)
+def _validation_error(field: str, message: str, code: str) -> HTTPException:
+    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"detail": "VALIDATION_ERROR", "field": field, "message": message, "code": code})
 
 
 async def _load_car(db: AsyncSession, car_id: str) -> Car:
@@ -104,13 +115,15 @@ async def _primary_image(db: AsyncSession, car_id: str) -> str | None:
 
 
 async def _validate_dates(car: Car, pickup: datetime, return_at: datetime) -> None:
+    if return_at <= pickup:
+        raise _validation_error("return_date", "Return date must be after pickup date", "INVALID_RANGE")
     if pickup < datetime.utcnow() + timedelta(hours=1):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pickup must be at least 1 hour from now")
-    hours = (return_at - pickup).total_seconds() / 3600
+        raise _validation_error("pickup_date", "Pickup must be at least 1 hour from now", "PAST_DATE")
+    hours = AvailabilityService.calculate_rental_duration(pickup, return_at)["total_hours"]
     if hours < car.min_trip_hours:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Trip must be at least {car.min_trip_hours} hours")
+        raise _validation_error("return_date", f"Trip must be at least {car.min_trip_hours} hours", "TOO_SHORT")
     if hours / 24 > car.max_trip_days:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Trip cannot exceed {car.max_trip_days} days")
+        raise _validation_error("return_date", f"Trip cannot exceed {car.max_trip_days} days", "TOO_LONG")
 
 
 async def _validate_coupon(db: AsyncSession, code: str | None, user: User | None, base_amount: float) -> tuple[Coupon | None, str | None]:
@@ -140,28 +153,20 @@ async def _price_breakdown(db: AsyncSession, car: Car, payload: BookingPreviewRe
     raw = calculate_booking_price(car, payload.pickup_datetime, payload.return_datetime, payload.insurance_plan, payload.coupon_code)
     coupon, coupon_error = await _validate_coupon(db, payload.coupon_code, user, raw["base_amount"])
     breakdown = calculate_booking_price(car, payload.pickup_datetime, payload.return_datetime, payload.insurance_plan, payload.coupon_code, coupon)
+    breakdown["duration"] = AvailabilityService.calculate_rental_duration(payload.pickup_datetime, payload.return_datetime)
     return breakdown, coupon, coupon_error
 
 
 async def _ensure_available(db: AsyncSession, car: Car, pickup: datetime, return_at: datetime, guest_id: str | None = None) -> None:
-    if not car.is_approved or not car.is_available:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Car is not available for booking")
-    conflict = await db.scalar(select(func.count()).select_from(Booking).where(Booking.car_id == car.id, *_overlap(pickup, return_at)))
-    if conflict:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Car already has a booking in this date range")
-    block = await db.scalar(
-        select(func.count())
-        .select_from(CarAvailabilityBlock)
-        .where(CarAvailabilityBlock.car_id == car.id, CarAvailabilityBlock.blocked_from < return_at, CarAvailabilityBlock.blocked_to > pickup)
-    )
-    if block:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Car is blocked by the host for this date range")
+    available, reason = await AvailabilityService.check_vehicle_available(car.id, pickup, return_at, db)
+    if not available:
+        raise _validation_error("pickup_date", reason, "OVERLAP_CONFLICT")
     if guest_id:
         guest_conflict = await db.scalar(
-            select(func.count()).select_from(Booking).where(Booking.guest_id == guest_id, Booking.status.in_(("confirmed", "active")), Booking.pickup_datetime < return_at, Booking.return_datetime > pickup)
+            select(func.count()).select_from(Booking).where(Booking.guest_id == guest_id, Booking.status.in_(BLOCKING_STATUSES), Booking.pickup_datetime < return_at, Booking.return_datetime > pickup)
         )
         if guest_conflict:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You already have a confirmed booking during this time")
+            raise _validation_error("pickup_date", "You already have a booking during this time", "CUSTOMER_OVERLAP")
 
 
 async def _booking_ref(db: AsyncSession) -> str:
@@ -199,6 +204,7 @@ def _booking_payload(booking: Booking, car: Car, image: str | None, counterparty
         "created_at": _dt(booking.created_at),
         "pickup_datetime": _dt(booking.pickup_datetime),
         "return_datetime": _dt(booking.return_datetime),
+        "duration": AvailabilityService.calculate_rental_duration(booking.pickup_datetime, booking.return_datetime),
         "actual_pickup_time": _dt(booking.actual_pickup_time),
         "actual_return_time": _dt(booking.actual_return_time),
         "pickup_location": booking.pickup_location,
@@ -246,9 +252,10 @@ def _booking_payload(booking: Booking, car: Car, image: str | None, counterparty
 @router.post("/preview")
 async def preview_booking(payload: BookingPreviewRequest, db: AsyncSession = Depends(get_db)):
     car = await _load_car(db, payload.car_id)
-    if not car.is_approved:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Car is not approved")
     await _validate_dates(car, payload.pickup_datetime, payload.return_datetime)
+    available, reason = await AvailabilityService.check_vehicle_available(car.id, payload.pickup_datetime, payload.return_datetime, db)
+    if not available:
+        raise _validation_error("pickup_date", reason, "OVERLAP_CONFLICT")
     breakdown, _, coupon_error = await _price_breakdown(db, car, payload)
     return {"price_breakdown": breakdown, "coupon_error": coupon_error}
 
@@ -529,12 +536,10 @@ async def extend_booking(booking_id: str, payload: ExtendRequest, current_user: 
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only active bookings can be extended")
     if payload.new_return_datetime <= booking.return_datetime:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New return datetime must be later than current return")
-    conflict = await db.scalar(
-        select(func.count()).select_from(Booking).where(Booking.car_id == booking.car_id, Booking.id != booking.id, Booking.pickup_datetime < payload.new_return_datetime, Booking.return_datetime > booking.return_datetime, Booking.status.in_(BLOCKING_STATUSES))
-    )
-    if conflict:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Car has another booking during the extension period")
     car = await _load_car(db, booking.car_id)
+    available, reason = await AvailabilityService.check_vehicle_available(car.id, booking.return_datetime, payload.new_return_datetime, db, exclude_booking_id=booking.id)
+    if not available:
+        raise _validation_error("return_date", reason, "OVERLAP_CONFLICT")
     extra_hours = (payload.new_return_datetime - booking.return_datetime).total_seconds() / 3600
     additional_amount = Decimal(str(round(extra_hours * money(car.price_per_hour), 2)))
     extension = BookingExtension(booking_id=booking.id, extended_return_datetime=payload.new_return_datetime, additional_amount=additional_amount)

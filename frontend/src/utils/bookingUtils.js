@@ -12,6 +12,7 @@ export function formatDateTime(value) {
 }
 
 export function bookingDuration(booking) {
+  if (booking?.duration?.duration_label) return booking.duration.duration_label
   return formatDuration(booking.pickup_datetime, booking.return_datetime)
 }
 
