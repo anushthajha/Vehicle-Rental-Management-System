@@ -89,7 +89,7 @@ export const useCarWizardStore = create(persist((set) => ({
   setStep: (step) => set({ step }),
   updateForm: (patch) => set((state) => ({ form: { ...state.form, ...patch } })),
   reset: () => set({ step: 0, form: initialForm }),
-}), { name: 'zoomcar_list_car_wizard' }))
+}), { name: 'sigfleet_vehicle_wizard' }))
 
 function cityCenter(cityName) {
   const found = CITIES.find(([city]) => city === cityName)
@@ -178,18 +178,18 @@ export default function ListCarPage({ editMode = false, carId = null, initialDat
       <section className="mx-auto max-w-6xl">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-black uppercase text-zoomcar">Host garage</p>
+            <p className="text-sm font-black uppercase text-sigfleet">Manager garage</p>
             <h1 className="text-3xl font-black text-zinc-950">{editMode ? 'Edit car listing' : 'List your car'}</h1>
           </div>
           <div className="rounded-md bg-white px-4 py-3 text-sm font-bold text-zinc-600 shadow-sm">Step {step + 1} of {stepNames.length}</div>
         </div>
         <div className="mb-6 h-2 overflow-hidden rounded-full bg-zinc-200">
-          <div className="h-full bg-zoomcar transition-all" style={{ width: `${((step + 1) / stepNames.length) * 100}%` }} />
+          <div className="h-full bg-sigfleet transition-all" style={{ width: `${((step + 1) / stepNames.length) * 100}%` }} />
         </div>
         <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
           <aside className="rounded-lg border border-zinc-200 bg-white p-3 shadow-sm">
             {stepNames.map((name, index) => (
-              <button key={name} onClick={() => setStep(index)} className={`flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-sm font-bold ${index === step ? 'bg-zoomcar text-white' : 'text-zinc-600 hover:bg-zinc-50'}`}>
+              <button key={name} onClick={() => setStep(index)} className={`flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-sm font-bold ${index === step ? 'bg-sigfleet text-white' : 'text-zinc-600 hover:bg-zinc-50'}`}>
                 <span className={`grid h-6 w-6 place-items-center rounded-full text-xs ${index < step ? 'bg-emerald-600 text-white' : 'bg-zinc-100 text-zinc-600'}`}>{index < step ? <Check size={14} /> : index + 1}</span>
                 {name}
               </button>
@@ -208,9 +208,9 @@ export default function ListCarPage({ editMode = false, carId = null, initialDat
                 <div className="mt-8 flex justify-between border-t border-zinc-200 pt-5">
                   <button disabled={step === 0} onClick={() => setStep(Math.max(step - 1, 0))} className="rounded-md border border-zinc-300 px-4 py-3 font-bold text-zinc-700 disabled:opacity-40">Back</button>
                   {step < 5 ? (
-                    <button onClick={next} className="rounded-md bg-zoomcar px-5 py-3 font-bold text-white">Next</button>
+                    <button onClick={next} className="rounded-md bg-sigfleet px-5 py-3 font-bold text-white">Next</button>
                   ) : (
-                    <button onClick={submit} disabled={isSubmitting} className="inline-flex min-w-36 items-center justify-center rounded-md bg-zoomcar px-5 py-3 font-bold text-white disabled:opacity-70">
+                    <button onClick={submit} disabled={isSubmitting} className="inline-flex min-w-36 items-center justify-center rounded-md bg-sigfleet px-5 py-3 font-bold text-white disabled:opacity-70">
                       {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : editMode ? 'Save changes' : 'Submit listing'}
                     </button>
                   )}
@@ -273,7 +273,7 @@ function BasicStep({ form, updateForm }) {
       </div>
       <div className="mt-5">
         <p className="label">Color</p>
-        <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-8">{COLOR_PRESETS.map((color) => <button key={color} onClick={() => updateForm({ color })} className={`rounded-md border px-3 py-2 text-sm font-bold ${form.color === color ? 'border-zoomcar text-zoomcar' : 'border-zinc-200 text-zinc-600'}`}>{color}</button>)}</div>
+        <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-8">{COLOR_PRESETS.map((color) => <button key={color} onClick={() => updateForm({ color })} className={`rounded-md border px-3 py-2 text-sm font-bold ${form.color === color ? 'border-sigfleet text-sigfleet' : 'border-zinc-200 text-zinc-600'}`}>{color}</button>)}</div>
       </div>
       <SelectorGrid label="Category" options={CATEGORIES} value={form.category} onChange={(category) => updateForm({ category })} />
       <CardOptions label="Transmission" options={['manual', 'automatic']} value={form.transmission} onChange={(transmission) => updateForm({ transmission })} />
@@ -293,7 +293,7 @@ function FeatureStep({ form, updateForm }) {
     <div>
       <StepTitle icon={Gauge} title="Features & Description" />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{features.map(([key, label, Icon]) => (
-        <button key={key} onClick={() => updateForm({ [key]: !form[key] })} className={`flex items-center gap-3 rounded-md border p-4 text-left font-bold ${form[key] ? 'border-zoomcar bg-red-50 text-zoomcar' : 'border-zinc-200 text-zinc-700'}`}>
+        <button key={key} onClick={() => updateForm({ [key]: !form[key] })} className={`flex items-center gap-3 rounded-md border p-4 text-left font-bold ${form[key] ? 'border-sigfleet bg-red-50 text-sigfleet' : 'border-zinc-200 text-zinc-700'}`}>
           <Icon size={22} /> {label}
         </button>
       ))}</div>
@@ -342,13 +342,13 @@ function PricingStep({ form, updateForm }) {
       <div className="mt-6 rounded-md border border-zinc-200 p-4">
         <p className="label">Maximum trip duration: {form.max_trip_days} days</p>
         <Slider.Root value={[form.max_trip_days]} max={30} min={1} step={1} onValueChange={([max_trip_days]) => updateForm({ max_trip_days })} className="relative mt-4 flex h-5 items-center">
-          <Slider.Track className="relative h-2 grow rounded-full bg-zinc-200"><Slider.Range className="absolute h-full rounded-full bg-zoomcar" /></Slider.Track>
-          <Slider.Thumb className="block h-5 w-5 rounded-full border-2 border-zoomcar bg-white shadow" />
+          <Slider.Track className="relative h-2 grow rounded-full bg-zinc-200"><Slider.Range className="absolute h-full rounded-full bg-sigfleet" /></Slider.Track>
+          <Slider.Thumb className="block h-5 w-5 rounded-full border-2 border-sigfleet bg-white shadow" />
         </Slider.Root>
       </div>
       <label className="mt-5 flex items-center justify-between rounded-md border border-zinc-200 p-4">
         <span><strong>Auto-accept bookings</strong><span className="block text-sm text-zinc-500">Use this when your car calendar is always accurate.</span></span>
-        <input type="checkbox" checked={form.auto_accept_bookings} onChange={(e) => updateForm({ auto_accept_bookings: e.target.checked })} className="h-5 w-5 rounded text-zoomcar" />
+        <input type="checkbox" checked={form.auto_accept_bookings} onChange={(e) => updateForm({ auto_accept_bookings: e.target.checked })} className="h-5 w-5 rounded text-sigfleet" />
       </label>
       <div className="mt-5 rounded-md bg-zinc-950 p-5 text-white">If booked 15 days/month: Estimated ~₹{earnings.toLocaleString('en-IN')} in earnings</div>
     </div>
@@ -370,9 +370,9 @@ function PhotosStep({ form, updateForm, editMode }) {
   return (
     <div>
       <StepTitle icon={Upload} title="Photos" />
-      <div {...getRootProps()} className={`grid cursor-pointer place-items-center rounded-md border-2 border-dashed p-8 text-center ${isDragActive ? 'border-zoomcar bg-red-50' : 'border-zinc-300'}`}>
+      <div {...getRootProps()} className={`grid cursor-pointer place-items-center rounded-md border-2 border-dashed p-8 text-center ${isDragActive ? 'border-sigfleet bg-red-50' : 'border-zinc-300'}`}>
         <input {...getInputProps()} />
-        <Upload className="text-zoomcar" size={34} />
+        <Upload className="text-sigfleet" size={34} />
         <p className="mt-3 font-bold text-zinc-900">Drag and drop photos, or click to browse</p>
         <p className="mt-1 text-sm text-zinc-500">JPG, PNG, WEBP. Max 5MB each. Max 10 photos.</p>
       </div>
@@ -384,7 +384,7 @@ function PhotosStep({ form, updateForm, editMode }) {
               <button onClick={() => updateForm({ photos: form.photos.map((item) => ({ ...item, primary: item.id === photo.id })) })} className={`grid h-9 w-9 place-items-center rounded-full ${photo.primary ? 'bg-yellow-400 text-zinc-950' : 'bg-white text-zinc-600'}`}><Star size={18} /></button>
               <button onClick={() => updateForm({ photos: form.photos.filter((item) => item.id !== photo.id) })} className="grid h-9 w-9 place-items-center rounded-full bg-white text-zinc-700"><X size={18} /></button>
             </div>
-            <div className="h-1 bg-zoomcar" style={{ width: editMode ? '100%' : '0%' }} />
+            <div className="h-1 bg-sigfleet" style={{ width: editMode ? '100%' : '0%' }} />
           </div>
         ))}
       </div>
@@ -403,7 +403,7 @@ function ReviewStep({ form, setStep }) {
         ['Pricing', `₹${Number(form.price_per_day).toLocaleString('en-IN')}/day | ₹${form.security_deposit} deposit`, 3],
       ].map(([title, detail, target]) => (
         <div key={title} className="mb-4 rounded-md border border-zinc-200 p-4">
-          <div className="flex items-center justify-between gap-4"><h3 className="font-black text-zinc-950">{title}</h3><button onClick={() => setStep(target)} className="font-bold text-zoomcar">Edit</button></div>
+          <div className="flex items-center justify-between gap-4"><h3 className="font-black text-zinc-950">{title}</h3><button onClick={() => setStep(target)} className="font-bold text-sigfleet">Edit</button></div>
           <p className="mt-2 text-zinc-600">{detail}</p>
         </div>
       ))}
@@ -418,14 +418,14 @@ function SubmittedState() {
         <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-emerald-100 text-emerald-700"><Check size={34} /></div>
         <h2 className="mt-5 text-3xl font-black text-zinc-950">Listing Submitted for Review</h2>
         <p className="mt-3 text-zinc-600">We'll review your listing within 24 hours and notify you.</p>
-        <a href="/host/cars" className="mt-6 inline-flex rounded-md bg-zoomcar px-5 py-3 font-bold text-white">Go to My Cars</a>
+        <a href="/manager/cars" className="mt-6 inline-flex rounded-md bg-sigfleet px-5 py-3 font-bold text-white">Go to My Cars</a>
       </div>
     </div>
   )
 }
 
 function StepTitle({ icon: Icon, title }) {
-  return <div className="mb-6 flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-md bg-red-50 text-zoomcar"><Icon size={22} /></span><h2 className="text-2xl font-black text-zinc-950">{title}</h2></div>
+  return <div className="mb-6 flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-md bg-red-50 text-sigfleet"><Icon size={22} /></span><h2 className="text-2xl font-black text-zinc-950">{title}</h2></div>
 }
 
 function Field({ label, children, className = '' }) {
@@ -433,11 +433,11 @@ function Field({ label, children, className = '' }) {
 }
 
 function SelectorGrid({ label, options, value, onChange }) {
-  return <div className="mt-5"><p className="label">{label}</p><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">{options.map((option) => <button key={option} onClick={() => onChange(option)} className={`rounded-md border px-3 py-3 text-sm font-bold capitalize ${value === option ? 'border-zoomcar bg-red-50 text-zoomcar' : 'border-zinc-200 text-zinc-600'}`}>{option}</button>)}</div></div>
+  return <div className="mt-5"><p className="label">{label}</p><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">{options.map((option) => <button key={option} onClick={() => onChange(option)} className={`rounded-md border px-3 py-3 text-sm font-bold capitalize ${value === option ? 'border-sigfleet bg-red-50 text-sigfleet' : 'border-zinc-200 text-zinc-600'}`}>{option}</button>)}</div></div>
 }
 
 function CardOptions({ label, options, value, onChange }) {
-  return <div className="mt-5"><p className="label">{label}</p><div className="mt-2 flex flex-wrap gap-2">{options.map((option) => <button key={option} onClick={() => onChange(option)} className={`rounded-md border px-4 py-3 text-sm font-bold capitalize ${String(value) === String(option) ? 'border-zoomcar bg-red-50 text-zoomcar' : 'border-zinc-200 text-zinc-600'}`}>{option}{option === 8 ? '+' : ''}</button>)}</div></div>
+  return <div className="mt-5"><p className="label">{label}</p><div className="mt-2 flex flex-wrap gap-2">{options.map((option) => <button key={option} onClick={() => onChange(option)} className={`rounded-md border px-4 py-3 text-sm font-bold capitalize ${String(value) === String(option) ? 'border-sigfleet bg-red-50 text-sigfleet' : 'border-zinc-200 text-zinc-600'}`}>{option}{option === 8 ? '+' : ''}</button>)}</div></div>
 }
 
 function _featureCount(form) {

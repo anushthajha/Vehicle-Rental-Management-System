@@ -59,12 +59,12 @@ export default function SearchBar({ className = '', compact = false }) {
           <label className="label flex items-center gap-2"><MapPin size={16} /> City</label>
           <input
             className="input mt-2 h-12"
-            list="zoomcar-cities"
+            list="sigfleet-cities"
             value={cityDraft}
             onChange={(event) => setCityDraft(event.target.value)}
             placeholder="Select city"
           />
-          <datalist id="zoomcar-cities">
+          <datalist id="sigfleet-cities">
             {CITIES.map((item) => <option key={item} value={item} />)}
           </datalist>
           <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
@@ -76,7 +76,7 @@ export default function SearchBar({ className = '', compact = false }) {
                   setCityDraft(item)
                   setCity(item)
                 }}
-                className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold ${city === item ? 'border-zoomcar bg-red-50 text-zoomcar' : 'border-zinc-200 bg-zinc-50 text-zinc-600'}`}
+                className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold ${city === item ? 'border-sigfleet bg-red-50 text-sigfleet' : 'border-zinc-200 bg-zinc-50 text-zinc-600'}`}
               >
                 {item}
               </button>
@@ -110,7 +110,7 @@ export default function SearchBar({ className = '', compact = false }) {
             {formatDuration(pickup, returnAt)}
           </div>
         </div>
-        <button type="submit" className="mt-6 inline-flex h-12 items-center justify-center gap-2 rounded-md bg-zoomcar px-5 font-black text-white transition hover:bg-red-700">
+        <button type="submit" className="mt-6 inline-flex h-12 items-center justify-center gap-2 rounded-md bg-sigfleet px-5 font-black text-white transition hover:bg-red-700">
           <Search size={18} /> Search Cars
         </button>
       </div>

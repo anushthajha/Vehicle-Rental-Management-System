@@ -61,18 +61,18 @@ export default function WriteReviewPage() {
     }
   }
 
-  if (loading) return <main className="grid min-h-screen place-items-center bg-zinc-50"><Loader2 className="animate-spin text-zoomcar" /></main>
+  if (loading) return <main className="grid min-h-screen place-items-center bg-zinc-50"><Loader2 className="animate-spin text-sigfleet" /></main>
   if (success) return <SuccessState bookingId={bookingId} />
-  if (!pendingTypes.length) return <main className="grid min-h-screen place-items-center bg-zinc-50 px-4 text-center"><div><CheckCircle2 className="mx-auto text-emerald-600" size={54} /><h1 className="mt-4 text-2xl font-black">All reviews are complete</h1><Link to={`/dashboard/bookings/${bookingId}`} className="mt-5 inline-flex rounded-md bg-zoomcar px-5 py-3 font-black text-white">Back to booking</Link></div></main>
+  if (!pendingTypes.length) return <main className="grid min-h-screen place-items-center bg-zinc-50 px-4 text-center"><div><CheckCircle2 className="mx-auto text-emerald-600" size={54} /><h1 className="mt-4 text-2xl font-black">All reviews are complete</h1><Link to={`/dashboard/bookings/${bookingId}`} className="mt-5 inline-flex rounded-md bg-sigfleet px-5 py-3 font-black text-white">Back to booking</Link></div></main>
 
   const target = activeType === 'host_to_guest' ? booking.counterparty : activeType === 'guest_to_host' ? booking.counterparty : booking.car
 
   return (
     <main className="min-h-screen bg-zinc-50 px-4 py-8">
       <section className="mx-auto max-w-3xl rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
-        <p className="text-sm font-black uppercase text-zoomcar">Review trip {booking.booking_ref}</p>
+        <p className="text-sm font-black uppercase text-sigfleet">Review trip {booking.booking_ref}</p>
         <h1 className="mt-2 text-3xl font-black">Share your experience</h1>
-        {pendingTypes.length > 1 && <div className="mt-6 flex gap-2">{pendingTypes.map((type) => <button key={type} onClick={() => setActiveType(type)} className={`rounded-md px-4 py-2 font-black ${activeType === type ? 'bg-zoomcar text-white' : 'bg-zinc-100 text-zinc-700'}`}>{REVIEW_LABELS[type]}</button>)}</div>}
+        {pendingTypes.length > 1 && <div className="mt-6 flex gap-2">{pendingTypes.map((type) => <button key={type} onClick={() => setActiveType(type)} className={`rounded-md px-4 py-2 font-black ${activeType === type ? 'bg-sigfleet text-white' : 'bg-zinc-100 text-zinc-700'}`}>{REVIEW_LABELS[type]}</button>)}</div>}
 
         <div className="mt-6 flex items-center gap-4 rounded-lg bg-zinc-50 p-4">
           <img src={target?.primary_image_url || target?.photo || 'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=300&q=80'} alt="" className="h-20 w-20 rounded-md object-cover" />
@@ -92,7 +92,7 @@ export default function WriteReviewPage() {
             <textarea className="input min-h-40" minLength={30} maxLength={2000} value={form.body} onChange={(event) => setForm((current) => ({ ...current, body: event.target.value }))} placeholder="Tell others about your trip..." required />
             <p className="mt-1 text-right text-xs font-bold text-zinc-500">{form.body.length}/2000</p>
           </div>
-          <button className="rounded-md bg-zoomcar px-6 py-3 font-black text-white">Submit Review</button>
+          <button className="rounded-md bg-sigfleet px-6 py-3 font-black text-white">Submit Review</button>
         </form>
       </section>
     </main>
@@ -107,7 +107,7 @@ function SuccessState({ bookingId }) {
         <div className="pointer-events-none absolute inset-x-0 top-8 mx-auto h-32 w-32 animate-ping rounded-full bg-amber-200/30" />
         <h1 className="mt-5 text-3xl font-black">Review submitted!</h1>
         <p className="mt-2 font-bold text-zinc-500">Thank you.</p>
-        <Link to={`/dashboard/bookings/${bookingId}`} className="mt-5 inline-flex rounded-md bg-zoomcar px-5 py-3 font-black text-white">Back to booking</Link>
+        <Link to={`/dashboard/bookings/${bookingId}`} className="mt-5 inline-flex rounded-md bg-sigfleet px-5 py-3 font-black text-white">Back to booking</Link>
       </div>
     </main>
   )

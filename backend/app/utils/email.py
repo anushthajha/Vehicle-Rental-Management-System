@@ -28,7 +28,7 @@ def _layout(title: str, body: str) -> str:
             <td align="center">
               <table width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
                 <tr>
-                  <td style="background:{BRAND_RED};color:#ffffff;padding:22px 28px;font-size:24px;font-weight:800;">Zoomcar</td>
+                  <td style="background:{BRAND_RED};color:#ffffff;padding:22px 28px;font-size:24px;font-weight:800;">SigFleet</td>
                 </tr>
                 <tr>
                   <td style="padding:30px 28px;">
@@ -38,7 +38,7 @@ def _layout(title: str, body: str) -> str:
                 </tr>
                 <tr>
                   <td style="padding:18px 28px;background:#f9fafb;color:#6b7280;font-size:13px;">
-                    This is an automated Zoomcar message. If you did not request this, you can ignore it.
+                    This is an automated SigFleet message. If you did not request this, you can ignore it.
                   </td>
                 </tr>
               </table>
@@ -70,21 +70,21 @@ async def _send_html_email(to_email: str, subject: str, html: str) -> None:
 async def send_verification_email(to_email: str, full_name: str, token: str) -> None:
     url = f"{settings.FRONTEND_URL}/auth/verify-email?token={token}"
     body = (
-        f"<p>Hi {escape(full_name)}, welcome to Zoomcar. Verify your email to finish setting up your account.</p>"
+        f"<p>Hi {escape(full_name)}, welcome to SigFleet. Verify your email to finish setting up your account.</p>"
         f"{_button(url, 'Verify email')}"
         "<p>This verification link expires in 24 hours.</p>"
     )
-    await _send_html_email(to_email, "Verify your Zoomcar account", _layout("Verify your account", body))
+    await _send_html_email(to_email, "Verify your SigFleet account", _layout("Verify your account", body))
 
 
 async def send_password_reset_email(to_email: str, full_name: str, token: str) -> None:
     url = f"{settings.FRONTEND_URL}/auth/reset-password?token={token}"
     body = (
-        f"<p>Hi {escape(full_name)}, use the secure link below to reset your Zoomcar password.</p>"
+        f"<p>Hi {escape(full_name)}, use the secure link below to reset your SigFleet password.</p>"
         f"{_button(url, 'Reset password')}"
         "<p>This reset link expires in 2 hours.</p>"
     )
-    await _send_html_email(to_email, "Reset your Zoomcar password", _layout("Reset your password", body))
+    await _send_html_email(to_email, "Reset your SigFleet password", _layout("Reset your password", body))
 
 
 async def send_booking_confirmation_email(to_email: str, booking: dict) -> None:
@@ -95,12 +95,12 @@ async def send_booking_confirmation_email(to_email: str, booking: dict) -> None:
 
 async def send_booking_request_to_host_email(to_email: str, booking: dict) -> None:
     car_title = booking.get("car_title", "your car")
-    url = f"{settings.FRONTEND_URL}/host/dashboard"
+    url = f"{settings.FRONTEND_URL}/manager/dashboard"
     body = (
         f"<p>You have a new booking request for <strong>{escape(car_title)}</strong>.</p>"
         f"<p><strong>Guest:</strong> {escape(str(booking.get('guest_name', 'Guest')))}</p>"
         f"{_booking_details(booking)}"
-        f"{_button(url, 'Open host dashboard')}"
+        f"{_button(url, 'Open manager dashboard')}"
     )
     await _send_html_email(to_email, f"New Booking Request — {car_title}", _layout("New booking request", body))
 
@@ -112,7 +112,7 @@ async def send_booking_cancelled_email(to_email: str, booking: dict, refund_amou
 
 
 async def send_kyc_approved_email(to_email: str, full_name: str) -> None:
-    body = f"<p>Hi {escape(full_name)}, your KYC is verified. You're ready to book your next Zoomcar trip.</p>"
+    body = f"<p>Hi {escape(full_name)}, your KYC is verified. You're ready to book your next SigFleet trip.</p>"
     await _send_html_email(to_email, "KYC Verified ✓ — You're ready to book", _layout("KYC verified", body))
 
 
@@ -141,10 +141,10 @@ async def send_trip_reminder_email(to_email: str, booking: dict) -> None:
 async def send_review_request_email(to_email: str, full_name: str, booking_ref: str) -> None:
     url = f"{settings.FRONTEND_URL}/bookings/{booking_ref}/review"
     body = (
-        f"<p>Hi {escape(full_name)}, how was your Zoomcar trip?</p>"
+        f"<p>Hi {escape(full_name)}, how was your SigFleet trip?</p>"
         f"{_button(url, 'Leave a review')}"
     )
-    await _send_html_email(to_email, "How was your Zoomcar trip?", _layout("Share your trip feedback", body))
+    await _send_html_email(to_email, "How was your SigFleet trip?", _layout("Share your trip feedback", body))
 
 
 async def send_host_payout_email(to_email: str, amount: float) -> None:

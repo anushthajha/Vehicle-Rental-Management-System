@@ -5,7 +5,7 @@ import toast from 'react-hot-toast'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import AuthLayout from './AuthLayout'
 import api from '../../services/api'
-import { useAuthStore } from '../../context/AuthContext'
+import { redirectPathForRole, useAuthStore } from '../../context/AuthContext'
 import { collectZodErrors, loginSchema } from '../../utils/validationSchemas'
 
 export default function LoginPage() {
@@ -39,7 +39,7 @@ export default function LoginPage() {
       setTokens({ accessToken: response.data.access_token, refreshToken: response.data.refresh_token })
       setUser(response.data.user)
       toast.success('Logged in successfully')
-      const next = location.state?.from?.pathname || searchParams.get('next') || '/'
+      const next = location.state?.from?.pathname || searchParams.get('next') || redirectPathForRole(response.data.user?.role)
       navigate(next, { replace: true })
     } catch (err) {
       const detail = err.response?.data?.detail
@@ -64,7 +64,7 @@ export default function LoginPage() {
 
   return (
     <AuthLayout>
-      <Helmet><title>Login | Zoomcar Clone</title><meta name="robots" content="noindex" /></Helmet>
+      <Helmet><title>Login | SigFleet</title><meta name="robots" content="noindex" /></Helmet>
       <form onSubmit={submit} className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-8 shadow-sm">
         <h2 className="text-3xl font-black text-zinc-950">Log in</h2>
         <p className="mt-2 text-sm text-zinc-500">Manage bookings, wallet, and trips from one secure account.</p>
@@ -106,16 +106,16 @@ export default function LoginPage() {
         </label>
 
         <div className="mt-3 text-right">
-          <Link className="text-sm font-bold text-zoomcar" to="/auth/forgot-password">Forgot Password?</Link>
+          <Link className="text-sm font-bold text-sigfleet" to="/auth/forgot-password">Forgot Password?</Link>
         </div>
 
-        <button type="submit" disabled={isLoading} className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-zoomcar px-4 font-bold text-white disabled:opacity-70">
+        <button type="submit" disabled={isLoading} className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-sigfleet px-4 font-bold text-white disabled:opacity-70">
           {isLoading ? <Loader2 className="animate-spin" size={20} /> : 'Log in'}
         </button>
 
         <div className="my-6 h-px bg-zinc-200" />
         <p className="text-center text-sm text-zinc-600">
-          New to Zoomcar? <Link className="font-bold text-zoomcar" to="/auth/register">Create an account</Link>
+          New to SigFleet? <Link className="font-bold text-sigfleet" to="/auth/register">Create an account</Link>
         </p>
       </form>
     </AuthLayout>

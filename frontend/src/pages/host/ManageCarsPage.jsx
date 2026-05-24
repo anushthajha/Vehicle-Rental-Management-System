@@ -12,7 +12,7 @@ export default function ManageCarsPage() {
   async function loadCars() {
     setLoading(true)
     try {
-      const response = await api.get('/cars/host/cars')
+      const response = await api.get('/cars/manager/cars')
       setCars(response.data.cars || [])
     } catch (err) {
       setError(err.response?.data?.detail || 'Unable to load cars.')
@@ -54,10 +54,10 @@ export default function ManageCarsPage() {
       <section className="mx-auto max-w-6xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-black uppercase text-zoomcar">Host garage</p>
+            <p className="text-sm font-black uppercase text-sigfleet">Manager garage</p>
             <h1 className="text-3xl font-black text-zinc-950">My Cars</h1>
           </div>
-          <Link to="/host/cars/new" className="rounded-md bg-zoomcar px-5 py-3 font-bold text-white">List a car</Link>
+          <Link to="/manager/cars/new" className="rounded-md bg-sigfleet px-5 py-3 font-bold text-white">List a car</Link>
         </div>
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard icon={Car} label="Total Cars" value={stats.total} />
@@ -68,12 +68,12 @@ export default function ManageCarsPage() {
         <div className="mt-6 rounded-lg border border-zinc-200 bg-white shadow-sm">
           <div className="flex flex-wrap gap-2 border-b border-zinc-200 p-4">
             {['all', 'active', 'pending', 'inactive'].map((tab) => (
-              <button key={tab} onClick={() => setFilter(tab)} className={`rounded-md px-4 py-2 text-sm font-bold capitalize ${filter === tab ? 'bg-zoomcar text-white' : 'bg-zinc-100 text-zinc-600'}`}>{tab}</button>
+              <button key={tab} onClick={() => setFilter(tab)} className={`rounded-md px-4 py-2 text-sm font-bold capitalize ${filter === tab ? 'bg-sigfleet text-white' : 'bg-zinc-100 text-zinc-600'}`}>{tab}</button>
             ))}
           </div>
           {error && <div className="m-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
           {isLoading ? (
-            <div className="grid h-64 place-items-center"><Loader2 className="animate-spin text-zoomcar" /></div>
+            <div className="grid h-64 place-items-center"><Loader2 className="animate-spin text-sigfleet" /></div>
           ) : (
             <div className="divide-y divide-zinc-200">
               {filtered.map((car) => (
@@ -89,8 +89,8 @@ export default function ManageCarsPage() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button onClick={() => toggle(car.id)} className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-bold text-zinc-700">Toggle availability</button>
-                    <Link to={`/host/cars/${car.id}/edit`} className="grid h-10 w-10 place-items-center rounded-md bg-zinc-100 text-zinc-700"><Pencil size={18} /></Link>
-                    <Link to={`/host/cars/${car.id}/bookings`} className="rounded-md bg-zinc-950 px-3 py-2 text-sm font-bold text-white">Bookings</Link>
+                    <Link to={`/manager/cars/${car.id}/edit`} className="grid h-10 w-10 place-items-center rounded-md bg-zinc-100 text-zinc-700"><Pencil size={18} /></Link>
+                    <Link to={`/manager/cars/${car.id}/bookings`} className="rounded-md bg-zinc-950 px-3 py-2 text-sm font-bold text-white">Bookings</Link>
                     <button onClick={() => remove(car.id)} className="grid h-10 w-10 place-items-center rounded-md bg-red-50 text-red-700"><Trash2 size={18} /></button>
                   </div>
                 </div>
@@ -107,7 +107,7 @@ export default function ManageCarsPage() {
 function StatCard({ icon: Icon, label, value }) {
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-      <Icon className="text-zoomcar" size={24} />
+      <Icon className="text-sigfleet" size={24} />
       <p className="mt-4 text-sm font-bold text-zinc-500">{label}</p>
       <p className="mt-1 text-2xl font-black text-zinc-950">{value}</p>
     </div>

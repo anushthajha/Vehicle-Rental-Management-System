@@ -50,7 +50,7 @@ async def check_and_update_superhost(host_id: str, db: AsyncSession) -> bool:
         "Superhost status updated",
         "You're now a Superhost!" if qualifies else "Your Superhost badge is paused until all criteria are met again.",
         "host",
-        action_url="/host/profile",
+        action_url="/manager/profile",
         meta={
             "completed_trips": completed_trips,
             "average_rating": float(host.average_rating or 0),

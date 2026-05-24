@@ -21,10 +21,10 @@ export default function AuthLayout({ children, compact = false }) {
         <div className="absolute inset-0 bg-zinc-950/45" />
         <div className="relative flex h-full flex-col justify-between p-12 text-white">
           <div className="flex items-center gap-3 text-xl font-black">
-            <span className="grid h-11 w-11 place-items-center rounded-md bg-zoomcar">
+            <span className="grid h-11 w-11 place-items-center rounded-md bg-sigfleet">
               <Car size={24} />
             </span>
-            Zoomcar
+            SigFleet
           </div>
           <div className="max-w-xl">
             <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-white/12 px-4 py-2 text-sm font-semibold backdrop-blur">

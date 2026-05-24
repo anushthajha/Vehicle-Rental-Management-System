@@ -5,7 +5,7 @@ from app.config import settings
 
 
 celery_app = Celery(
-    "zoomcar",
+    "sigfleet",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
 )
@@ -23,7 +23,7 @@ celery_app.conf.update(
             "task": "app.tasks.maintenance.auto_cancel_unpaid_bookings",
             "schedule": 30 * 60,
         },
-        "update-superhost-status": {
+        "update-manager-status": {
             "task": "app.tasks.maintenance.update_superhost_status",
             "schedule": crontab(hour=2, minute=0),
         },

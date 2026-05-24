@@ -42,7 +42,7 @@ export default function WalletPage() {
   }
 
   return (
-    <DashboardShell title="Wallet" eyebrow="Payments" actions={<button onClick={() => setModalOpen(true)} className="inline-flex items-center gap-2 rounded-md bg-zoomcar px-4 py-3 font-black text-white"><Plus size={18} /> Add Money</button>}>
+    <DashboardShell title="Wallet" eyebrow="Payments" actions={<button onClick={() => setModalOpen(true)} className="inline-flex items-center gap-2 rounded-md bg-sigfleet px-4 py-3 font-black text-white"><Plus size={18} /> Add Money</button>}>
       <section className="rounded-lg bg-zinc-950 p-6 text-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -55,7 +55,7 @@ export default function WalletPage() {
 
       <section className="mt-6 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex rounded-md border border-zinc-200 bg-zinc-50 p-1">{TABS.map((item) => <button key={item} onClick={() => setTab(item)} className={`rounded px-4 py-2 text-sm font-black capitalize ${tab === item ? 'bg-zoomcar text-white' : 'text-zinc-600'}`}>{item === 'all' ? 'All' : `${item}s`}</button>)}</div>
+          <div className="flex rounded-md border border-zinc-200 bg-zinc-50 p-1">{TABS.map((item) => <button key={item} onClick={() => setTab(item)} className={`rounded px-4 py-2 text-sm font-black capitalize ${tab === item ? 'bg-sigfleet text-white' : 'text-zinc-600'}`}>{item === 'all' ? 'All' : `${item}s`}</button>)}</div>
           <div className="flex flex-wrap gap-2">
             <input type="date" className="input h-10 w-40" value={dateRange.start} onChange={(event) => setDateRange((current) => ({ ...current, start: event.target.value }))} />
             <input type="date" className="input h-10 w-40" value={dateRange.end} onChange={(event) => setDateRange((current) => ({ ...current, end: event.target.value }))} />
@@ -63,7 +63,7 @@ export default function WalletPage() {
           </div>
         </div>
 
-        {loading ? <div className="grid h-64 place-items-center"><Loader2 className="animate-spin text-zoomcar" /></div> : (
+        {loading ? <div className="grid h-64 place-items-center"><Loader2 className="animate-spin text-sigfleet" /></div> : (
           <div className="mt-5 overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead className="border-b border-zinc-200 text-xs uppercase text-zinc-500"><tr><th className="py-3">Date</th><th>Description</th><th>Type</th><th className="text-right">Amount</th><th className="text-right">Balance After</th></tr></thead>
@@ -109,9 +109,9 @@ function AddMoneyModal({ open, onOpenChange, onAdded }) {
           <div className="flex items-center justify-between"><Dialog.Title className="text-xl font-black">Add Money</Dialog.Title><Dialog.Close><X className="text-zinc-500" /></Dialog.Close></div>
           {!confirming ? (
             <>
-              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">{PRESETS.map((preset) => <button key={preset} onClick={() => setAmount(preset)} className={`rounded-md border px-4 py-3 font-black ${Number(amount) === preset ? 'border-zoomcar bg-red-50 text-zoomcar' : 'border-zinc-200'}`}>₹{preset}</button>)}</div>
+              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">{PRESETS.map((preset) => <button key={preset} onClick={() => setAmount(preset)} className={`rounded-md border px-4 py-3 font-black ${Number(amount) === preset ? 'border-sigfleet bg-red-50 text-sigfleet' : 'border-zinc-200'}`}>₹{preset}</button>)}</div>
               <input className="input mt-4 h-11" type="number" min="100" max="10000" value={amount} onChange={(event) => setAmount(event.target.value)} />
-              <button onClick={() => setConfirming(true)} className="mt-5 w-full rounded-md bg-zoomcar px-4 py-3 font-black text-white">Add {moneyLabel(amount)} to Wallet</button>
+              <button onClick={() => setConfirming(true)} className="mt-5 w-full rounded-md bg-sigfleet px-4 py-3 font-black text-white">Add {moneyLabel(amount)} to Wallet</button>
             </>
           ) : (
             <div className="mt-5 rounded-lg border border-zinc-200 p-4">

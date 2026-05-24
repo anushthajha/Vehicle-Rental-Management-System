@@ -10,7 +10,7 @@ const ICONS = {
   payment: [CreditCard, 'text-emerald-700 bg-emerald-50'],
   kyc: [FileCheck2, 'text-amber-700 bg-amber-50'],
   review: [MessageSquare, 'text-violet-700 bg-violet-50'],
-  promotion: [Tag, 'text-zoomcar bg-red-50'],
+  promotion: [Tag, 'text-sigfleet bg-red-50'],
   host: [Info, 'text-cyan-700 bg-cyan-50'],
   system: [Settings, 'text-zinc-700 bg-zinc-100'],
 }
@@ -65,17 +65,17 @@ export default function NotificationBell() {
     <div className="relative">
       <button onClick={() => setOpen((value) => !value)} className="relative grid h-11 w-11 place-items-center rounded-md border border-zinc-200 bg-white text-zinc-700" aria-label="Notifications">
         <Bell size={20} />
-        {count > 0 && <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-zoomcar px-1 text-[10px] font-black text-white">{count > 9 ? '9+' : count}</span>}
+        {count > 0 && <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-sigfleet px-1 text-[10px] font-black text-white">{count > 9 ? '9+' : count}</span>}
       </button>
       {open && (
         <div className="absolute right-0 top-12 z-50 w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-xl">
-          <div className="flex items-center justify-between border-b border-zinc-100 p-3"><p className="font-black">Notifications</p><button onClick={markAll} className="inline-flex items-center gap-1 text-xs font-black text-zoomcar"><CheckCheck size={15} /> Mark all read</button></div>
+          <div className="flex items-center justify-between border-b border-zinc-100 p-3"><p className="font-black">Notifications</p><button onClick={markAll} className="inline-flex items-center gap-1 text-xs font-black text-sigfleet"><CheckCheck size={15} /> Mark all read</button></div>
           <div className="max-h-96 overflow-y-auto">
             {items.length ? items.map((item) => <NotificationRow key={item._id} item={item} onClick={() => openItem(item)} />) : <div className="p-6 text-center font-bold text-zinc-500">No notifications</div>}
           </div>
           <div className="grid grid-cols-2 border-t border-zinc-100 text-center text-sm font-black">
             <button onClick={markAll} className="p-3 text-zinc-600">Mark all read</button>
-            <Link onClick={() => setOpen(false)} to="/dashboard/notifications" className="p-3 text-zoomcar">View all notifications</Link>
+            <Link onClick={() => setOpen(false)} to="/dashboard/notifications" className="p-3 text-sigfleet">View all notifications</Link>
           </div>
         </div>
       )}

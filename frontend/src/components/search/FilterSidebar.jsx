@@ -27,11 +27,11 @@ function FilterSidebar({ filters, setFilters, cars = [], histogram = [], onClear
     <aside className="h-full overflow-y-auto bg-white">
       <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-200 bg-white p-4">
         <div className="flex items-center gap-2">
-          <SlidersHorizontal size={18} className="text-zoomcar" />
+          <SlidersHorizontal size={18} className="text-sigfleet" />
           <h2 className="font-black text-zinc-950">Filters</h2>
-          {activeCount > 0 && <span className="rounded-full bg-zoomcar px-2 py-0.5 text-xs font-black text-white">{activeCount}</span>}
+          {activeCount > 0 && <span className="rounded-full bg-sigfleet px-2 py-0.5 text-xs font-black text-white">{activeCount}</span>}
         </div>
-        <button type="button" onClick={onClear} className="text-sm font-black text-zoomcar">Clear All</button>
+        <button type="button" onClick={onClear} className="text-sm font-black text-sigfleet">Clear All</button>
       </div>
 
       <div className="space-y-6 p-4">
@@ -62,10 +62,10 @@ function FilterSidebar({ filters, setFilters, cars = [], histogram = [], onClear
             onValueChange={(price) => patch({ price })}
           >
             <Slider.Track className="relative h-1.5 grow rounded-full bg-zinc-200">
-              <Slider.Range className="absolute h-full rounded-full bg-zoomcar" />
+              <Slider.Range className="absolute h-full rounded-full bg-sigfleet" />
             </Slider.Track>
-            <Slider.Thumb className="block h-5 w-5 rounded-full border-2 border-zoomcar bg-white shadow" />
-            <Slider.Thumb className="block h-5 w-5 rounded-full border-2 border-zoomcar bg-white shadow" />
+            <Slider.Thumb className="block h-5 w-5 rounded-full border-2 border-sigfleet bg-white shadow" />
+            <Slider.Thumb className="block h-5 w-5 rounded-full border-2 border-sigfleet bg-white shadow" />
           </Slider.Root>
           <div className="mt-3 grid grid-cols-2 gap-3">
             <input className="input h-10" value={filters.price[0]} onChange={(event) => patch({ price: [Number(event.target.value), filters.price[1]] })} />
@@ -82,7 +82,7 @@ function FilterSidebar({ filters, setFilters, cars = [], histogram = [], onClear
                   key={item.key}
                   type="button"
                   onClick={() => patch({ categories: toggleValue(filters.categories, item.key) })}
-                  className={`rounded-md border p-3 text-left transition ${active ? 'border-zoomcar bg-red-50' : 'border-zinc-200 bg-white hover:border-zinc-300'}`}
+                  className={`rounded-md border p-3 text-left transition ${active ? 'border-sigfleet bg-red-50' : 'border-zinc-200 bg-white hover:border-zinc-300'}`}
                 >
                   <span className="text-xl">{item.icon}</span>
                   <span className="mt-1 block text-sm font-black text-zinc-900">{item.label}</span>
@@ -96,7 +96,7 @@ function FilterSidebar({ filters, setFilters, cars = [], histogram = [], onClear
         <FilterSection title="Transmission">
           <div className="grid grid-cols-3 gap-2">
             {[['', 'Any'], ['manual', 'Manual'], ['automatic', 'Automatic']].map(([value, label]) => (
-              <button key={label} type="button" onClick={() => patch({ transmission: value })} className={`rounded-md border px-3 py-3 text-sm font-black ${filters.transmission === value ? 'border-zoomcar bg-red-50 text-zoomcar' : 'border-zinc-200 text-zinc-700'}`}>{label}</button>
+              <button key={label} type="button" onClick={() => patch({ transmission: value })} className={`rounded-md border px-3 py-3 text-sm font-black ${filters.transmission === value ? 'border-sigfleet bg-red-50 text-sigfleet' : 'border-zinc-200 text-zinc-700'}`}>{label}</button>
             ))}
           </div>
         </FilterSection>
@@ -114,7 +114,7 @@ function FilterSidebar({ filters, setFilters, cars = [], histogram = [], onClear
         <FilterSection title="Seats">
           <div className="grid grid-cols-3 gap-2">
             {SEAT_OPTIONS.map((seat) => (
-              <button key={seat} type="button" onClick={() => patch({ seats: toggleValue(filters.seats, seat) })} className={`rounded-md border px-3 py-2 text-sm font-black ${filters.seats.includes(seat) ? 'border-zoomcar bg-red-50 text-zoomcar' : 'border-zinc-200 text-zinc-700'}`}>{seat === 8 ? '8+' : seat}</button>
+              <button key={seat} type="button" onClick={() => patch({ seats: toggleValue(filters.seats, seat) })} className={`rounded-md border px-3 py-2 text-sm font-black ${filters.seats.includes(seat) ? 'border-sigfleet bg-red-50 text-sigfleet' : 'border-zinc-200 text-zinc-700'}`}>{seat === 8 ? '8+' : seat}</button>
             ))}
           </div>
         </FilterSection>
@@ -122,7 +122,7 @@ function FilterSidebar({ filters, setFilters, cars = [], histogram = [], onClear
         <FilterSection title="Features">
           <div className="grid grid-cols-2 gap-2">
             {FEATURE_OPTIONS.map((item) => (
-              <button key={item.key} type="button" onClick={() => patch({ features: toggleValue(filters.features, item.key) })} className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-bold ${filters.features.includes(item.key) ? 'border-zoomcar bg-red-50 text-zoomcar' : 'border-zinc-200 text-zinc-700'}`}>
+              <button key={item.key} type="button" onClick={() => patch({ features: toggleValue(filters.features, item.key) })} className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-bold ${filters.features.includes(item.key) ? 'border-sigfleet bg-red-50 text-sigfleet' : 'border-zinc-200 text-zinc-700'}`}>
                 <span>{item.icon}</span>
                 <span>{item.label}</span>
               </button>
@@ -133,7 +133,7 @@ function FilterSidebar({ filters, setFilters, cars = [], histogram = [], onClear
         <FilterSection title="Rating">
           <div className="grid grid-cols-3 gap-2">
             {[['', 'Any'], ['3', '3+ Stars'], ['4', '4+ Stars']].map(([value, label]) => (
-              <button key={label} type="button" onClick={() => patch({ rating: value })} className={`rounded-md border px-3 py-3 text-sm font-black ${filters.rating === value ? 'border-zoomcar bg-red-50 text-zoomcar' : 'border-zinc-200 text-zinc-700'}`}>{label}</button>
+              <button key={label} type="button" onClick={() => patch({ rating: value })} className={`rounded-md border px-3 py-3 text-sm font-black ${filters.rating === value ? 'border-sigfleet bg-red-50 text-sigfleet' : 'border-zinc-200 text-zinc-700'}`}>{label}</button>
             ))}
           </div>
         </FilterSection>
@@ -142,7 +142,7 @@ function FilterSidebar({ filters, setFilters, cars = [], histogram = [], onClear
       {onApply && (
         <div className="sticky bottom-0 grid grid-cols-[1fr_auto] gap-3 border-t border-zinc-200 bg-white p-4">
           <button type="button" onClick={onClear} className="inline-flex items-center justify-center gap-2 rounded-md border border-zinc-300 px-4 py-3 font-black text-zinc-800"><X size={16} /> Clear All</button>
-          <button type="button" onClick={onApply} className="inline-flex items-center justify-center gap-2 rounded-md bg-zoomcar px-5 py-3 font-black text-white"><Check size={16} /> Apply Filters</button>
+          <button type="button" onClick={onApply} className="inline-flex items-center justify-center gap-2 rounded-md bg-sigfleet px-5 py-3 font-black text-white"><Check size={16} /> Apply Filters</button>
         </div>
       )}
     </aside>
@@ -172,7 +172,7 @@ function CheckboxList({ values, selected, labels, counts = {}, onToggle }) {
       {values.map((value) => (
         <button key={value} type="button" onClick={() => onToggle(value)} className="flex w-full items-center justify-between rounded-md border border-zinc-200 px-3 py-2 text-left">
           <span className="flex items-center gap-2 text-sm font-bold text-zinc-800">
-            <span className={`grid h-5 w-5 place-items-center rounded border ${selected.includes(value) ? 'border-zoomcar bg-zoomcar text-white' : 'border-zinc-300'}`}>
+            <span className={`grid h-5 w-5 place-items-center rounded border ${selected.includes(value) ? 'border-sigfleet bg-sigfleet text-white' : 'border-zinc-300'}`}>
               {selected.includes(value) && <Check size={13} />}
             </span>
             {labels(value)}

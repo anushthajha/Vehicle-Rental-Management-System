@@ -12,6 +12,12 @@ function initials(name = 'User') {
   return name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()
 }
 
+const roleDashboards = {
+  customer: '/customer/dashboard',
+  vehicle_manager: '/manager/dashboard',
+  admin: '/admin/dashboard',
+}
+
 export default function Navbar() {
   const { user, logout } = useAuthStore()
   const [scrolled, setScrolled] = useState(false)
@@ -34,11 +40,14 @@ export default function Navbar() {
     api.get('/notifications/unread-count').then((response) => setUnread(response.data.count || 0)).catch(() => setUnread(0))
   }, [user])
 
-  const nav = [
-    ['Explore', '/search'],
-    ['How it Works', '/how-it-works'],
-    ['List Your Car', '/become-a-host'],
-  ]
+  const role = user?.role
+  const nav = role === 'admin'
+    ? [['Dashboard', '/admin/dashboard'], ['Users', '/admin/users'], ['Vehicles', '/admin/cars'], ['Bookings', '/admin/bookings'], ['Analytics', '/admin/analytics']]
+    : role === 'vehicle_manager'
+      ? [['My Vehicles', '/manager/cars'], ['Bookings', '/manager/bookings'], ['Availability', '/manager/cars']]
+      : [['Browse Vehicles', '/search'], ['How it Works', '/how-it-works'], ['Become a Manager', '/contact']]
+
+  const dashboardPath = roleDashboards[role] || '/'
 
   const logoutAndGo = () => {
     logout()
@@ -50,7 +59,7 @@ export default function Navbar() {
     const next = !dark
     setDark(next)
     document.documentElement.classList.toggle('dark', next)
-    localStorage.setItem('zoomcar-theme', next ? 'dark' : 'light')
+    localStorage.setItem('sigfleet-theme', next ? 'dark' : 'light')
   }
 
   const headerTone = scrolled
@@ -62,7 +71,7 @@ export default function Navbar() {
     <header className={`fixed inset-x-0 top-0 z-50 transition ${headerTone}`}>
       <nav className="mx-auto flex min-h-[72px] max-w-7xl items-center justify-between px-4 py-4">
         <Link to="/" className="font-display text-2xl font-black tracking-tight">
-          <span className="text-[#E31837]">Zoom</span><span className={brandTone}>car</span>
+          <span className="text-[#E31837]">Sig</span><span className={brandTone}>Fleet</span>
         </Link>
         <div className="hidden items-center gap-8 md:flex">
           {nav.map(([label, to]) => <NavLink key={to} to={to} className={({ isActive }) => `text-sm font-black ${isActive ? 'text-[#E31837]' : scrolled ? 'text-zinc-800 hover:text-[#E31837]' : 'text-white hover:text-white/80'}`}>{label}</NavLink>)}
@@ -83,15 +92,44 @@ export default function Navbar() {
                   <DropdownMenu.Content align="end" className="z-[60] w-64 rounded-lg border border-zinc-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-800">
                     <div className="flex items-center gap-3 border-b border-zinc-100 p-3">
                       <span className="grid h-11 w-11 place-items-center rounded-full bg-zinc-900 text-sm font-black text-white">{initials(user.full_name)}</span>
-                      <div><p className="font-black">{user.full_name}</p><p className="text-xs font-bold text-zinc-500">{user.email}</p></div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-black">{user.full_name}</p>
+                          {role === 'vehicle_manager' && <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black uppercase text-[#E31837]">Manager</span>}
+                          {role === 'admin' && <span className="rounded-full bg-red-950 px-2 py-0.5 text-[10px] font-black uppercase text-white">Admin</span>}
+                        </div>
+                        <p className="text-xs font-bold text-zinc-500">{user.email}</p>
+                      </div>
                     </div>
-                    <MenuItem to="/dashboard/profile" icon={User}>My Profile</MenuItem>
-                    <MenuItem to="/dashboard/bookings">My Bookings</MenuItem>
-                    <MenuItem to="/dashboard/wallet" icon={Wallet}>Wallet (₹{Math.round(wallet).toLocaleString('en-IN')})</MenuItem>
-                    <MenuItem to="/wishlist" icon={Heart}>Wishlist</MenuItem>
-                    <MenuItem to="/dashboard/kyc">KYC Verification</MenuItem>
-                    {user.is_host && <MenuItem to="/host/dashboard">Host Dashboard</MenuItem>}
+                    {role === 'customer' && (
+                      <>
+                        <MenuItem to="/customer/dashboard" icon={User}>My Dashboard</MenuItem>
+                        <MenuItem to="/customer/bookings">My Bookings</MenuItem>
+                        <MenuItem to="/customer/rental-history">Rental History</MenuItem>
+                        <MenuItem to="/customer/track-rental">Track Rental</MenuItem>
+                        <MenuItem to="/dashboard/wallet" icon={Wallet}>Wallet (₹{Math.round(wallet).toLocaleString('en-IN')})</MenuItem>
+                        <MenuItem to="/dashboard/kyc">KYC</MenuItem>
+                      </>
+                    )}
+                    {role === 'vehicle_manager' && (
+                      <>
+                        <MenuItem to="/manager/dashboard">Manager Dashboard</MenuItem>
+                        <MenuItem to="/manager/cars">My Vehicles</MenuItem>
+                        <MenuItem to="/manager/bookings">Booking Requests</MenuItem>
+                        <MenuItem to="/manager/earnings">Rental Statistics</MenuItem>
+                      </>
+                    )}
+                    {role === 'admin' && (
+                      <>
+                        <MenuItem to="/admin/dashboard">Admin Dashboard</MenuItem>
+                        <MenuItem to="/admin/users">User Management</MenuItem>
+                        <MenuItem to="/admin/cars">Vehicles</MenuItem>
+                        <MenuItem to="/admin/analytics">Analytics</MenuItem>
+                      </>
+                    )}
                     <div className="my-1 border-t border-zinc-100" />
+                    <MenuItem to="/dashboard/profile" icon={User}>Profile</MenuItem>
+                    {role === 'customer' && <MenuItem to="/wishlist" icon={Heart}>Wishlist</MenuItem>}
                     <MenuItem to="/dashboard/support">Support</MenuItem>
                     <button onClick={logoutAndGo} className="w-full rounded-md px-3 py-2 text-left text-sm font-black text-[#E31837] hover:bg-red-50">Logout</button>
                   </DropdownMenu.Content>
@@ -113,7 +151,7 @@ export default function Navbar() {
           <Dialog.Content className="fixed bottom-0 right-0 top-0 z-[71] w-[min(88vw,22rem)] bg-white p-5 shadow-2xl transition dark:bg-gray-900 md:hidden">
             <Dialog.Title className="sr-only">Navigation menu</Dialog.Title>
             <div className="flex items-center justify-between">
-              <Link to="/" className="font-display text-2xl font-black text-gray-950 dark:text-gray-100"><span className="text-[#E31837]">Zoom</span>car</Link>
+              <Link to="/" className="font-display text-2xl font-black text-gray-950 dark:text-gray-100"><span className="text-[#E31837]">Sig</span>Fleet</Link>
               <Dialog.Close className="grid h-11 w-11 place-items-center rounded-md hover:bg-zinc-100 dark:hover:bg-gray-800" aria-label="Close navigation menu"><X size={20} /></Dialog.Close>
             </div>
             <div className="mt-8 grid gap-2">
@@ -123,10 +161,11 @@ export default function Navbar() {
               {nav.map(([label, to]) => <Link key={to} to={to} onClick={() => setDrawer(false)} className="rounded-md px-3 py-3 font-black text-zinc-800 hover:bg-zinc-100 dark:text-gray-100 dark:hover:bg-gray-800">{label}</Link>)}
               {user ? (
                 <>
-                  <Link to="/dashboard/notifications" onClick={() => setDrawer(false)} className="flex items-center justify-between rounded-md px-3 py-3 font-black text-zinc-800 dark:text-gray-100">Notifications <span className="rounded-full bg-zoomcar px-2 py-0.5 text-xs text-white">{unread}</span></Link>
-                  <Link to="/dashboard/bookings" onClick={() => setDrawer(false)} className="rounded-md px-3 py-3 font-black text-zinc-800 dark:text-gray-100">My Bookings</Link>
+                  <Link to="/dashboard/notifications" onClick={() => setDrawer(false)} className="flex items-center justify-between rounded-md px-3 py-3 font-black text-zinc-800 dark:text-gray-100">Notifications <span className="rounded-full bg-sigfleet px-2 py-0.5 text-xs text-white">{unread}</span></Link>
+                  <Link to={dashboardPath} onClick={() => setDrawer(false)} className="rounded-md px-3 py-3 font-black text-zinc-800 dark:text-gray-100">Dashboard</Link>
+                  {role === 'customer' && <Link to="/customer/bookings" onClick={() => setDrawer(false)} className="rounded-md px-3 py-3 font-black text-zinc-800 dark:text-gray-100">My Bookings</Link>}
                   <Link to="/dashboard/wallet" onClick={() => setDrawer(false)} className="rounded-md px-3 py-3 font-black text-zinc-800 dark:text-gray-100">Wallet (₹{Math.round(wallet).toLocaleString('en-IN')})</Link>
-                  {user.is_host && <Link to="/host/dashboard" onClick={() => setDrawer(false)} className="rounded-md px-3 py-3 font-black text-zinc-800 dark:text-gray-100">Host Dashboard</Link>}
+                  {role === 'vehicle_manager' && <Link to="/manager/bookings" onClick={() => setDrawer(false)} className="rounded-md px-3 py-3 font-black text-zinc-800 dark:text-gray-100">Booking Requests</Link>}
                   <button onClick={logoutAndGo} className="rounded-md px-3 py-3 text-left font-black text-[#E31837]">Logout</button>
                 </>
               ) : (

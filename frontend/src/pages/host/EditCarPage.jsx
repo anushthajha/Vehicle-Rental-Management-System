@@ -47,7 +47,7 @@ export default function EditCarPage() {
   }
 
   if (!car) {
-    return <main className="grid min-h-screen place-items-center bg-zinc-50"><Loader2 className="animate-spin text-zoomcar" /></main>
+    return <main className="grid min-h-screen place-items-center bg-zinc-50"><Loader2 className="animate-spin text-sigfleet" /></main>
   }
 
   const initialData = {
@@ -68,7 +68,7 @@ export default function EditCarPage() {
               <input type="datetime-local" value={blockForm.blocked_from} onChange={(e) => setBlockForm({ ...blockForm, blocked_from: e.target.value })} className="input" required />
               <input type="datetime-local" value={blockForm.blocked_to} onChange={(e) => setBlockForm({ ...blockForm, blocked_to: e.target.value })} className="input" required />
               <input placeholder="Reason" value={blockForm.reason} onChange={(e) => setBlockForm({ ...blockForm, reason: e.target.value })} className="input" />
-              <button className="inline-flex items-center justify-center gap-2 rounded-md bg-zoomcar px-4 py-3 font-bold text-white"><Plus size={18} /> Block dates</button>
+              <button className="inline-flex items-center justify-center gap-2 rounded-md bg-sigfleet px-4 py-3 font-bold text-white"><Plus size={18} /> Block dates</button>
             </form>
             <div className="mt-5 space-y-2">{blocks.map((block) => <Row key={block.id} label={`${block.blocked_from} - ${block.blocked_to}`} detail={block.reason} onDelete={() => removeBlock(block.id)} />)}</div>
           </div>
@@ -83,7 +83,7 @@ export default function EditCarPage() {
               <input type="number" placeholder="Discount %" value={ruleForm.discount_percent} onChange={(e) => setRuleForm({ ...ruleForm, discount_percent: Number(e.target.value) })} className="input" />
               <input type="number" placeholder="Surcharge %" value={ruleForm.surcharge_percent} onChange={(e) => setRuleForm({ ...ruleForm, surcharge_percent: Number(e.target.value) })} className="input" />
               <input type="number" placeholder="Minimum days" value={ruleForm.min_days} onChange={(e) => setRuleForm({ ...ruleForm, min_days: Number(e.target.value) })} className="input" />
-              <button className="inline-flex items-center justify-center gap-2 rounded-md bg-zoomcar px-4 py-3 font-bold text-white"><Plus size={18} /> Add rule</button>
+              <button className="inline-flex items-center justify-center gap-2 rounded-md bg-sigfleet px-4 py-3 font-bold text-white"><Plus size={18} /> Add rule</button>
             </form>
             <div className="mt-5 space-y-2">{rules.map((rule) => <Row key={rule.id} label={rule.rule_type} detail={`${rule.discount_percent || 0}% discount | ${rule.surcharge_percent || 0}% surcharge`} onDelete={() => removeRule(rule.id)} />)}</div>
           </div>

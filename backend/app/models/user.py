@@ -18,11 +18,19 @@ class User(TimestampMixin, Base):
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_host: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     role: Mapped[str] = mapped_column(
-        Enum("guest", "host", "admin", name="user_role"),
-        default="guest",
+        Enum("customer", "vehicle_manager", "admin", name="user_role"),
+        default="customer",
         nullable=False,
     )
     last_login: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
+
+    @property
+    def phoneNumber(self) -> str | None:
+        return self.phone
+
+    @phoneNumber.setter
+    def phoneNumber(self, value: str | None) -> None:
+        self.phone = value
 
 
 class UserKYC(Base):

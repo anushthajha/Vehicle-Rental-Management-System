@@ -1,7 +1,7 @@
 import React, { lazy, Suspense, useEffect } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { AdminRoute, GuestRoute, HostRoute, PrivateRoute } from './components/RouteGuards'
+import { AdminRoute, CustomerRoute, GuestRoute, PrivateRoute, VehicleManagerRoute } from './components/RouteGuards'
 import { AuthProvider } from './context/AuthContext'
 
 const HomePage = lazy(() => import('./pages/HomePage'))
@@ -51,13 +51,13 @@ const AdminPayoutsPage = lazy(() => import('./pages/admin/AdminDataPages').then(
 const HowItWorksPage = lazy(() => import('./pages/HowItWorksPage'))
 const SafetyPage = lazy(() => import('./pages/SafetyPage'))
 const InsurancePage = lazy(() => import('./pages/InsurancePage'))
-const BecomeHostPage = lazy(() => import('./pages/BecomeHostPage'))
 const AboutPage = lazy(() => import('./pages/AboutPage'))
 const ContactPage = lazy(() => import('./pages/ContactPage'))
 const TermsPage = lazy(() => import('./pages/LegalPages').then((module) => ({ default: module.TermsPage })))
 const PrivacyPage = lazy(() => import('./pages/LegalPages').then((module) => ({ default: module.PrivacyPage })))
 const RefundPage = lazy(() => import('./pages/LegalPages').then((module) => ({ default: module.RefundPage })))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
+const UnauthorizedPage = lazy(() => import('./pages/UnauthorizedPage'))
 
 function PageLoader() {
   return <main className="grid min-h-screen place-items-center bg-[#F9FAFB] dark:bg-gray-900"><div className="h-11 w-11 animate-spin rounded-full border-4 border-zinc-200 border-t-[#E31837]" /></main>
@@ -65,7 +65,7 @@ function PageLoader() {
 
 export default function App() {
   useEffect(() => {
-    const stored = localStorage.getItem('zoomcar-theme')
+    const stored = localStorage.getItem('sigfleet-theme') || localStorage.getItem('sigfleet-theme')
     const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches
     document.documentElement.classList.toggle('dark', stored ? stored === 'dark' : prefersDark)
   }, [])
@@ -96,10 +96,8 @@ export default function App() {
             </Route>
             <Route path="/auth/verify-email" element={<EmailVerificationPage />} />
             <Route element={<PrivateRoute />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/dashboard/profile" element={<ProfilePage />} />
               <Route path="/dashboard/kyc" element={<KYCPage />} />
-              <Route path="/dashboard/bookings" element={<MyBookingsPage />} />
               <Route path="/dashboard/bookings/:bookingId" element={<BookingDetailsPage />} />
               <Route path="/dashboard/wallet" element={<WalletPage />} />
               <Route path="/dashboard/notifications" element={<NotificationsPage />} />
@@ -112,9 +110,17 @@ export default function App() {
               <Route path="/booking/success" element={<BookingSuccessPage />} />
               <Route path="/booking/review/:bookingId" element={<WriteReviewPage />} />
             </Route>
-            <Route element={<HostRoute />}>
-              <Route path="/host" element={<HostLayout />}>
-                <Route index element={<Navigate to="/host/dashboard" replace />} />
+            <Route element={<CustomerRoute />}>
+              <Route path="/customer/dashboard" element={<DashboardPage />} />
+              <Route path="/customer/bookings" element={<MyBookingsPage />} />
+              <Route path="/customer/rental-history" element={<MyBookingsPage />} />
+              <Route path="/customer/track-rental" element={<MyBookingsPage />} />
+            </Route>
+            <Route path="/dashboard" element={<Navigate to="/customer/dashboard" replace />} />
+            <Route path="/dashboard/bookings" element={<Navigate to="/customer/bookings" replace />} />
+            <Route element={<VehicleManagerRoute />}>
+              <Route path="/manager" element={<HostLayout />}>
+                <Route index element={<Navigate to="/manager/dashboard" replace />} />
                 <Route path="dashboard" element={<HostDashboardPage />} />
                 <Route path="cars" element={<ManageCarsPage />} />
                 <Route path="cars/new" element={<ListCarPage />} />
@@ -124,11 +130,12 @@ export default function App() {
                 <Route path="earnings" element={<HostEarningsPage />} />
                 <Route path="profile" element={<HostProfilePage />} />
                 <Route path="payouts" element={<PayoutsPage />} />
-                <Route path="my-cars" element={<Navigate to="/host/cars" replace />} />
-                <Route path="list-car" element={<Navigate to="/host/cars/new" replace />} />
-                <Route path="active-trips" element={<Navigate to="/host/trips/active" replace />} />
+                <Route path="my-cars" element={<Navigate to="/manager/cars" replace />} />
+                <Route path="list-car" element={<Navigate to="/manager/cars/new" replace />} />
+                <Route path="active-trips" element={<Navigate to="/manager/trips/active" replace />} />
               </Route>
             </Route>
+            <Route path="/host/*" element={<Navigate to="/manager/dashboard" replace />} />
             <Route element={<AdminRoute />}>
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<AdminDashboardPage />} />
@@ -143,15 +150,18 @@ export default function App() {
                 <Route path="payouts" element={<AdminPayoutsPage />} />
               </Route>
             </Route>
+            <Route path="/admin/dashboard" element={<Navigate to="/admin" replace />} />
             <Route path="/how-it-works" element={<HowItWorksPage />} />
             <Route path="/safety" element={<SafetyPage />} />
             <Route path="/insurance" element={<InsurancePage />} />
-            <Route path="/become-a-host" element={<BecomeHostPage />} />
+            <Route path="/become-a-host" element={<Navigate to="/contact" replace />} />
+            <Route path="/become-a-manager" element={<ContactPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/refund-policy" element={<RefundPage />} />
             <Route path="/contact" element={<ContactPage />} />
+            <Route path="/unauthorized" element={<UnauthorizedPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>

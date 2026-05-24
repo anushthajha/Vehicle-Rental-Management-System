@@ -73,7 +73,7 @@ export default function BookingConfirmPage() {
     }
   }
 
-  if (loading) return <main className="grid min-h-screen place-items-center bg-zinc-50"><Loader2 className="animate-spin text-zoomcar" /></main>
+  if (loading) return <main className="grid min-h-screen place-items-center bg-zinc-50"><Loader2 className="animate-spin text-sigfleet" /></main>
   if (!car) return null
   const breakdown = preview?.price_breakdown || {}
   const image = car.primary_image_url || car.images?.[0]?.image_url
@@ -95,7 +95,7 @@ export default function BookingConfirmPage() {
             <Row label="Return" value={formatDateTime(returnAt)} />
             <Row label="Duration" value={formatDuration(pickup, returnAt)} />
             <Row label="Pickup location" value={car.location_address || `${car.location_area}, ${car.location_city}`} />
-            <Link to={`/cars/${car.id}`} className="mt-3 inline-flex font-black text-zoomcar">Change dates</Link>
+            <Link to={`/cars/${car.id}`} className="mt-3 inline-flex font-black text-sigfleet">Change dates</Link>
           </InfoBlock>
         </div>
 
@@ -104,8 +104,8 @@ export default function BookingConfirmPage() {
           <h3 className="mt-5 text-sm font-black uppercase text-zinc-500">Insurance</h3>
           <div className="mt-2 grid gap-2">
             {INSURANCE.map((plan) => (
-              <button key={plan.key} onClick={() => setInsurance(plan.key)} className={`rounded-md border p-3 text-left ${insurance === plan.key ? 'border-zoomcar bg-red-50' : 'border-zinc-200'}`}>
-                <div className="flex justify-between"><span className="font-black text-zinc-950">{plan.name}</span><span className="font-black text-zoomcar">{plan.rate}</span></div>
+              <button key={plan.key} onClick={() => setInsurance(plan.key)} className={`rounded-md border p-3 text-left ${insurance === plan.key ? 'border-sigfleet bg-red-50' : 'border-zinc-200'}`}>
+                <div className="flex justify-between"><span className="font-black text-zinc-950">{plan.name}</span><span className="font-black text-sigfleet">{plan.rate}</span></div>
                 <ul className="mt-1 text-sm font-semibold text-zinc-500">{plan.bullets.map((item) => <li key={item}>• {item}</li>)}</ul>
               </button>
             ))}
@@ -124,7 +124,7 @@ export default function BookingConfirmPage() {
           <textarea className="input mt-5 min-h-24" value={guestNotes} onChange={(event) => setGuestNotes(event.target.value)} placeholder="Any specific instructions for the host?" />
           {!kycOk && <div className="mt-4 flex gap-2 rounded-md bg-amber-50 p-3 text-sm font-bold text-amber-800"><AlertTriangle size={18} /> Complete KYC before booking.</div>}
           {error && <p className="mt-3 rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p>}
-          <button disabled={!kycOk || submitting} onClick={submit} className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-zoomcar px-5 py-3 font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-300">
+          <button disabled={!kycOk || submitting} onClick={submit} className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-sigfleet px-5 py-3 font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-300">
             {submitting && <Loader2 size={18} className="animate-spin" />} Confirm & Proceed
           </button>
           <button onClick={() => setPolicyOpen(!policyOpen)} className="mt-4 text-sm font-black text-zinc-700">Cancellation policy</button>
@@ -136,7 +136,7 @@ export default function BookingConfirmPage() {
 }
 
 function InfoBlock({ title, children }) {
-  return <section className="rounded-lg border border-zinc-200 bg-white p-5"><h2 className="mb-4 flex items-center gap-2 text-xl font-black text-zinc-950"><ShieldCheck className="text-zoomcar" />{title}</h2>{children}</section>
+  return <section className="rounded-lg border border-zinc-200 bg-white p-5"><h2 className="mb-4 flex items-center gap-2 text-xl font-black text-zinc-950"><ShieldCheck className="text-sigfleet" />{title}</h2>{children}</section>
 }
 
 function Row({ label, value, green }) {

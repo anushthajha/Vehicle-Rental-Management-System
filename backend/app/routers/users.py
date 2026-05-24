@@ -58,7 +58,7 @@ def _user_payload(user: User) -> dict:
         "profile_picture": user.profile_picture,
         "is_active": user.is_active,
         "is_verified": user.is_verified,
-        "is_host": user.is_host,
+        "is_host": user.role == "vehicle_manager",
         "role": user.role,
         "created_at": _dt(user.created_at),
     }
@@ -165,9 +165,9 @@ async def get_public_user(user_id: str, db: AsyncSession = Depends(get_db)):
         "rating_as_guest": round(rating, 2),
         "total_trips": total_trips,
     }
-    if user.is_host:
+    if user.role == "vehicle_manager":
         profile = await db.scalar(select(HostProfile).where(HostProfile.user_id == user.id))
-        total_listings = await db.scalar(select(func.count()).select_from(Car).where(Car.host_id == user.id)) or 0
+        total_listings = await db.scalar(select(func.count()).select_from(Car).where(Car.managerId == user.id)) or 0
         payload.update(
             {
                 "host_rating": money(profile.average_rating) if profile else 0,

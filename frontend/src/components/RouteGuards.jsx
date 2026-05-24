@@ -1,23 +1,14 @@
 import React from 'react'
-import { Navigate, Outlet, useLocation } from 'react-router-dom'
+import { Navigate, Outlet } from 'react-router-dom'
 import { useAuthStore } from '../context/AuthContext'
-
-function LoadingScreen() {
-  return (
-    <main className="grid min-h-screen place-items-center bg-zinc-50">
-      <div className="h-10 w-10 animate-spin rounded-full border-4 border-zinc-200 border-t-zoomcar" />
-    </main>
-  )
-}
+import AdminRouteGuard from './guards/AdminRoute'
+import CustomerRouteGuard from './guards/CustomerRoute'
+import PrivateRouteGuard from './guards/PrivateRoute'
+import VehicleManagerRouteGuard from './guards/VehicleManagerRoute'
+import { LoadingScreen } from './guards/guardUtils'
 
 export function PrivateRoute() {
-  const location = useLocation()
-  const { user, isLoading } = useAuthStore()
-  if (isLoading) return <LoadingScreen />
-  if (!user) {
-    return <Navigate to={`/auth/login?next=${encodeURIComponent(location.pathname)}`} state={{ from: location }} replace />
-  }
-  return <Outlet />
+  return <PrivateRouteGuard />
 }
 
 export function GuestRoute() {
@@ -26,16 +17,16 @@ export function GuestRoute() {
   return user ? <Navigate to="/" replace /> : <Outlet />
 }
 
-export function HostRoute() {
-  const { user, isLoading } = useAuthStore()
-  if (isLoading) return <LoadingScreen />
-  if (!user) return <Navigate to="/auth/login" replace />
-  return user.is_host ? <Outlet /> : <Navigate to="/become-a-host" replace />
+export function CustomerRoute() {
+  return <CustomerRouteGuard />
+}
+
+export function VehicleManagerRoute() {
+  return <VehicleManagerRouteGuard />
 }
 
 export function AdminRoute() {
-  const { user, isLoading } = useAuthStore()
-  if (isLoading) return <LoadingScreen />
-  if (!user) return <Navigate to="/auth/login" replace />
-  return user.role === 'admin' ? <Outlet /> : <Navigate to="/" replace />
+  return <AdminRouteGuard />
 }
+
+export const HostRoute = VehicleManagerRoute

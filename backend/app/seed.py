@@ -84,13 +84,13 @@ async def has_demo_data(db: AsyncSession) -> bool:
 
 
 async def create_admin(db: AsyncSession) -> User:
-    result = await db.execute(select(User).where(User.email == "admin@zoomcar.com"))
+    result = await db.execute(select(User).where(User.email == "admin@sigfleet.com"))
     admin = result.scalar_one_or_none()
     if admin is None:
         admin = User(
-            email="admin@zoomcar.com",
+            email="admin@sigfleet.com",
             hashed_password=get_password_hash("Admin@1234"),
-            full_name="Zoomcar Admin",
+            full_name="SigFleet Admin",
             phone="9000000000",
             is_active=True,
             is_verified=True,
@@ -100,7 +100,7 @@ async def create_admin(db: AsyncSession) -> User:
         db.add(admin)
     else:
         admin.hashed_password = get_password_hash("Admin@1234")
-        admin.full_name = "Zoomcar Admin"
+        admin.full_name = "SigFleet Admin"
         admin.phone = admin.phone or "9000000000"
         admin.is_active = True
         admin.is_verified = True
@@ -114,24 +114,24 @@ async def create_admin(db: AsyncSession) -> User:
         db.add(
             HostProfile(
                 user_id=admin.id,
-                bio="Administrative host profile stub for operational tooling.",
+                bio="Administrative vehicle_manager profile stub for operational tooling.",
                 response_time="Instant",
             )
         )
     return admin
 
 
-async def create_hosts(db: AsyncSession) -> dict[str, User]:
+async def create_vehicle_managers(db: AsyncSession) -> dict[str, User]:
     host_rows = [
-        ("Priya Sharma", "priya@host.com", "Bengaluru", 12500, 95, 68, "4.90", True),
-        ("Arjun Mehta", "arjun@host.com", "Mumbai", 9800, 92, 54, "4.80", True),
-        ("Kavitha Nair", "kavitha@host.com", "Chennai", 7600, 89, 38, "4.60", False),
-        ("Rohit Verma", "rohit@host.com", "Delhi", 11250, 90, 45, "4.70", False),
-        ("Sneha Patel", "sneha@host.com", "Pune", 14500, 88, 72, "4.80", False),
+        ("Priya Sharma", "priya@vehicle_manager.com", "Bengaluru", 12500, 95, 68, "4.90", True),
+        ("Arjun Mehta", "arjun@vehicle_manager.com", "Mumbai", 9800, 92, 54, "4.80", True),
+        ("Kavitha Nair", "kavitha@vehicle_manager.com", "Chennai", 7600, 89, 38, "4.60", False),
+        ("Rohit Verma", "rohit@vehicle_manager.com", "Delhi", 11250, 90, 45, "4.70", False),
+        ("Sneha Patel", "sneha@vehicle_manager.com", "Pune", 14500, 88, 72, "4.80", False),
     ]
-    hosts: dict[str, User] = {}
+    vehicle_managers: dict[str, User] = {}
     for idx, (name, email, city, balance, acceptance, reviews, rating, superhost) in enumerate(host_rows, start=1):
-        host = User(
+        vehicle_manager = User(
             email=email,
             hashed_password=get_password_hash("Pass@1234"),
             full_name=name,
@@ -139,16 +139,16 @@ async def create_hosts(db: AsyncSession) -> dict[str, User]:
             is_active=True,
             is_verified=True,
             is_host=True,
-            role="host",
+            role="vehicle_manager",
         )
-        db.add(host)
+        db.add(vehicle_manager)
         await db.flush()
-        hosts[name.split()[0]] = host
+        vehicle_managers[name.split()[0]] = vehicle_manager
         db.add_all(
             [
-                UserWallet(user_id=host.id, balance=money(balance)),
+                UserWallet(user_id=vehicle_manager.id, balance=money(balance)),
                 UserKYC(
-                    user_id=host.id,
+                    user_id=vehicle_manager.id,
                     dl_number=f"{city[:2].upper()}-DL-2024-{7200 + idx}",
                     aadhar_number=f"XXXX-XXXX-{4300 + idx}",
                     kyc_status="approved",
@@ -156,8 +156,8 @@ async def create_hosts(db: AsyncSession) -> dict[str, User]:
                     reviewed_at=now_utc() - timedelta(days=42 + idx),
                 ),
                 HostProfile(
-                    user_id=host.id,
-                    bio=f"{name} hosts clean, well-maintained self-drive cars across {city}.",
+                    user_id=vehicle_manager.id,
+                    bio=f"{name} manages clean, well-maintained self-drive cars across {city}.",
                     response_time="Within 10 minutes",
                     acceptance_rate=money(acceptance),
                     total_reviews=reviews,
@@ -171,7 +171,7 @@ async def create_hosts(db: AsyncSession) -> dict[str, User]:
                 ),
             ]
         )
-    return hosts
+    return vehicle_managers
 
 
 async def create_guests(db: AsyncSession) -> dict[str, User]:
@@ -192,25 +192,25 @@ async def create_guests(db: AsyncSession) -> dict[str, User]:
     guests: dict[str, User] = {}
     for idx, (name, city, balance) in enumerate(zip(names, cities, balances, strict=True), start=1):
         status = "approved" if idx <= 7 else "under_review" if idx <= 9 else "pending"
-        guest = User(
-            email=f"guest{idx}@guest.com",
+        customer = User(
+            email=f"customer{idx}@customer.com",
             hashed_password=get_password_hash("Guest@1234"),
             full_name=name,
             phone=f"92222000{idx:02d}",
             is_active=True,
             is_verified=idx <= 9,
             is_host=False,
-            role="guest",
+            role="customer",
         )
-        db.add(guest)
+        db.add(customer)
         await db.flush()
-        guests[f"guest{idx}"] = guest
+        guests[f"guest{idx}"] = customer
         submitted_at = now_utc() - timedelta(days=30 - idx) if status != "pending" else None
         db.add_all(
             [
-                UserWallet(user_id=guest.id, balance=money(balance)),
+                UserWallet(user_id=customer.id, balance=money(balance)),
                 UserKYC(
-                    user_id=guest.id,
+                    user_id=customer.id,
                     dl_number=f"{city[:2].upper()}-GUEST-DL-{6100 + idx}",
                     aadhar_number=f"XXXX-XXXX-{5500 + idx}",
                     kyc_status=status,
@@ -251,9 +251,9 @@ CAR_ROWS = [
 ]
 
 
-async def create_cars(db: AsyncSession, hosts: dict[str, User]) -> dict[str, Car]:
+async def create_cars(db: AsyncSession, vehicle_managers: dict[str, User]) -> dict[str, Car]:
     cars: dict[str, Car] = {}
-    host_listing_counts: dict[str, int] = {host.id: 0 for host in hosts.values()}
+    host_listing_counts: dict[str, int] = {vehicle_manager.id: 0 for vehicle_manager in vehicle_managers.values()}
     for idx, row in enumerate(CAR_ROWS, start=1):
         (
             host_key,
@@ -280,7 +280,7 @@ async def create_cars(db: AsyncSession, hosts: dict[str, User]) -> dict[str, Car
         category = category_label.lower()
         title = f"{make} {model} {year}"
         car = Car(
-            host_id=hosts[host_key].id,
+            host_id=vehicle_managers[host_key].id,
             title=title,
             make=make,
             car_model=model,
@@ -370,7 +370,7 @@ async def add_booking(
     db: AsyncSession,
     refs: set[str],
     car: Car,
-    guest: User,
+    customer: User,
     status: str,
     pickup: datetime,
     return_at: datetime,
@@ -396,7 +396,7 @@ async def add_booking(
     booking = Booking(
         booking_ref=booking_ref(refs),
         car_id=car.id,
-        guest_id=guest.id,
+        guest_id=customer.id,
         host_id=car.host_id,
         status=status,
         pickup_datetime=pickup,
@@ -574,7 +574,7 @@ async def create_wallet_transactions(
 
     for key in ["B1", "B2", "B3"]:
         booking = bookings[key]
-        add_tx(booking.host_id, "credit", booking.host_earnings, f"Host earnings for completed trip {booking.booking_ref}", booking.id)
+        add_tx(booking.host_id, "credit", booking.host_earnings, f"Vehicle Manager earnings for completed trip {booking.booking_ref}", booking.id)
 
     for key in ["B14", "B16"]:
         booking = bookings[key]
@@ -585,7 +585,7 @@ async def create_wallet_transactions(
         wallet.balance = balances[wallet.user_id]
 
 
-async def create_reviews_mongodb(bookings: dict[str, Booking], guests: dict[str, User], hosts: dict[str, User], cars: dict[str, Car]) -> None:
+async def create_reviews_mongodb(bookings: dict[str, Booking], guests: dict[str, User], vehicle_managers: dict[str, User], cars: dict[str, Car]) -> None:
     db = get_mongo_db()
 
     def car_snapshot(car: Car) -> dict:
@@ -603,9 +603,9 @@ async def create_reviews_mongodb(bookings: dict[str, Booking], guests: dict[str,
             "car_id": cars["Creta"].id,
             "rating": 5,
             "title": "Perfect SUV for our Coorg trip",
-            "body": "Absolutely loved the Creta! AC was ice cold, car was spotless. Priya is a fantastic host.",
+            "body": "Absolutely loved the Creta! AC was ice cold, car was spotless. Priya is a fantastic vehicle_manager.",
             "review_type": "guest_to_car",
-            "host_reply": "Thank you so much! Hope to host you again soon.",
+            "host_reply": "Thank you so much! Hope to see you again soon.",
             "host_replied_at": now_utc() - timedelta(days=4),
             "created_at": now_utc() - timedelta(days=5),
             "car_snapshot": car_snapshot(cars["Creta"]),
@@ -615,9 +615,9 @@ async def create_reviews_mongodb(bookings: dict[str, Booking], guests: dict[str,
             "booking_id": bookings["B1"].id,
             "reviewer_id": guests["guest1"].id,
             "reviewer_name": guests["guest1"].full_name,
-            "reviewee_id": hosts["Priya"].id,
+            "reviewee_id": vehicle_managers["Priya"].id,
             "rating": 5,
-            "title": "Excellent host",
+            "title": "Excellent vehicle_manager",
             "body": "Priya responded instantly and handover was smooth. Highly recommend!",
             "review_type": "guest_to_host",
             "created_at": now_utc() - timedelta(days=5),
@@ -640,11 +640,11 @@ async def create_reviews_mongodb(bookings: dict[str, Booking], guests: dict[str,
         },
         {
             "booking_id": bookings["B2"].id,
-            "reviewer_id": hosts["Priya"].id,
-            "reviewer_name": hosts["Priya"].full_name,
+            "reviewer_id": vehicle_managers["Priya"].id,
+            "reviewer_name": vehicle_managers["Priya"].full_name,
             "reviewee_id": guests["guest2"].id,
             "rating": 4,
-            "body": "Great guest, took care of the Thar really well. Returned clean and on time.",
+            "body": "Great customer, took care of the Thar really well. Returned clean and on time.",
             "review_type": "host_to_guest",
             "created_at": now_utc() - timedelta(days=8),
             "car_snapshot": car_snapshot(cars["Thar"]),
@@ -668,9 +668,9 @@ async def create_reviews_mongodb(bookings: dict[str, Booking], guests: dict[str,
             "booking_id": bookings["B3"].id,
             "reviewer_id": guests["guest3"].id,
             "reviewer_name": guests["guest3"].full_name,
-            "reviewee_id": hosts["Sneha"].id,
+            "reviewee_id": vehicle_managers["Sneha"].id,
             "rating": 5,
-            "title": "5 star host experience",
+            "title": "5 star vehicle_manager experience",
             "body": "Sneha was incredibly professional. The car was detailed to perfection.",
             "review_type": "guest_to_host",
             "created_at": now_utc() - timedelta(days=12),
@@ -681,42 +681,42 @@ async def create_reviews_mongodb(bookings: dict[str, Booking], guests: dict[str,
     await db.reviews.insert_many(reviews)
 
 
-async def create_notifications_mongodb(hosts: dict[str, User], guests: dict[str, User], bookings: dict[str, Booking], cars: dict[str, Car]) -> None:
+async def create_notifications_mongodb(vehicle_managers: dict[str, User], guests: dict[str, User], bookings: dict[str, Booking], cars: dict[str, Car]) -> None:
     db = get_mongo_db()
     docs = []
     host_booking = {"Priya": "B11", "Arjun": "B17", "Kavitha": "B13", "Rohit": "B18", "Sneha": "B9"}
     host_car = {"Priya": "Swift", "Arjun": "Creta", "Kavitha": "Tucson", "Rohit": "Fortuner", "Sneha": "A4"}
-    for key, host in hosts.items():
+    for key, vehicle_manager in vehicle_managers.items():
         booking = bookings[host_booking[key]]
         docs.extend(
             [
-                {"user_id": host.id, "title": "New booking request", "message": f"New booking request from {guests['guest4'].full_name}", "notification_type": "booking", "is_read": False, "action_url": f"/host/bookings/{booking.id}", "meta": {"booking_id": booking.id}, "created_at": now_utc() - timedelta(hours=3)},
-                {"user_id": host.id, "title": "KYC approved", "message": "KYC verification approved", "notification_type": "kyc", "is_read": True, "meta": {}, "created_at": now_utc() - timedelta(days=20)},
-                {"user_id": host.id, "title": "Trip earning credited", "message": f"INR {money(booking.host_earnings)} credited for trip completion", "notification_type": "payment", "is_read": False, "meta": {"amount": float(booking.host_earnings)}, "created_at": now_utc() - timedelta(days=2)},
-                {"user_id": host.id, "title": "Car listing live", "message": f"Your car {cars[host_car[key]].title} is now live and accepting bookings", "notification_type": "system", "is_read": True, "meta": {"car_id": cars[host_car[key]].id}, "created_at": now_utc() - timedelta(days=18)},
+                {"user_id": vehicle_manager.id, "title": "New booking request", "message": f"New booking request from {guests['guest4'].full_name}", "notification_type": "booking", "is_read": False, "action_url": f"/manager/bookings/{booking.id}", "meta": {"booking_id": booking.id}, "created_at": now_utc() - timedelta(hours=3)},
+                {"user_id": vehicle_manager.id, "title": "KYC approved", "message": "KYC verification approved", "notification_type": "kyc", "is_read": True, "meta": {}, "created_at": now_utc() - timedelta(days=20)},
+                {"user_id": vehicle_manager.id, "title": "Trip earning credited", "message": f"INR {money(booking.host_earnings)} credited for trip completion", "notification_type": "payment", "is_read": False, "meta": {"amount": float(booking.host_earnings)}, "created_at": now_utc() - timedelta(days=2)},
+                {"user_id": vehicle_manager.id, "title": "Car listing live", "message": f"Your car {cars[host_car[key]].title} is now live and accepting bookings", "notification_type": "system", "is_read": True, "meta": {"car_id": cars[host_car[key]].id}, "created_at": now_utc() - timedelta(days=18)},
             ]
         )
 
     guest_confirmed = ["B1", "B2", "B3", "B4", "B5", "B6", "B7"]
     for idx in range(1, 8):
-        guest = guests[f"guest{idx}"]
+        customer = guests[f"guest{idx}"]
         booking = bookings[guest_confirmed[idx - 1]]
         car = next(car for car in cars.values() if isinstance(car, Car) and car.id == booking.car_id)
         docs.extend(
             [
-                {"user_id": guest.id, "title": "Booking confirmed", "message": f"Booking {booking.booking_ref} confirmed!", "notification_type": "booking", "is_read": False, "action_url": f"/dashboard/bookings/{booking.id}", "meta": {"booking_id": booking.id}, "created_at": now_utc() - timedelta(hours=idx)},
-                {"user_id": guest.id, "title": "KYC verified", "message": "Your KYC has been verified", "notification_type": "kyc", "is_read": True, "meta": {}, "created_at": now_utc() - timedelta(days=15 + idx)},
-                {"user_id": guest.id, "title": "Trip reminder", "message": "Trip reminder: Your trip starts in 2 hours", "notification_type": "booking", "is_read": False, "meta": {"booking_id": booking.id}, "created_at": now_utc() - timedelta(minutes=30 + idx)},
-                {"user_id": guest.id, "title": "Review your trip", "message": f"Review your recent trip with {car.title}", "notification_type": "review", "is_read": False, "action_url": f"/dashboard/bookings/{booking.id}/review", "meta": {"car_id": car.id}, "created_at": now_utc() - timedelta(days=1 + idx)},
+                {"user_id": customer.id, "title": "Booking confirmed", "message": f"Booking {booking.booking_ref} confirmed!", "notification_type": "booking", "is_read": False, "action_url": f"/dashboard/bookings/{booking.id}", "meta": {"booking_id": booking.id}, "created_at": now_utc() - timedelta(hours=idx)},
+                {"user_id": customer.id, "title": "KYC verified", "message": "Your KYC has been verified", "notification_type": "kyc", "is_read": True, "meta": {}, "created_at": now_utc() - timedelta(days=15 + idx)},
+                {"user_id": customer.id, "title": "Trip reminder", "message": "Trip reminder: Your trip starts in 2 hours", "notification_type": "booking", "is_read": False, "meta": {"booking_id": booking.id}, "created_at": now_utc() - timedelta(minutes=30 + idx)},
+                {"user_id": customer.id, "title": "Review your trip", "message": f"Review your recent trip with {car.title}", "notification_type": "review", "is_read": False, "action_url": f"/dashboard/bookings/{booking.id}/review", "meta": {"car_id": car.id}, "created_at": now_utc() - timedelta(days=1 + idx)},
             ]
         )
 
     for idx in [8, 9, 10]:
-        guest = guests[f"guest{idx}"]
+        customer = guests[f"guest{idx}"]
         docs.extend(
             [
-                {"user_id": guest.id, "title": "KYC under review", "message": "KYC document submitted. Under review.", "notification_type": "kyc", "is_read": False, "meta": {}, "created_at": now_utc() - timedelta(hours=idx)},
-                {"user_id": guest.id, "title": "Welcome to Zoomcar", "message": "Welcome to Zoomcar! Complete KYC to start booking.", "notification_type": "system", "is_read": False, "meta": {}, "created_at": now_utc() - timedelta(days=idx)},
+                {"user_id": customer.id, "title": "KYC under review", "message": "KYC document submitted. Under review.", "notification_type": "kyc", "is_read": False, "meta": {}, "created_at": now_utc() - timedelta(hours=idx)},
+                {"user_id": customer.id, "title": "Welcome to SigFleet", "message": "Welcome to SigFleet! Complete KYC to start booking.", "notification_type": "system", "is_read": False, "meta": {}, "created_at": now_utc() - timedelta(days=idx)},
             ]
         )
     await db.notifications.insert_many(docs)
@@ -831,12 +831,12 @@ async def seed() -> None:
                 return
 
             admin = await create_admin(db)
-            hosts = await create_hosts(db)
+            vehicle_managers = await create_vehicle_managers(db)
             guests = await create_guests(db)
-            cars = await create_cars(db, hosts)
+            cars = await create_cars(db, vehicle_managers)
             bookings, _payments = await create_bookings_and_payments(db, cars, guests)
             await create_coupons(db, bookings, guests)
-            await create_wallet_transactions(db, [admin, *hosts.values(), *guests.values()], bookings)
+            await create_wallet_transactions(db, [admin, *vehicle_managers.values(), *guests.values()], bookings)
             await db.commit()
 
             mongo = get_mongo_db()
@@ -844,8 +844,8 @@ async def seed() -> None:
                 print("MongoDB demo seed marker already exists; skipping MongoDB seed.")
                 return
 
-            await create_reviews_mongodb(bookings, guests, hosts, cars)
-            await create_notifications_mongodb(hosts, guests, bookings, cars)
+            await create_reviews_mongodb(bookings, guests, vehicle_managers, cars)
+            await create_notifications_mongodb(vehicle_managers, guests, bookings, cars)
             await create_support_data(db, admin, guests, bookings)
             await create_analytics_data(cars, guests)
             print("Demo seed complete.")

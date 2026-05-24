@@ -12,7 +12,7 @@ const TYPE_ICONS = {
   payment: [CreditCard, 'bg-emerald-50 text-emerald-700'],
   kyc: [FileCheck2, 'bg-amber-50 text-amber-700'],
   system: [Settings, 'bg-zinc-100 text-zinc-700'],
-  promotion: [Tag, 'bg-red-50 text-zoomcar'],
+  promotion: [Tag, 'bg-red-50 text-sigfleet'],
   review: [MessageSquare, 'bg-violet-50 text-violet-700'],
   host: [Info, 'bg-cyan-50 text-cyan-700'],
 }
@@ -71,13 +71,13 @@ export default function NotificationsPage() {
 
   return (
     <DashboardShell title="Notifications" eyebrow="Inbox" actions={<button onClick={markAll} className="inline-flex items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 py-3 font-black"><CheckCheck size={18} /> Mark all as read</button>}>
-      <div className="mb-5 flex flex-wrap gap-2">{FILTERS.map((item) => <button key={item} onClick={() => setFilter(item)} className={`rounded-md px-4 py-2 font-black capitalize ${filter === item ? 'bg-zoomcar text-white' : 'bg-white text-zinc-600'}`}>{item}</button>)}</div>
+      <div className="mb-5 flex flex-wrap gap-2">{FILTERS.map((item) => <button key={item} onClick={() => setFilter(item)} className={`rounded-md px-4 py-2 font-black capitalize ${filter === item ? 'bg-sigfleet text-white' : 'bg-white text-zinc-600'}`}>{item}</button>)}</div>
 
       <section className="rounded-lg border border-zinc-200 bg-white shadow-sm">
-        {loading ? <div className="grid h-80 place-items-center"><Loader2 className="animate-spin text-zoomcar" /></div> : items.length ? (
+        {loading ? <div className="grid h-80 place-items-center"><Loader2 className="animate-spin text-sigfleet" /></div> : items.length ? (
           <div className="divide-y divide-zinc-100">
             {items.map((item) => <NotificationItem key={item._id} item={item} onClick={() => openNotification(item)} />)}
-            <div ref={sentinelRef} className="grid h-16 place-items-center">{loadingMore && <Loader2 className="animate-spin text-zoomcar" />}</div>
+            <div ref={sentinelRef} className="grid h-16 place-items-center">{loadingMore && <Loader2 className="animate-spin text-sigfleet" />}</div>
           </div>
         ) : (
           <div className="grid min-h-96 place-items-center text-center">

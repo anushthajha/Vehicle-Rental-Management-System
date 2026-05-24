@@ -16,7 +16,7 @@ from app.models.user import User
 from app.mongo_models.notification import create_notification
 from app.services.booking_flow import add_wallet_transaction, get_or_create_wallet, money
 from app.services.superhost import check_and_update_superhost
-from app.utils.auth import require_host
+from app.utils.auth import require_vehicle_manager
 
 
 router = APIRouter(prefix="/host", tags=["host earnings"])
@@ -108,15 +108,15 @@ async def _summary_data(db: AsyncSession, host: User) -> dict:
     this_month = await _host_wallet_credits(db, host.id, month_start)
     last_month = await _host_wallet_credits(db, host.id, last_month_start, last_month_end)
     trips = await db.scalar(select(func.count()).select_from(Booking).where(Booking.host_id == host.id, Booking.status == "completed")) or 0
-    active_listings = await db.scalar(select(func.count()).select_from(Car).where(Car.host_id == host.id, Car.is_available.is_(True), Car.is_approved.is_(True))) or 0
+    active_listings = await db.scalar(select(func.count()).select_from(Car).where(Car.managerId == host.id, Car.is_available.is_(True), Car.is_approved.is_(True))) or 0
     pending_requests = await db.scalar(select(func.count()).select_from(Booking).where(Booking.host_id == host.id, Booking.status == "pending")) or 0
-    avg_rating = await db.scalar(select(func.coalesce(func.avg(Car.average_rating), 0)).where(Car.host_id == host.id)) or 0
+    avg_rating = await db.scalar(select(func.coalesce(func.avg(Car.average_rating), 0)).where(Car.managerId == host.id)) or 0
 
     best_row = (
         await db.execute(
             select(Car.id, Car.title, func.count(Booking.id), func.coalesce(func.sum(Booking.host_earnings), 0))
             .join(Booking, Booking.car_id == Car.id)
-            .where(Car.host_id == host.id, Booking.status == "completed")
+            .where(Car.managerId == host.id, Booking.status == "completed")
             .group_by(Car.id, Car.title)
             .order_by(func.coalesce(func.sum(Booking.host_earnings), 0).desc())
             .limit(1)
@@ -139,14 +139,14 @@ async def _summary_data(db: AsyncSession, host: User) -> dict:
 
 
 @router.get("/earnings/summary")
-async def earnings_summary(current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+async def earnings_summary(current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     return await _summary_data(db, current_user)
 
 
 @router.get("/earnings/monthly")
 async def monthly_earnings(
     year: int | None = Query(default=None),
-    current_user: User = Depends(require_host),
+    current_user: User = Depends(require_vehicle_manager),
     db: AsyncSession = Depends(get_db),
 ):
     year = year or datetime.utcnow().year
@@ -177,7 +177,7 @@ async def monthly_earnings(
 
 
 @router.get("/earnings/per-car")
-async def per_car_earnings(current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+async def per_car_earnings(current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     rows = (
         await db.execute(
             select(
@@ -190,7 +190,7 @@ async def per_car_earnings(current_user: User = Depends(require_host), db: Async
                 func.coalesce(func.sum(Booking.host_earnings), 0),
             )
             .outerjoin(Booking, (Booking.car_id == Car.id) & (Booking.status == "completed"))
-            .where(Car.host_id == current_user.id)
+            .where(Car.managerId == current_user.id)
             .group_by(Car.id, Car.title, Car.average_rating)
             .order_by(func.coalesce(func.sum(Booking.host_earnings), 0).desc())
         )
@@ -215,7 +215,7 @@ async def per_car_earnings(current_user: User = Depends(require_host), db: Async
 async def earning_transactions(
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=100),
-    current_user: User = Depends(require_host),
+    current_user: User = Depends(require_vehicle_manager),
     db: AsyncSession = Depends(get_db),
 ):
     conditions = [WalletTransaction.user_id == current_user.id, WalletTransaction.transaction_type == "credit"]
@@ -250,7 +250,7 @@ async def earning_transactions(
 
 
 @router.post("/payouts/request", status_code=status.HTTP_201_CREATED)
-async def request_payout(payload: PayoutRequest, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+async def request_payout(payload: PayoutRequest, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     profile = await _get_or_create_profile(db, current_user.id)
     if not profile.payout_bank_name or not profile.payout_account_number or not profile.payout_ifsc or not profile.payout_account_holder:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Add bank account details before requesting payout")
@@ -264,7 +264,7 @@ async def request_payout(payload: PayoutRequest, current_user: User = Depends(re
     if amount > Decimal(str(wallet.balance)):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Payout amount exceeds wallet balance")
     wallet.balance = Decimal(str(wallet.balance)) - amount
-    payout = HostPayoutRequest(host_id=current_user.id, amount=amount, status="pending")
+    payout = HostPayoutRequest(managerId=current_user.id, amount=amount, status="pending")
     db.add(payout)
     add_wallet_transaction(db, current_user.id, "debit", amount, wallet.balance, "Payout request hold", payout.id)
     admins = (await db.execute(select(User).where(User.role == "admin", User.is_active.is_(True)))).scalars().all()
@@ -275,7 +275,7 @@ async def request_payout(payload: PayoutRequest, current_user: User = Depends(re
 
 
 @router.get("/payouts")
-async def payout_history(current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+async def payout_history(current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     profile = await _get_or_create_profile(db, current_user.id)
     payouts = (
         await db.execute(select(HostPayoutRequest).where(HostPayoutRequest.host_id == current_user.id).order_by(HostPayoutRequest.requested_at.desc()))
@@ -297,7 +297,7 @@ async def payout_history(current_user: User = Depends(require_host), db: AsyncSe
 
 
 @router.post("/profile/bank-details")
-async def update_bank_details(payload: BankDetailsRequest, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+async def update_bank_details(payload: BankDetailsRequest, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     if not IFSC_RE.match(payload.ifsc):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="IFSC must be 11 characters in standard alphanumeric format")
     profile = await _get_or_create_profile(db, current_user.id)
@@ -310,7 +310,7 @@ async def update_bank_details(payload: BankDetailsRequest, current_user: User = 
 
 
 @router.patch("/profile")
-async def update_host_profile(payload: HostProfileUpdateRequest, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+async def update_host_profile(payload: HostProfileUpdateRequest, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     profile = await _get_or_create_profile(db, current_user.id)
     if payload.bio is not None:
         profile.bio = payload.bio
@@ -321,7 +321,7 @@ async def update_host_profile(payload: HostProfileUpdateRequest, current_user: U
 
 
 @router.get("/profile")
-async def host_profile(current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+async def host_profile(current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     profile = await _get_or_create_profile(db, current_user.id)
     await check_and_update_superhost(current_user.id, db)
     summary = await _summary_data(db, current_user)

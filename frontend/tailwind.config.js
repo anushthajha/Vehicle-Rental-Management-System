@@ -7,7 +7,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        zoomcar: '#E31837',
+        sigfleet: '#E31837',
       },
     },
   },

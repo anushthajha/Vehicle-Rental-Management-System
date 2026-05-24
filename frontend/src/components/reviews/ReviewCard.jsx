@@ -6,7 +6,7 @@ function ReviewCard({ review }) {
   const body = review.body || ''
   const shouldCollapse = body.length > 200
   const visibleBody = shouldCollapse && !expanded ? `${body.slice(0, 200)}...` : body
-  const name = review.reviewer_name || 'Zoomcar user'
+  const name = review.reviewer_name || 'SigFleet user'
 
   return (
     <article className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
@@ -30,10 +30,10 @@ function ReviewCard({ review }) {
       </div>
       {review.title && <h4 className="mt-3 text-lg font-black text-zinc-950">{review.title}</h4>}
       <p className="mt-2 whitespace-pre-wrap font-medium leading-7 text-zinc-700">{visibleBody}</p>
-      {shouldCollapse && <button onClick={() => setExpanded((value) => !value)} className="mt-2 text-sm font-black text-zoomcar">{expanded ? 'Show less' : 'Read more'}</button>}
+      {shouldCollapse && <button onClick={() => setExpanded((value) => !value)} className="mt-2 text-sm font-black text-sigfleet">{expanded ? 'Show less' : 'Read more'}</button>}
 
       {review.host_reply && (
-        <div className="mt-5 border-l-4 border-zoomcar bg-red-50 p-4">
+        <div className="mt-5 border-l-4 border-sigfleet bg-red-50 p-4">
           <p className="font-black text-zinc-950">Response from {review.host_name || 'Host'}</p>
           <p className="mt-2 whitespace-pre-wrap text-sm font-medium text-zinc-700">{review.host_reply}</p>
           <p className="mt-2 text-xs font-bold text-zinc-500">{monthLabel(review.host_replied_at)}</p>

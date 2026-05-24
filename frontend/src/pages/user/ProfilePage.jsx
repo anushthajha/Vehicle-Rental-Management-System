@@ -74,12 +74,12 @@ export default function ProfilePage() {
 
   return (
     <DashboardShell title="Settings" eyebrow="Account">
-      {loading ? <div className="grid h-80 place-items-center"><Loader2 className="animate-spin text-zoomcar" /></div> : (
+      {loading ? <div className="grid h-80 place-items-center"><Loader2 className="animate-spin text-sigfleet" /></div> : (
         <div className="grid gap-6 xl:grid-cols-[280px_1fr]">
           <section className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
             <div className="relative mx-auto h-32 w-32">
               {profile.user.profile_picture ? <img src={profile.user.profile_picture} alt="" className="h-32 w-32 rounded-full object-cover" /> : <div className="grid h-32 w-32 place-items-center rounded-full bg-zinc-100 text-4xl font-black text-zinc-500">{profile.user.full_name?.[0]}</div>}
-              <button type="button" onClick={() => fileRef.current?.click()} className="absolute bottom-1 right-1 grid h-11 w-11 place-items-center rounded-full bg-zoomcar text-white shadow-lg" aria-label="Upload profile photo"><Camera size={20} /></button>
+              <button type="button" onClick={() => fileRef.current?.click()} className="absolute bottom-1 right-1 grid h-11 w-11 place-items-center rounded-full bg-sigfleet text-white shadow-lg" aria-label="Upload profile photo"><Camera size={20} /></button>
               <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={uploadAvatar} />
             </div>
             <div className="mt-5 text-center">
@@ -95,7 +95,7 @@ export default function ProfilePage() {
                 <label className="block"><span className="label">Full Name</span><input className="input mt-1 h-11" value={form.full_name} onChange={(event) => setForm((current) => ({ ...current, full_name: event.target.value }))} required /></label>
                 <label className="block"><span className="label">Email</span><input className="input mt-1 h-11 bg-zinc-100 text-zinc-500" value={profile.user.email} disabled /></label>
                 <label className="block lg:col-span-2"><span className="label">Phone</span><div className="mt-1 flex"><span className="grid h-11 place-items-center rounded-l-md border border-r-0 border-zinc-300 bg-zinc-100 px-3 font-bold text-zinc-500">+91</span><input className="input h-11 rounded-l-none" value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value.replace(/\D/g, '').slice(0, 10) }))} /></div></label>
-                <div className="lg:col-span-2"><button disabled={saving} className="inline-flex h-11 items-center rounded-md bg-zoomcar px-5 font-black text-white disabled:opacity-60">{saving ? <Loader2 className="animate-spin" size={18} /> : 'Save Changes'}</button></div>
+                <div className="lg:col-span-2"><button disabled={saving} className="inline-flex h-11 items-center rounded-md bg-sigfleet px-5 font-black text-white disabled:opacity-60">{saving ? <Loader2 className="animate-spin" size={18} /> : 'Save Changes'}</button></div>
               </form>
             </section>
 
@@ -143,5 +143,5 @@ export default function ProfilePage() {
 }
 
 function Pref({ checked, onChange, label }) {
-  return <label className="flex items-center gap-3 rounded-md border border-zinc-200 p-3 font-bold"><input type="checkbox" checked={checked} onChange={onChange} className="rounded text-zoomcar focus:ring-zoomcar" />{label}</label>
+  return <label className="flex items-center gap-3 rounded-md border border-zinc-200 p-3 font-bold"><input type="checkbox" checked={checked} onChange={onChange} className="rounded text-sigfleet focus:ring-sigfleet" />{label}</label>
 }

@@ -127,7 +127,7 @@ export default function SearchPage() {
   return (
     <main id="main-content" className="min-h-screen bg-zinc-50 dark:bg-gray-900">
       <Helmet>
-        <title>{`Search Cars — ${city} | Zoomcar Clone`}</title>
+        <title>{`Search Cars — ${city} | SigFleet`}</title>
         <meta name="description" content={`Find self-drive rental cars in ${city} with verified hosts, live filters, and flexible booking.`} />
       </Helmet>
       <div className="sticky top-0 z-30 border-b border-zinc-200 bg-zinc-50/95 p-3 backdrop-blur">
@@ -156,7 +156,7 @@ export default function SearchPage() {
                 ['list', List],
                 ['map', MapIcon],
               ].map(([mode, Icon]) => (
-                <button key={mode} onClick={() => setViewMode(mode)} className={`grid h-10 w-10 place-items-center rounded-md border ${viewMode === mode ? 'border-zoomcar bg-red-50 text-zoomcar' : 'border-zinc-200 bg-white text-zinc-600'}`} title={`${mode} view`}>
+                <button key={mode} onClick={() => setViewMode(mode)} className={`grid h-10 w-10 place-items-center rounded-md border ${viewMode === mode ? 'border-sigfleet bg-red-50 text-sigfleet' : 'border-zinc-200 bg-white text-zinc-600'}`} title={`${mode} view`}>
                   <Icon size={18} />
                 </button>
               ))}
@@ -181,7 +181,7 @@ export default function SearchPage() {
             </div>
           )}
 
-          {loadingMore && <div className="grid h-20 place-items-center"><Loader2 className="animate-spin text-zoomcar" /></div>}
+          {loadingMore && <div className="grid h-20 place-items-center"><Loader2 className="animate-spin text-sigfleet" /></div>}
         </section>
       </div>
 
@@ -189,7 +189,7 @@ export default function SearchPage() {
         <Dialog.Trigger asChild>
           <button className="fixed bottom-4 left-1/2 z-40 inline-flex -translate-x-1/2 items-center gap-2 rounded-full bg-zinc-950 px-5 py-3 font-black text-white shadow-xl lg:hidden">
             <SlidersHorizontal size={18} /> Filters
-            {activeCount > 0 && <span className="grid h-6 min-w-6 place-items-center rounded-full bg-zoomcar px-1 text-xs">{activeCount}</span>}
+            {activeCount > 0 && <span className="grid h-6 min-w-6 place-items-center rounded-full bg-sigfleet px-1 text-xs">{activeCount}</span>}
           </button>
         </Dialog.Trigger>
         <Dialog.Portal>
@@ -287,9 +287,9 @@ function EmptyState({ onClear }) {
   return (
     <div className="grid min-h-[420px] place-items-center rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center">
       <div>
-        <svg className="mx-auto h-24 w-24 text-zoomcar" viewBox="0 0 120 120" fill="none" aria-hidden="true"><rect x="18" y="54" width="84" height="26" rx="10" fill="currentColor" opacity=".12"/><path d="M32 58l10-17h36l12 17" stroke="currentColor" strokeWidth="6" strokeLinecap="round"/><circle cx="42" cy="82" r="8" fill="currentColor"/><circle cx="82" cy="82" r="8" fill="currentColor"/></svg>
+        <svg className="mx-auto h-24 w-24 text-sigfleet" viewBox="0 0 120 120" fill="none" aria-hidden="true"><rect x="18" y="54" width="84" height="26" rx="10" fill="currentColor" opacity=".12"/><path d="M32 58l10-17h36l12 17" stroke="currentColor" strokeWidth="6" strokeLinecap="round"/><circle cx="42" cy="82" r="8" fill="currentColor"/><circle cx="82" cy="82" r="8" fill="currentColor"/></svg>
         <h2 className="mt-5 text-2xl font-black text-zinc-950">No cars found. Try adjusting your filters.</h2>
-        <button onClick={onClear} className="mt-5 rounded-md bg-zoomcar px-5 py-3 font-black text-white">Clear All Filters</button>
+        <button onClick={onClear} className="mt-5 rounded-md bg-sigfleet px-5 py-3 font-black text-white">Clear All Filters</button>
         <Link to="/" className="ml-3 mt-5 inline-flex rounded-md border border-zinc-300 px-5 py-3 font-black text-zinc-800">Start over</Link>
       </div>
     </div>
@@ -300,10 +300,10 @@ function ErrorState({ message, onRetry }) {
   return (
     <div className="grid min-h-[420px] place-items-center rounded-lg border border-red-200 bg-white p-8 text-center">
       <div>
-        <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-red-50 text-zoomcar"><AlertTriangle size={36} /></div>
+        <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-red-50 text-sigfleet"><AlertTriangle size={36} /></div>
         <h2 className="mt-5 text-2xl font-black text-zinc-950">We could not load cars right now</h2>
         <p className="mt-2 max-w-md font-semibold text-zinc-600">{message || 'Please check your connection and try again.'}</p>
-        <button onClick={onRetry} className="mt-5 rounded-md bg-zoomcar px-5 py-3 font-black text-white">Retry</button>
+        <button onClick={onRetry} className="mt-5 rounded-md bg-sigfleet px-5 py-3 font-black text-white">Retry</button>
       </div>
     </div>
   )

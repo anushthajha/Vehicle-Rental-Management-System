@@ -177,7 +177,7 @@ async def add_ticket_message(
         ticket.status = "in_progress"
         await _notify_admins(db, ticket, "Support ticket updated", f"{current_user.full_name} replied to {ticket.subject}.")
     elif ticket.user_id:
-        await create_notification(ticket.user_id, "Support replied", f"Zoomcar Support replied to {ticket.subject}.", "system", action_url="/dashboard/support", meta={"ticket_id": ticket.id})
+        await create_notification(ticket.user_id, "Support replied", f"SigFleet Support replied to {ticket.subject}.", "system", action_url="/dashboard/support", meta={"ticket_id": ticket.id})
     await db.commit()
     return {"message": "Message sent", "attachment_url": attachment_url}
 
@@ -189,7 +189,7 @@ async def close_ticket(ticket_id: str, current_user: User = Depends(get_current_
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the ticket owner can close this ticket")
     ticket.status = "closed"
     ticket.updated_at = datetime.utcnow()
-    await add_support_message(ticket.id, "system", "Zoomcar Support", "system", "Ticket closed by user.")
+    await add_support_message(ticket.id, "system", "SigFleet Support", "system", "Ticket closed by user.")
     await db.commit()
     return {"status": "closed"}
 

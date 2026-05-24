@@ -35,7 +35,8 @@ class RegisterRequest(BaseModel):
     password: str
     confirm_password: str
     full_name: str = Field(min_length=2, max_length=200)
-    phone: str
+    phone: str | None = None
+    phoneNumber: str | None = None
 
     @field_validator("password")
     @classmethod
@@ -51,9 +52,11 @@ class RegisterRequest(BaseModel):
             raise ValueError("Passwords do not match")
         return value
 
-    @field_validator("phone")
+    @field_validator("phone", "phoneNumber")
     @classmethod
-    def phone_is_indian_mobile(cls, value: str) -> str:
+    def phone_is_indian_mobile(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         normalized = value.strip().replace(" ", "").replace("-", "")
         if normalized.startswith("+91"):
             normalized = normalized[3:]
@@ -143,10 +146,11 @@ async def _serialize_user(db: AsyncSession, user: User) -> dict:
         "email": user.email,
         "full_name": user.full_name,
         "phone": user.phone,
+        "phoneNumber": user.phone,
         "role": user.role,
         "is_active": user.is_active,
         "is_verified": user.is_verified,
-        "is_host": user.is_host,
+        "is_host": user.role == "vehicle_manager",
         "profile_picture": user.profile_picture,
         "kyc_status": kyc_status,
         "is_kyc_verified": kyc_status == "approved",
@@ -166,11 +170,16 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
+    phone_value = payload.phoneNumber or payload.phone
+    if not phone_value:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Phone number is required")
+
     user = User(
         email=payload.email.lower(),
         hashed_password=get_password_hash(payload.password),
         full_name=payload.full_name.strip(),
-        phone=payload.phone,
+        phone=phone_value,
+        role="customer",
     )
     db.add(user)
     await db.flush()

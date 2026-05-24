@@ -89,8 +89,8 @@ export default function AdminDashboardPage() {
         <StatCard title="Active Bookings Now" value={data.bookings.active_now} subtitle={`${data.bookings.this_month} this month`} icon={WalletCards} />
         <StatCard title="Pending KYC" value={data.pending.kyc_count} subtitle="Needs review" icon={IdCard} trend={data.pending.kyc_count ? 'up' : 'down'} />
         <StatCard title="Open Tickets" value={data.pending.support_tickets_count} subtitle="Support queue" icon={Headphones} trend={data.pending.support_tickets_count ? 'up' : 'down'} />
-        <StatCard title="Pending Car Approvals" value={data.pending.car_approval_count} subtitle="Host listings" icon={Car} trend={data.pending.car_approval_count ? 'up' : 'down'} />
-        <StatCard title="Payout Requests" value={data.pending.payout_requests_count} subtitle="Host payouts" icon={IndianRupee} trend={data.pending.payout_requests_count ? 'up' : 'down'} />
+        <StatCard title="Pending Car Approvals" value={data.pending.car_approval_count} subtitle="Manager listings" icon={Car} trend={data.pending.car_approval_count ? 'up' : 'down'} />
+        <StatCard title="Payout Requests" value={data.pending.payout_requests_count} subtitle="Manager payouts" icon={IndianRupee} trend={data.pending.payout_requests_count ? 'up' : 'down'} />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-2">

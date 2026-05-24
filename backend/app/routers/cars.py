@@ -22,7 +22,7 @@ from app.mongo_models.analytics import log_activity, log_car_view, log_search
 from app.mongo_models.notification import create_notification
 from app.mongo_models.review import get_car_reviews
 from app.redis import get_redis
-from app.utils.auth import require_host, require_kyc_user, verify_token
+from app.utils.auth import require_vehicle_manager, require_kyc_user, verify_token
 
 
 router = APIRouter(prefix="/cars", tags=["cars"])
@@ -283,7 +283,7 @@ async def _optional_user_id(request: Request) -> str | None:
 
 
 async def _get_owned_car(car_id: str, host_id: str, db: AsyncSession) -> Car:
-    result = await db.execute(select(Car).where(Car.id == car_id, Car.host_id == host_id))
+    result = await db.execute(select(Car).where(Car.id == car_id, Car.managerId == host_id))
     car = result.scalar_one_or_none()
     if car is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Car not found")
@@ -324,7 +324,7 @@ async def _list_rows(db: AsyncSession, conditions: list, sort_by: str, page: int
     if distance_expr is not None:
         columns.append(distance_expr.label("distance_km"))
 
-    query = select(*columns).join(User, User.id == Car.host_id).where(*conditions)
+    query = select(*columns).join(User, User.id == Car.managerId).where(*conditions)
     if sort_by == "price_asc":
         query = query.order_by(Car.price_per_day.asc())
     elif sort_by == "price_desc":
@@ -397,7 +397,7 @@ async def search_cars(
     if min_rating is not None:
         conditions.append(Car.average_rating >= min_rating)
     if host_id:
-        conditions.append(Car.host_id == host_id)
+        conditions.append(Car.managerId == host_id)
     if exclude:
         conditions.append(Car.id != exclude)
     if min_price is not None:
@@ -462,8 +462,8 @@ async def city_cars(city: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/host/my-cars")
-async def host_my_cars(current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Car).where(Car.host_id == current_user.id).order_by(Car.created_at.desc()))
+async def host_my_cars(current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Car).where(Car.managerId == current_user.id).order_by(Car.created_at.desc()))
     cars = result.scalars().all()
     response = []
     for car in cars:
@@ -486,7 +486,7 @@ async def host_my_cars(current_user: User = Depends(require_host), db: AsyncSess
 
 
 @router.patch("/host/{car_id}/toggle-availability")
-async def toggle_availability(car_id: str, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+async def toggle_availability(car_id: str, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     car = await _get_owned_car(car_id, current_user.id, db)
     car.is_available = not car.is_available
     await db.commit()
@@ -495,8 +495,8 @@ async def toggle_availability(car_id: str, current_user: User = Depends(require_
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_car(payload: CarCreate, current_user: User = Depends(require_kyc_user), db: AsyncSession = Depends(get_db)):
-    if not current_user.is_host:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Host access required")
+    if current_user.role != "vehicle_manager":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vehicle Manager access required")
 
     host_profile = await db.scalar(select(HostProfile).where(HostProfile.user_id == current_user.id))
     if host_profile is None:
@@ -505,7 +505,7 @@ async def create_car(payload: CarCreate, current_user: User = Depends(require_ky
 
     data = payload.model_dump()
     title = data.pop("title") or f"{payload.year} {payload.make} {payload.car_model}"
-    car = Car(host_id=current_user.id, title=title, is_approved=False, is_available=True, **data)
+    car = Car(managerId=current_user.id, title=title, is_approved=False, is_available=True, **data)
     db.add(car)
     await db.flush()
     host_profile.total_listings += 1
@@ -527,7 +527,7 @@ async def create_car(payload: CarCreate, current_user: User = Depends(require_ky
 
 @router.get("/{car_id}")
 async def get_car_detail(car_id: str, request: Request, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Car, User, HostProfile).join(User, User.id == Car.host_id).outerjoin(HostProfile, HostProfile.user_id == Car.host_id).where(Car.id == car_id))
+    result = await db.execute(select(Car, User, HostProfile).join(User, User.id == Car.managerId).outerjoin(HostProfile, HostProfile.user_id == Car.managerId).where(Car.id == car_id))
     row = result.one_or_none()
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Car not found")
@@ -582,7 +582,7 @@ async def get_car_detail(car_id: str, request: Request, db: AsyncSession = Depen
 
 
 @router.patch("/{car_id}")
-async def update_car(car_id: str, payload: CarUpdate, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+async def update_car(car_id: str, payload: CarUpdate, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     car = await _get_owned_car(car_id, current_user.id, db)
     changes = payload.model_dump(exclude_unset=True)
     price_changed = any(field in changes for field in ("price_per_hour", "price_per_day"))
@@ -607,7 +607,7 @@ async def update_car(car_id: str, payload: CarUpdate, current_user: User = Depen
 
 
 @router.delete("/{car_id}")
-async def delete_car(car_id: str, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+async def delete_car(car_id: str, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     car = await _get_owned_car(car_id, current_user.id, db)
     active_count = await db.scalar(
         select(func.count()).select_from(Booking).where(Booking.car_id == car.id, Booking.status.in_(("confirmed", "active")))
@@ -623,7 +623,7 @@ async def delete_car(car_id: str, current_user: User = Depends(require_host), db
 async def upload_car_image(
     car_id: str,
     file: UploadFile = File(...),
-    current_user: User = Depends(require_host),
+    current_user: User = Depends(require_vehicle_manager),
     db: AsyncSession = Depends(get_db),
 ):
     await _get_owned_car(car_id, current_user.id, db)
@@ -664,7 +664,7 @@ async def upload_car_image(
 
 
 @router.delete("/{car_id}/images/{image_id}")
-async def delete_car_image(car_id: str, image_id: str, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+async def delete_car_image(car_id: str, image_id: str, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     await _get_owned_car(car_id, current_user.id, db)
     image = await db.scalar(select(CarImage).where(CarImage.id == image_id, CarImage.car_id == car_id))
     if image is None:
@@ -675,7 +675,7 @@ async def delete_car_image(car_id: str, image_id: str, current_user: User = Depe
 
 
 @router.post("/{car_id}/images/{image_id}/set-primary")
-async def set_primary_image(car_id: str, image_id: str, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+async def set_primary_image(car_id: str, image_id: str, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     await _get_owned_car(car_id, current_user.id, db)
     image = await db.scalar(select(CarImage).where(CarImage.id == image_id, CarImage.car_id == car_id))
     if image is None:
@@ -687,7 +687,7 @@ async def set_primary_image(car_id: str, image_id: str, current_user: User = Dep
 
 
 @router.patch("/{car_id}/images/reorder")
-async def reorder_images(car_id: str, payload: list[ImageReorderItem], current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+async def reorder_images(car_id: str, payload: list[ImageReorderItem], current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     await _get_owned_car(car_id, current_user.id, db)
     for item in payload:
         await db.execute(update(CarImage).where(CarImage.id == item.image_id, CarImage.car_id == car_id).values(order_index=item.order_index))
@@ -696,7 +696,7 @@ async def reorder_images(car_id: str, payload: list[ImageReorderItem], current_u
 
 
 @router.post("/{car_id}/block-dates", status_code=status.HTTP_201_CREATED)
-async def block_dates(car_id: str, payload: DateBlockRequest, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+async def block_dates(car_id: str, payload: DateBlockRequest, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     await _get_owned_car(car_id, current_user.id, db)
     if payload.blocked_to <= payload.blocked_from:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="blocked_to must be after blocked_from")
@@ -708,7 +708,7 @@ async def block_dates(car_id: str, payload: DateBlockRequest, current_user: User
 
 
 @router.delete("/{car_id}/block-dates/{block_id}")
-async def delete_block(car_id: str, block_id: str, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+async def delete_block(car_id: str, block_id: str, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     await _get_owned_car(car_id, current_user.id, db)
     block = await db.scalar(select(CarAvailabilityBlock).where(CarAvailabilityBlock.id == block_id, CarAvailabilityBlock.car_id == car_id))
     if block is None:
@@ -761,7 +761,7 @@ async def get_availability(car_id: str, month: str, db: AsyncSession = Depends(g
 
 
 @router.post("/{car_id}/pricing-rules", status_code=status.HTTP_201_CREATED)
-async def create_pricing_rule(car_id: str, payload: PricingRuleRequest, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+async def create_pricing_rule(car_id: str, payload: PricingRuleRequest, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     await _get_owned_car(car_id, current_user.id, db)
     rule = CarPricingRule(car_id=car_id, **payload.model_dump())
     db.add(rule)
@@ -771,7 +771,7 @@ async def create_pricing_rule(car_id: str, payload: PricingRuleRequest, current_
 
 
 @router.delete("/{car_id}/pricing-rules/{rule_id}")
-async def delete_pricing_rule(car_id: str, rule_id: str, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+async def delete_pricing_rule(car_id: str, rule_id: str, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     await _get_owned_car(car_id, current_user.id, db)
     rule = await db.scalar(select(CarPricingRule).where(CarPricingRule.id == rule_id, CarPricingRule.car_id == car_id))
     if rule is None:

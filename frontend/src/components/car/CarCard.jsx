@@ -61,7 +61,7 @@ function CarCard({ car, viewMode = 'grid', onRemoved }) {
                 <h3 className="text-xl font-black text-zinc-950">{car.title} <span className="text-zinc-500">{car.year}</span></h3>
                 <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-zinc-500"><MapPin size={15} /> {car.location_area || 'Central'}, {car.location_city}</p>
               </div>
-              <button onClick={toggleWishlist} className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border bg-white ${saved ? 'border-red-200 text-zoomcar' : 'border-zinc-200 text-zinc-500'}`} aria-label="Toggle wishlist">
+              <button onClick={toggleWishlist} className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border bg-white ${saved ? 'border-red-200 text-sigfleet' : 'border-zinc-200 text-zinc-500'}`} aria-label="Toggle wishlist">
                 <Heart size={18} fill={saved ? 'currentColor' : 'none'} />
               </button>
             </div>
@@ -78,7 +78,7 @@ function CarCard({ car, viewMode = 'grid', onRemoved }) {
               <p className="text-2xl font-black text-zinc-950">₹{formatMoney(car.price_per_day)}</p>
               <p className="text-xs font-bold text-zinc-500">per day</p>
             </div>
-            <span className="rounded-md border border-zoomcar px-5 py-2.5 text-sm font-black text-zoomcar transition group-hover:bg-zoomcar group-hover:text-white">Book Now</span>
+            <span className="rounded-md border border-sigfleet px-5 py-2.5 text-sm font-black text-sigfleet transition group-hover:bg-sigfleet group-hover:text-white">Book Now</span>
           </div>
         </Link>
       </article>
@@ -92,7 +92,7 @@ function CarCard({ car, viewMode = 'grid', onRemoved }) {
           <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-zinc-100 via-zinc-200 to-zinc-100" />
           <img src={image} alt={`${car.title} rental car in ${car.location_city}`} loading="lazy" decoding="async" width="480" height="270" className="relative h-full w-full object-cover transition duration-500 group-hover:scale-105" />
           <CategoryBadge category={car.category} />
-          <button onClick={toggleWishlist} className={`absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full bg-white/95 shadow ${saved ? 'text-zoomcar' : 'text-zinc-600'}`} aria-label="Toggle wishlist">
+          <button onClick={toggleWishlist} className={`absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full bg-white/95 shadow ${saved ? 'text-sigfleet' : 'text-zinc-600'}`} aria-label="Toggle wishlist">
             <Heart size={19} fill={saved ? 'currentColor' : 'none'} />
           </button>
         </div>
@@ -110,7 +110,7 @@ function CarCard({ car, viewMode = 'grid', onRemoved }) {
             <div>
               <p className="text-2xl font-black text-zinc-950">₹{formatMoney(car.price_per_day)}<span className="text-sm font-bold text-zinc-500">/day</span></p>
             </div>
-            <span className="rounded-md border border-zoomcar px-4 py-2 text-sm font-black text-zoomcar transition group-hover:bg-zoomcar group-hover:text-white">Book Now</span>
+            <span className="rounded-md border border-sigfleet px-4 py-2 text-sm font-black text-sigfleet transition group-hover:bg-sigfleet group-hover:text-white">Book Now</span>
           </div>
         </div>
       </Link>

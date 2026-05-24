@@ -50,7 +50,7 @@ export default function KYCPage() {
 
   return (
     <DashboardShell title="KYC Verification" eyebrow="Identity">
-      {loading ? <div className="grid h-80 place-items-center"><Loader2 className="animate-spin text-zoomcar" /></div> : (
+      {loading ? <div className="grid h-80 place-items-center"><Loader2 className="animate-spin text-sigfleet" /></div> : (
         <>
           {(status === 'not_submitted' || status === 'pending') && <KYCForm form={form} setForm={setForm} files={files} setFiles={setFiles} onSubmit={submit} submitting={submitting} />}
           {status === 'under_review' && <UnderReview record={kyc.record} />}
@@ -69,7 +69,7 @@ function KYCForm({ form, setForm, files, setFiles, onSubmit, submitting, rejecte
       <section className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
         <h2 className="text-2xl font-black">{rejected ? 'Resubmit Documents' : 'Verify Your Identity'}</h2>
         <div className="mt-5 grid gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm font-bold text-blue-950 md:grid-cols-3">
-          <p>Required to book any car on Zoomcar</p>
+          <p>Required to book any car on SigFleet</p>
           <p>Takes 2-3 minutes to submit</p>
           <p>Documents reviewed within 24 hours</p>
         </div>
@@ -87,7 +87,7 @@ function KYCForm({ form, setForm, files, setFiles, onSubmit, submitting, rejecte
         <FileUpload label="Back side" file={files.aadhar_back} onFile={(file) => setFiles((current) => ({ ...current, aadhar_back: file }))} />
       </DocumentSection>
 
-      <button disabled={!isComplete || submitting} className="inline-flex h-12 items-center rounded-md bg-zoomcar px-6 font-black text-white disabled:opacity-50">
+      <button disabled={!isComplete || submitting} className="inline-flex h-12 items-center rounded-md bg-sigfleet px-6 font-black text-white disabled:opacity-50">
         {submitting ? <Loader2 className="animate-spin" size={20} /> : 'Submit KYC'}
       </button>
     </form>
@@ -125,11 +125,11 @@ function FileUpload({ label, file, onFile }) {
         onDragOver={(event) => { event.preventDefault(); setDragging(true) }}
         onDragLeave={() => setDragging(false)}
         onDrop={(event) => { event.preventDefault(); setDragging(false); pick(event.dataTransfer.files?.[0]) }}
-        className={`grid min-h-44 w-full place-items-center rounded-lg border-2 border-dashed p-4 text-center transition ${dragging ? 'border-zoomcar bg-red-50' : 'border-zinc-300 bg-zinc-50'}`}
+        className={`grid min-h-44 w-full place-items-center rounded-lg border-2 border-dashed p-4 text-center transition ${dragging ? 'border-sigfleet bg-red-50' : 'border-zinc-300 bg-zinc-50'}`}
       >
         {file ? (
           <div className="w-full">
-            {preview ? <img src={preview} alt="" className="mx-auto h-28 w-full rounded-md object-cover" /> : <FileText className="mx-auto text-zoomcar" size={42} />}
+            {preview ? <img src={preview} alt="" className="mx-auto h-28 w-full rounded-md object-cover" /> : <FileText className="mx-auto text-sigfleet" size={42} />}
             <p className="mt-2 truncate text-sm font-black">{file.name}</p>
             <span onClick={(event) => { event.stopPropagation(); onFile(null) }} className="mt-2 inline-flex items-center gap-1 rounded-md bg-white px-3 py-2 text-sm font-black text-red-700 shadow-sm"><X size={16} /> Remove</span>
           </div>
@@ -151,7 +151,7 @@ function UnderReview({ record }) {
 }
 
 function Approved({ record }) {
-  return <StatusCard icon={CheckCircle2} tone="text-emerald-700 bg-emerald-50" title="KYC Verified ✓" body="You're fully verified and can book any car on Zoomcar!" record={record} cta={<Link to="/search" className="mt-5 inline-flex rounded-md bg-zoomcar px-5 py-3 font-black text-white">Book a Car</Link>} />
+  return <StatusCard icon={CheckCircle2} tone="text-emerald-700 bg-emerald-50" title="KYC Verified ✓" body="You're fully verified and can book any car on SigFleet!" record={record} cta={<Link to="/search" className="mt-5 inline-flex rounded-md bg-sigfleet px-5 py-3 font-black text-white">Book a Car</Link>} />
 }
 
 function Rejected({ record, form, setForm, files, setFiles, onSubmit, submitting }) {

@@ -57,7 +57,7 @@ export default function ResetPasswordPage() {
             <PasswordField label="New password" name="new_password" value={form.new_password} visible={visible} setVisible={setVisible} onChange={(event) => setForm((current) => ({ ...current, new_password: event.target.value }))} />
             <PasswordStrengthMeter password={form.new_password} />
             <PasswordField label="Confirm password" name="confirm_password" value={form.confirm_password} visible={confirmVisible} setVisible={setConfirmVisible} onChange={(event) => setForm((current) => ({ ...current, confirm_password: event.target.value }))} />
-            <button type="submit" disabled={isLoading || !token} className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-zoomcar px-4 font-bold text-white disabled:opacity-70">
+            <button type="submit" disabled={isLoading || !token} className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-sigfleet px-4 font-bold text-white disabled:opacity-70">
               {isLoading ? <Loader2 className="animate-spin" size={20} /> : 'Reset password'}
             </button>
           </>

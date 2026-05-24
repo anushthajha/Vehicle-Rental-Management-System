@@ -52,13 +52,13 @@ export default function SupportPage() {
   }
 
   return (
-    <DashboardShell title="Support" eyebrow="Help desk" actions={<button onClick={() => setModalOpen(true)} className="inline-flex items-center gap-2 rounded-md bg-zoomcar px-4 py-3 font-black text-white"><Plus size={18} /> New Ticket</button>}>
+    <DashboardShell title="Support" eyebrow="Help desk" actions={<button onClick={() => setModalOpen(true)} className="inline-flex items-center gap-2 rounded-md bg-sigfleet px-4 py-3 font-black text-white"><Plus size={18} /> New Ticket</button>}>
       <div className="grid min-h-[680px] gap-6 xl:grid-cols-[360px_1fr]">
         <section className="rounded-lg border border-zinc-200 bg-white shadow-sm">
           <div className="border-b border-zinc-100 p-4">
-            <div className="flex flex-wrap gap-2">{FILTERS.map((item) => <button key={item} onClick={() => setFilter(item)} className={`rounded-md px-3 py-2 text-sm font-black capitalize ${filter === item ? 'bg-zoomcar text-white' : 'bg-zinc-100 text-zinc-600'}`}>{item.replace('_', ' ')}</button>)}</div>
+            <div className="flex flex-wrap gap-2">{FILTERS.map((item) => <button key={item} onClick={() => setFilter(item)} className={`rounded-md px-3 py-2 text-sm font-black capitalize ${filter === item ? 'bg-sigfleet text-white' : 'bg-zinc-100 text-zinc-600'}`}>{item.replace('_', ' ')}</button>)}</div>
           </div>
-          {loading ? <div className="grid h-64 place-items-center"><Loader2 className="animate-spin text-zoomcar" /></div> : visible.length ? (
+          {loading ? <div className="grid h-64 place-items-center"><Loader2 className="animate-spin text-sigfleet" /></div> : visible.length ? (
             <div className="divide-y divide-zinc-100">
               {visible.map((ticket) => <TicketItem key={ticket.id} ticket={ticket} active={selectedId === ticket.id} onClick={() => setSelectedId(ticket.id)} />)}
             </div>
@@ -125,7 +125,7 @@ function TicketChat({ data, onReload }) {
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-zinc-300 px-3 py-2 font-black"><Paperclip size={18} /> Attachment<input type="file" hidden onChange={(event) => setAttachment(event.target.files?.[0] || null)} /></label>
             {attachment && <span className="text-sm font-bold text-zinc-500">{attachment.name}</span>}
-            <button className="inline-flex items-center gap-2 rounded-md bg-zoomcar px-4 py-3 font-black text-white"><Send size={18} /> Send</button>
+            <button className="inline-flex items-center gap-2 rounded-md bg-sigfleet px-4 py-3 font-black text-white"><Send size={18} /> Send</button>
           </div>
         </form>
       )}
@@ -139,7 +139,7 @@ function MessageBubble({ item }) {
   return (
     <div className={`flex ${staff ? 'justify-start' : 'justify-end'}`}>
       <div className={`max-w-[78%] rounded-lg px-4 py-3 ${staff ? 'bg-white text-zinc-800 shadow-sm' : 'bg-blue-600 text-white'}`}>
-        {staff && <p className="mb-1 text-xs font-black text-zinc-500">Zoomcar Support</p>}
+        {staff && <p className="mb-1 text-xs font-black text-zinc-500">SigFleet Support</p>}
         <p className="whitespace-pre-wrap text-sm font-medium">{item.message}</p>
         {item.attachment_url && <a href={item.attachment_url} className="mt-2 block text-xs font-black underline">Attachment</a>}
         <p className={`mt-2 text-xs font-bold ${staff ? 'text-zinc-400' : 'text-blue-100'}`}>{formatDate(item.created_at)}</p>
@@ -178,7 +178,7 @@ function NewTicketModal({ open, onOpenChange, onCreated }) {
             <input className="input h-11" value={form.booking_ref} onChange={(event) => setForm((current) => ({ ...current, booking_ref: event.target.value.toUpperCase() }))} placeholder="Booking Ref (optional)" />
             <input className="input h-11" value={form.subject} onChange={(event) => setForm((current) => ({ ...current, subject: event.target.value }))} placeholder="Subject" required />
             <textarea className="input min-h-32" minLength={20} value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Description" required />
-            <button disabled={submitting} className="inline-flex justify-center rounded-md bg-zoomcar px-4 py-3 font-black text-white disabled:opacity-60">{submitting ? <Loader2 className="animate-spin" /> : 'Submit Ticket'}</button>
+            <button disabled={submitting} className="inline-flex justify-center rounded-md bg-sigfleet px-4 py-3 font-black text-white disabled:opacity-60">{submitting ? <Loader2 className="animate-spin" /> : 'Submit Ticket'}</button>
           </form>
         </Dialog.Content>
       </Dialog.Portal>

@@ -31,13 +31,13 @@ export default function BookingDetailsPage() {
   }
 
   function invoice() {
-    const html = `<!doctype html><html><head><title>Invoice ${booking.booking_ref}</title><style>body{font-family:Arial;padding:32px;color:#111827}.brand{color:#e31837;font-size:28px;font-weight:900}.row{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding:10px 0}@media print{button{display:none}}</style></head><body><div class="brand">Zoomcar</div><h1>Invoice ${booking.booking_ref}</h1><p>${booking.car.title}</p><div class="row"><span>Pickup</span><b>${formatDateTime(booking.pickup_datetime)}</b></div><div class="row"><span>Return</span><b>${formatDateTime(booking.return_datetime)}</b></div><div class="row"><span>Total</span><b>${moneyLabel(booking.total_amount)}</b></div><div class="row"><span>Payment</span><b>${booking.payment?.transaction_id || booking.payment?.status}</b></div><button onclick="print()">Print</button></body></html>`
+    const html = `<!doctype html><html><head><title>Invoice ${booking.booking_ref}</title><style>body{font-family:Arial;padding:32px;color:#111827}.brand{color:#e31837;font-size:28px;font-weight:900}.row{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding:10px 0}@media print{button{display:none}}</style></head><body><div class="brand">SigFleet</div><h1>Invoice ${booking.booking_ref}</h1><p>${booking.car.title}</p><div class="row"><span>Pickup</span><b>${formatDateTime(booking.pickup_datetime)}</b></div><div class="row"><span>Return</span><b>${formatDateTime(booking.return_datetime)}</b></div><div class="row"><span>Total</span><b>${moneyLabel(booking.total_amount)}</b></div><div class="row"><span>Payment</span><b>${booking.payment?.transaction_id || booking.payment?.status}</b></div><button onclick="print()">Print</button></body></html>`
     const tab = window.open('', '_blank')
     tab.document.write(html)
     tab.document.close()
   }
 
-  if (!booking) return <main className="grid min-h-screen place-items-center bg-zinc-50"><Loader2 className="animate-spin text-zoomcar" /></main>
+  if (!booking) return <main className="grid min-h-screen place-items-center bg-zinc-50"><Loader2 className="animate-spin text-sigfleet" /></main>
   const currentStep = Math.max(STEPS.indexOf(booking.status), 0)
   const confirmed = ['confirmed', 'active', 'completed'].includes(booking.status)
 
@@ -46,11 +46,11 @@ export default function BookingDetailsPage() {
       <section className="mx-auto max-w-5xl space-y-5">
         <div className="rounded-lg border border-zinc-200 bg-white p-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <div><p className="text-sm font-black uppercase text-zoomcar">Booking Details</p><h1 className="text-3xl font-black text-zinc-950">{booking.booking_ref}</h1></div>
+            <div><p className="text-sm font-black uppercase text-sigfleet">Booking Details</p><h1 className="text-3xl font-black text-zinc-950">{booking.booking_ref}</h1></div>
             <span className={`rounded-full px-3 py-1 text-sm font-black capitalize ${statusClass(booking.status)}`}>{booking.status}</span>
           </div>
           <div className="mt-6 grid grid-cols-4 gap-2">
-            {STEPS.map((step, index) => <div key={step} className={`rounded-full px-3 py-2 text-center text-xs font-black capitalize ${index < currentStep ? 'bg-emerald-100 text-emerald-700' : index === currentStep ? 'bg-red-100 text-zoomcar' : 'bg-zinc-100 text-zinc-500'}`}>{step}</div>)}
+            {STEPS.map((step, index) => <div key={step} className={`rounded-full px-3 py-2 text-center text-xs font-black capitalize ${index < currentStep ? 'bg-emerald-100 text-emerald-700' : index === currentStep ? 'bg-red-100 text-sigfleet' : 'bg-zinc-100 text-zinc-500'}`}>{step}</div>)}
           </div>
         </div>
 

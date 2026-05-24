@@ -29,7 +29,7 @@ from app.services.pricing import calculate_booking_price
 from app.services.superhost import check_and_update_superhost
 from app.tasks.email_tasks import send_booking_cancelled_email, send_booking_request_to_host_email
 from app.tasks.maintenance_tasks import send_review_request_task
-from app.utils.auth import get_current_active_user, require_host, require_kyc_user
+from app.utils.auth import get_current_active_user, require_customer, require_vehicle_manager, require_kyc_user
 
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
@@ -255,6 +255,8 @@ async def preview_booking(payload: BookingPreviewRequest, db: AsyncSession = Dep
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_booking(payload: BookingCreateRequest, current_user: User = Depends(require_kyc_user), db: AsyncSession = Depends(get_db)):
+    if current_user.role not in {"customer", "admin"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Customer access required.")
     car = await _load_car(db, payload.car_id)
     await _validate_dates(car, payload.pickup_datetime, payload.return_datetime)
     await _ensure_available(db, car, payload.pickup_datetime, payload.return_datetime, current_user.id)
@@ -308,7 +310,7 @@ async def create_booking(payload: BookingCreateRequest, current_user: User = Dep
             send_booking_request_to_host_email.delay(host.email, notify_payload)
         except Exception:
             pass
-        await create_notification(host.id, "New booking request", f"{current_user.full_name} requested {car.title}.", "booking", action_url=f"/host/bookings", meta={"booking_id": booking.id})
+        await create_notification(host.id, "New booking request", f"{current_user.full_name} requested {car.title}.", "booking", action_url="/manager/bookings", meta={"booking_id": booking.id})
     await create_notification(current_user.id, "Booking request submitted", f"Booking {booking.booking_ref} was created.", "booking", action_url=f"/dashboard/bookings/{booking.id}", meta={"booking_id": booking.id})
 
     return {
@@ -323,7 +325,7 @@ async def create_booking(payload: BookingCreateRequest, current_user: User = Dep
 
 
 @router.post("/{booking_id}/simulate-payment")
-async def simulate_payment(booking_id: str, current_user: User = Depends(get_current_active_user), db: AsyncSession = Depends(get_db)):
+async def simulate_payment(booking_id: str, current_user: User = Depends(require_customer), db: AsyncSession = Depends(get_db)):
     booking = await _booking_with_access(booking_id, current_user, db)
     if booking.guest_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the guest can pay for this booking")
@@ -340,7 +342,7 @@ async def simulate_payment(booking_id: str, current_user: User = Depends(get_cur
 
 
 @router.patch("/{booking_id}/accept")
-async def accept_booking(booking_id: str, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+async def accept_booking(booking_id: str, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     booking = await _booking_with_access(booking_id, current_user, db)
     if booking.host_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the host can accept this booking")
@@ -354,7 +356,7 @@ async def accept_booking(booking_id: str, current_user: User = Depends(require_h
 
 
 @router.patch("/{booking_id}/reject")
-async def reject_booking(booking_id: str, payload: RejectRequest, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+async def reject_booking(booking_id: str, payload: RejectRequest, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     booking = await _booking_with_access(booking_id, current_user, db)
     if booking.host_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the host can reject this booking")
@@ -371,12 +373,12 @@ async def reject_booking(booking_id: str, payload: RejectRequest, current_user: 
 
 
 @router.post("/{booking_id}/cancel")
-async def cancel_booking(booking_id: str, payload: CancelRequest, current_user: User = Depends(get_current_active_user), db: AsyncSession = Depends(get_db)):
+async def cancel_booking(booking_id: str, payload: CancelRequest, current_user: User = Depends(require_customer), db: AsyncSession = Depends(get_db)):
     booking = await _booking_with_access(booking_id, current_user, db)
     if booking.status in {"cancelled", "completed", "rejected"}:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Booking cannot be cancelled")
     payment = await db.scalar(select(Payment).where(Payment.booking_id == booking.id))
-    is_host_cancel = current_user.id == booking.host_id
+    is_host_cancel = False
     refund = Decimal("0.00")
     if payment and payment.status == "paid":
         hours_to_pickup = (booking.pickup_datetime - datetime.utcnow()).total_seconds() / 3600
@@ -415,7 +417,7 @@ async def cancel_booking(booking_id: str, payload: CancelRequest, current_user: 
 
 
 @router.patch("/{booking_id}/start-trip")
-async def start_trip(booking_id: str, payload: StartTripRequest, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+async def start_trip(booking_id: str, payload: StartTripRequest, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     booking = await _booking_with_access(booking_id, current_user, db)
     if booking.host_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the host can start this trip")
@@ -429,7 +431,7 @@ async def start_trip(booking_id: str, payload: StartTripRequest, current_user: U
 
 
 @router.patch("/{booking_id}/end-trip")
-async def end_trip(booking_id: str, payload: EndTripRequest, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+async def end_trip(booking_id: str, payload: EndTripRequest, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     booking = await _booking_with_access(booking_id, current_user, db)
     if booking.host_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the host can end this trip")
@@ -469,7 +471,7 @@ async def end_trip(booking_id: str, payload: EndTripRequest, current_user: User 
 
 @router.get("/")
 async def list_bookings(
-    as_role: str = Query(default="guest", pattern="^(guest|host)$"),
+    as_role: str = Query(default="customer", pattern="^(customer|vehicle_manager)$"),
     status_filter: str | None = Query(default=None, alias="status"),
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=10, ge=1, le=50),
@@ -478,7 +480,11 @@ async def list_bookings(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    conditions = [Booking.guest_id == current_user.id] if as_role == "guest" else [Booking.host_id == current_user.id]
+    if as_role == "customer" and current_user.role not in {"customer", "admin"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Customer access required.")
+    if as_role == "vehicle_manager" and current_user.role not in {"vehicle_manager", "admin"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vehicle Manager access required.")
+    conditions = [Booking.guest_id == current_user.id] if as_role == "customer" else [Booking.host_id == current_user.id]
     if status_filter:
         statuses = [item.strip() for item in status_filter.split(",") if item.strip()]
         conditions.append(Booking.status.in_(statuses))
@@ -492,7 +498,7 @@ async def list_bookings(
     for booking in rows:
         car = await _load_car(db, booking.car_id)
         image = await _primary_image(db, car.id)
-        counterparty_id = booking.host_id if as_role == "guest" else booking.guest_id
+        counterparty_id = booking.host_id if as_role == "customer" else booking.guest_id
         counterparty = await db.scalar(select(User).where(User.id == counterparty_id))
         payment = await db.scalar(select(Payment).where(Payment.booking_id == booking.id))
         items.append(_booking_payload(booking, car, image, counterparty, payment))
@@ -515,7 +521,7 @@ async def get_booking(booking_id: str, current_user: User = Depends(get_current_
 
 
 @router.post("/{booking_id}/extend", status_code=status.HTTP_201_CREATED)
-async def extend_booking(booking_id: str, payload: ExtendRequest, current_user: User = Depends(get_current_active_user), db: AsyncSession = Depends(get_db)):
+async def extend_booking(booking_id: str, payload: ExtendRequest, current_user: User = Depends(require_customer), db: AsyncSession = Depends(get_db)):
     booking = await _booking_with_access(booking_id, current_user, db)
     if booking.guest_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the guest can request an extension")
@@ -535,12 +541,12 @@ async def extend_booking(booking_id: str, payload: ExtendRequest, current_user: 
     db.add(extension)
     await db.commit()
     await db.refresh(extension)
-    await create_notification(booking.host_id, "Extension requested", f"{booking.booking_ref} has an extension request.", "booking", action_url="/host/bookings", meta={"booking_id": booking.id, "extension_id": extension.id})
+    await create_notification(booking.host_id, "Extension requested", f"{booking.booking_ref} has an extension request.", "booking", action_url="/manager/bookings", meta={"booking_id": booking.id, "extension_id": extension.id})
     return {"extension_id": extension.id, "status": extension.status, "additional_amount": money(additional_amount)}
 
 
 @router.patch("/extensions/{extension_id}/respond")
-async def respond_extension(extension_id: str, payload: ExtensionResponse, current_user: User = Depends(require_host), db: AsyncSession = Depends(get_db)):
+async def respond_extension(extension_id: str, payload: ExtensionResponse, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     extension = await db.scalar(select(BookingExtension).where(BookingExtension.id == extension_id))
     if extension is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Extension not found")

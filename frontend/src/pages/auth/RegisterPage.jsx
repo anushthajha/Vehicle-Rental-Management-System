@@ -54,10 +54,10 @@ export default function RegisterPage() {
     return (
       <AuthLayout>
         <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-8 text-center shadow-sm">
-          <MailCheck className="mx-auto text-zoomcar" size={56} />
+          <MailCheck className="mx-auto text-sigfleet" size={56} />
           <h2 className="mt-5 text-3xl font-black text-zinc-950">Check your inbox</h2>
-          <p className="mt-3 text-zinc-600">We sent a verification link to finish creating your Zoomcar account.</p>
-          <Link className="mt-6 inline-flex min-h-11 items-center justify-center rounded-md bg-zoomcar px-5 font-bold text-white" to="/auth/login">Back to login</Link>
+          <p className="mt-3 text-zinc-600">We sent a verification link to finish creating your SigFleet account.</p>
+          <Link className="mt-6 inline-flex min-h-11 items-center justify-center rounded-md bg-sigfleet px-5 font-bold text-white" to="/auth/login">Back to login</Link>
         </div>
       </AuthLayout>
     )
@@ -65,7 +65,7 @@ export default function RegisterPage() {
 
   return (
     <AuthLayout>
-      <Helmet><title>Sign Up | Zoomcar Clone</title><meta name="robots" content="noindex" /></Helmet>
+      <Helmet><title>Sign Up | SigFleet</title><meta name="robots" content="noindex" /></Helmet>
       <form onSubmit={submit} className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-8 shadow-sm">
         <h2 className="text-3xl font-black text-zinc-950">Create account</h2>
         <p className="mt-2 text-sm text-zinc-500">Verify your email once, then book and host securely.</p>
@@ -80,15 +80,15 @@ export default function RegisterPage() {
         <PasswordInput label="Confirm Password" name="confirm_password" value={form.confirm_password} onChange={update} visible={showConfirm} setVisible={setShowConfirm} error={fieldErrors.confirm_password} />
 
         <label className="mt-5 flex items-start gap-3 text-sm text-zinc-600">
-          <input name="terms" type="checkbox" checked={form.terms} onChange={update} className="mt-1 rounded border-zinc-300 text-zoomcar" />
-          <span>I agree to the <a href="/terms" target="_blank" className="font-bold text-zoomcar" rel="noreferrer">Terms of Service</a> and <a href="/privacy" target="_blank" className="font-bold text-zoomcar" rel="noreferrer">Privacy Policy</a>.</span>
+          <input name="terms" type="checkbox" checked={form.terms} onChange={update} className="mt-1 rounded border-zinc-300 text-sigfleet" />
+          <span>I agree to the <a href="/terms" target="_blank" className="font-bold text-sigfleet" rel="noreferrer">Terms of Service</a> and <a href="/privacy" target="_blank" className="font-bold text-sigfleet" rel="noreferrer">Privacy Policy</a>.</span>
         </label>
         {fieldErrors.terms && <span className="mt-1 block text-xs font-bold text-red-600">{fieldErrors.terms}</span>}
 
-        <button type="submit" disabled={isLoading} className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-zoomcar px-4 font-bold text-white disabled:opacity-70">
+        <button type="submit" disabled={isLoading} className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-sigfleet px-4 font-bold text-white disabled:opacity-70">
           {isLoading ? <Loader2 className="animate-spin" size={20} /> : 'Create account'}
         </button>
-        <p className="mt-6 text-center text-sm text-zinc-600">Already have an account? <Link className="font-bold text-zoomcar" to="/auth/login">Log in</Link></p>
+        <p className="mt-6 text-center text-sm text-zinc-600">Already have an account? <Link className="font-bold text-sigfleet" to="/auth/login">Log in</Link></p>
       </form>
     </AuthLayout>
   )

@@ -11,7 +11,15 @@ class Car(TimestampMixin, Base):
     __tablename__ = "cars"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
-    host_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True, nullable=False)
+    managerId: Mapped[str] = mapped_column("managerId", String(36), ForeignKey("users.id"), index=True, nullable=False)
+
+    @property
+    def host_id(self) -> str:
+        return self.managerId
+
+    @host_id.setter
+    def host_id(self, value: str) -> None:
+        self.managerId = value
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     make: Mapped[str] = mapped_column(String(100), nullable=False)
     car_model: Mapped[str] = mapped_column("model", String(100), nullable=False)

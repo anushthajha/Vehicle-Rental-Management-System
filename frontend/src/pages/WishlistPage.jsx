@@ -38,16 +38,16 @@ export default function WishlistPage() {
     <main className="min-h-screen bg-zinc-50 px-4 py-8">
       <section className="mx-auto max-w-7xl">
         <div className="mb-6">
-          <p className="text-sm font-black uppercase text-zoomcar">Saved cars</p>
+          <p className="text-sm font-black uppercase text-sigfleet">Saved cars</p>
           <h1 className="text-3xl font-black text-zinc-950">Wishlist</h1>
         </div>
 
         {loading ? (
-          <div className="grid h-64 place-items-center"><Loader2 className="animate-spin text-zoomcar" /></div>
+          <div className="grid h-64 place-items-center"><Loader2 className="animate-spin text-sigfleet" /></div>
         ) : cars.length === 0 ? (
           <div className="grid min-h-[420px] place-items-center rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center">
             <div>
-              <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-red-50 text-zoomcar"><Heart size={34} /></div>
+              <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-red-50 text-sigfleet"><Heart size={34} /></div>
               <h2 className="mt-5 text-2xl font-black text-zinc-950">No saved cars yet. Start exploring!</h2>
             </div>
           </div>

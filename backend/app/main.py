@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Zoomcar Clone API",
+    title="SigFleet API",
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/api/docs",
@@ -55,13 +55,13 @@ app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads"
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok", "service": "zoomcar-backend"}
+    return {"status": "ok", "service": "sigfleet-backend"}
 
 
 @app.get("/api")
 async def api_root():
     return {
-        "name": "Zoomcar Clone API",
+        "name": "SigFleet API",
         "version": "1.0.0",
         "docs": "/api/docs",
     }

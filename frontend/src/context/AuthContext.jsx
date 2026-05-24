@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { create } from 'zustand'
 import api from '../services/api'
 
-const STORAGE_KEY = 'zoomcar_auth'
+const STORAGE_KEY = 'sigfleet_auth'
 
 export const useAuthStore = create((set, get) => ({
   user: null,
@@ -135,6 +135,15 @@ export function AuthProvider({ children }) {
   const value = useMemo(() => ({ ...authState, decodeJwt }), [authState])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}
+
+export function redirectPathForRole(role) {
+  const destinations = {
+    customer: '/customer/dashboard',
+    vehicle_manager: '/manager/dashboard',
+    admin: '/admin/dashboard',
+  }
+  return destinations[role] || '/'
 }
 
 export function useAuth() {

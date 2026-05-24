@@ -71,7 +71,7 @@ export default function CarDetailPage() {
   }, [car, reviewFilter])
 
   if (loading) {
-    return <main className="grid min-h-screen place-items-center bg-zinc-50"><Loader2 className="animate-spin text-zoomcar" /></main>
+    return <main className="grid min-h-screen place-items-center bg-zinc-50"><Loader2 className="animate-spin text-sigfleet" /></main>
   }
   if (error) return <DetailError message={error} onRetry={() => window.location.reload()} />
   if (!car) return null
@@ -90,7 +90,7 @@ export default function CarDetailPage() {
   return (
     <main id="main-content" className="min-h-screen bg-zinc-50 pb-28 dark:bg-gray-900 lg:pb-0">
       <Helmet>
-        <title>{`${car.title} ${car.year || ''} — ₹${formatMoney(car.price_per_day)}/day | Zoomcar Clone`}</title>
+        <title>{`${car.title} ${car.year || ''} — ₹${formatMoney(car.price_per_day)}/day | SigFleet`}</title>
         <meta name="description" content={`Book ${car.title} in ${car.location_city} from ₹${formatMoney(car.price_per_day)} per day.`} />
         <meta property="og:image" content={primaryImage} />
         <meta property="og:title" content={`${car.title} — ₹${formatMoney(car.price_per_day)}/day`} />
@@ -102,7 +102,7 @@ export default function CarDetailPage() {
               <p className="truncate font-black text-zinc-950">{car.title}</p>
               <p className="text-sm font-bold text-zinc-500">₹{formatMoney(car.price_per_day)}/day</p>
             </div>
-            <button onClick={() => setBookingOpen(true)} className="rounded-md bg-zoomcar px-4 py-2 font-black text-white">Book Now</button>
+            <button onClick={() => setBookingOpen(true)} className="rounded-md bg-sigfleet px-4 py-2 font-black text-white">Book Now</button>
           </div>
         </div>
       )}
@@ -134,7 +134,7 @@ export default function CarDetailPage() {
             <p className="text-xl font-black text-zinc-950">₹{formatMoney(car.price_per_day)}<span className="text-sm font-bold text-zinc-500">/day</span></p>
             <p className="text-xs font-bold text-zinc-500">Free cancellation before pickup</p>
           </div>
-          <button onClick={() => setBookingOpen(true)} className="rounded-md bg-zoomcar px-5 py-3 font-black text-white">Book Now</button>
+          <button onClick={() => setBookingOpen(true)} className="rounded-md bg-sigfleet px-5 py-3 font-black text-white">Book Now</button>
         </div>
       </div>
 
@@ -172,7 +172,7 @@ function HeroGallery({ images, activeImage, setActiveImage, onOpen }) {
       </button>
       <div className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 py-3">
         {images.map((image, index) => (
-          <button key={image.id || index} onClick={() => setActiveImage(index)} className={`h-20 w-32 shrink-0 overflow-hidden rounded-md border-2 ${index === activeImage ? 'border-zoomcar' : 'border-transparent'}`}>
+          <button key={image.id || index} onClick={() => setActiveImage(index)} className={`h-20 w-32 shrink-0 overflow-hidden rounded-md border-2 ${index === activeImage ? 'border-sigfleet' : 'border-transparent'}`}>
             <img src={image.thumb_url || image.image_url} alt={`Car gallery thumbnail ${index + 1}`} loading="lazy" decoding="async" width="160" height="100" className="h-full w-full object-cover" />
           </button>
         ))}
@@ -214,7 +214,7 @@ function CarHeader({ car }) {
         </div>
         <div className="flex gap-2">
           <button onClick={share} className="inline-flex items-center gap-2 rounded-md border border-zinc-300 px-4 py-2 font-black text-zinc-800"><Copy size={17} /> Share</button>
-          <button onClick={toggle} className={`inline-flex items-center gap-2 rounded-md border px-4 py-2 font-black ${saved ? 'border-red-200 text-zoomcar' : 'border-zinc-300 text-zinc-800'}`}><Heart size={17} fill={saved ? 'currentColor' : 'none'} /> Wishlist</button>
+          <button onClick={toggle} className={`inline-flex items-center gap-2 rounded-md border px-4 py-2 font-black ${saved ? 'border-red-200 text-sigfleet' : 'border-zinc-300 text-zinc-800'}`}><Heart size={17} fill={saved ? 'currentColor' : 'none'} /> Wishlist</button>
         </div>
       </div>
     </header>
@@ -272,8 +272,8 @@ function BookingWidget({ car, user, borderless = false }) {
       <h3 className="mt-5 text-sm font-black uppercase text-zinc-500">Insurance</h3>
       <div className="mt-2 grid grid-cols-3 gap-2">
         {INSURANCE.map((plan) => (
-          <button key={plan.key} onClick={() => setInsurance(plan.key)} className={`relative rounded-md border p-3 text-left ${insurance === plan.key ? 'border-zoomcar bg-red-50' : 'border-zinc-200'}`}>
-            {insurance === plan.key && <Check className="absolute right-2 top-2 text-zoomcar" size={15} />}
+          <button key={plan.key} onClick={() => setInsurance(plan.key)} className={`relative rounded-md border p-3 text-left ${insurance === plan.key ? 'border-sigfleet bg-red-50' : 'border-zinc-200'}`}>
+            {insurance === plan.key && <Check className="absolute right-2 top-2 text-sigfleet" size={15} />}
             <p className="font-black text-zinc-950">{plan.label}</p>
             <p className="text-xs font-bold text-zinc-500">{Math.round(plan.rate * 100)}%</p>
             <p className="mt-1 text-xs text-zinc-500">{plan.text}</p>
@@ -304,7 +304,7 @@ function BookingWidget({ car, user, borderless = false }) {
       {user && !user.is_kyc_verified && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">KYC approval is required before booking.</p>}
       <Link
         to={`/booking/confirm/${car.id}?pickup=${encodeURIComponent(pickup.toISOString())}&return=${encodeURIComponent(returnAt.toISOString())}&insurance=${insurance}`}
-        className="mt-4 block w-full rounded-md bg-zoomcar px-5 py-3 text-center font-black text-white"
+        className="mt-4 block w-full rounded-md bg-sigfleet px-5 py-3 text-center font-black text-white"
       >
         Book Now
       </Link>
@@ -318,13 +318,13 @@ function Line({ label, value, strong }) {
 
 function FeaturesGrid({ car }) {
   const items = [`${car.seats} Seats`, car.transmission, car.fuel_type, 'AC', car.features?.includes('music') ? 'Music' : 'Audio', car.features?.includes('gps') ? 'GPS' : 'Verified location', car.features?.includes('keyless') ? 'Keyless' : 'Host handoff', car.included_km_per_day ? `${car.included_km_per_day} km/day` : 'Fair use']
-  return <Section title="Features"><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{items.map((item) => <div key={item} className="rounded-md border border-zinc-200 bg-white p-4 text-center font-black text-zinc-800"><ShieldCheck className="mx-auto mb-2 text-zoomcar" size={20} />{item}</div>)}</div></Section>
+  return <Section title="Features"><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{items.map((item) => <div key={item} className="rounded-md border border-zinc-200 bg-white p-4 text-center font-black text-zinc-800"><ShieldCheck className="mx-auto mb-2 text-sigfleet" size={20} />{item}</div>)}</div></Section>
 }
 
 function Description({ text }) {
   const [open, setOpen] = useState(false)
   const display = open || !text || text.length <= 200 ? text : `${text.slice(0, 200)}...`
-  return <Section title="Description"><p className="leading-7 text-zinc-700">{display || 'This host has not added a detailed description yet.'} {text?.length > 200 && <button onClick={() => setOpen(!open)} className="font-black text-zoomcar">{open ? 'Read less' : 'Read more'}</button>}</p></Section>
+  return <Section title="Description"><p className="leading-7 text-zinc-700">{display || 'This host has not added a detailed description yet.'} {text?.length > 200 && <button onClick={() => setOpen(!open)} className="font-black text-sigfleet">{open ? 'Read less' : 'Read more'}</button>}</p></Section>
 }
 
 function AvailabilityCalendar({ carId }) {
@@ -375,12 +375,12 @@ function HostSection({ car }) {
   const host = car.host_profile || {}
   const year = host.joined_date ? new Date(host.joined_date).getFullYear() : new Date().getFullYear()
   const name = host.name || car.host_name || 'Host'
-  return <Section title="Host"><div className="flex flex-wrap items-center justify-between gap-4"><div className="flex items-center gap-4"><img src={host.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}`} alt={`${name} profile photo`} loading="lazy" decoding="async" width="64" height="64" className="h-16 w-16 rounded-full object-cover" /><div><p className="text-xl font-black text-zinc-950">{name}</p><p className="font-bold text-zinc-500">Member since {year}</p><p className="mt-1 text-sm font-bold text-zinc-600">★ {host.rating || 0} · {host.total_reviews || 0} reviews · {host.response_time || 'Responds within a few hours'} · {host.acceptance_rate || 95}% accepted</p></div></div>{host.is_superhost && <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-black text-amber-800">Superhost</span>}<Link to={`/search?host_id=${car.host_id}`} className="font-black text-zoomcar">View all listings by this host</Link></div></Section>
+  return <Section title="Host"><div className="flex flex-wrap items-center justify-between gap-4"><div className="flex items-center gap-4"><img src={host.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}`} alt={`${name} profile photo`} loading="lazy" decoding="async" width="64" height="64" className="h-16 w-16 rounded-full object-cover" /><div><p className="text-xl font-black text-zinc-950">{name}</p><p className="font-bold text-zinc-500">Member since {year}</p><p className="mt-1 text-sm font-bold text-zinc-600">★ {host.rating || 0} · {host.total_reviews || 0} reviews · {host.response_time || 'Responds within a few hours'} · {host.acceptance_rate || 95}% accepted</p></div></div>{host.is_superhost && <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-black text-amber-800">Superhost</span>}<Link to={`/search?host_id=${car.host_id}`} className="font-black text-sigfleet">View all listings by this host</Link></div></Section>
 }
 
 function ReviewsSection({ data, filter, setFilter, onMore }) {
   const breakdown = data?.rating_breakdown || {}
-  return <Section title="Reviews"><div className="grid gap-6 lg:grid-cols-[260px_1fr]"><div><p className="text-4xl font-black text-zinc-950">★★★★★ {Number(data?.avg_rating || 0).toFixed(1)}</p>{[5, 4, 3, 2, 1].map((rating) => <div key={rating} className="mt-2 flex items-center gap-2 text-sm font-bold"><span>{rating}★</span><span className="h-2 flex-1 rounded bg-zinc-100"><span className="block h-2 rounded bg-zoomcar" style={{ width: `${Math.min(100, (breakdown[rating] || 0) * 2)}%` }} /></span><span>{breakdown[rating] || 0}</span></div>)}</div><div><div className="mb-4 flex flex-wrap gap-2">{['', 5, 4, 3, 2, 1].map((rating) => <button key={rating || 'all'} onClick={() => setFilter(rating)} className={`rounded-full px-3 py-1 text-sm font-black ${String(filter) === String(rating) ? 'bg-zoomcar text-white' : 'bg-zinc-100 text-zinc-700'}`}>{rating ? `${rating}★` : 'All'}</button>)}</div><div className="space-y-4">{(data?.reviews || []).map((review) => <ReviewCard key={review._id} review={review} />)}</div>{(data?.reviews || []).length < (data?.total || 0) && <button onClick={onMore} className="mt-4 rounded-md border border-zinc-300 px-4 py-2 font-black">Load 5 more reviews</button>}</div></div></Section>
+  return <Section title="Reviews"><div className="grid gap-6 lg:grid-cols-[260px_1fr]"><div><p className="text-4xl font-black text-zinc-950">★★★★★ {Number(data?.avg_rating || 0).toFixed(1)}</p>{[5, 4, 3, 2, 1].map((rating) => <div key={rating} className="mt-2 flex items-center gap-2 text-sm font-bold"><span>{rating}★</span><span className="h-2 flex-1 rounded bg-zinc-100"><span className="block h-2 rounded bg-sigfleet" style={{ width: `${Math.min(100, (breakdown[rating] || 0) * 2)}%` }} /></span><span>{breakdown[rating] || 0}</span></div>)}</div><div><div className="mb-4 flex flex-wrap gap-2">{['', 5, 4, 3, 2, 1].map((rating) => <button key={rating || 'all'} onClick={() => setFilter(rating)} className={`rounded-full px-3 py-1 text-sm font-black ${String(filter) === String(rating) ? 'bg-sigfleet text-white' : 'bg-zinc-100 text-zinc-700'}`}>{rating ? `${rating}★` : 'All'}</button>)}</div><div className="space-y-4">{(data?.reviews || []).map((review) => <ReviewCard key={review._id} review={review} />)}</div>{(data?.reviews || []).length < (data?.total || 0) && <button onClick={onMore} className="mt-4 rounded-md border border-zinc-300 px-4 py-2 font-black">Load 5 more reviews</button>}</div></div></Section>
 }
 
 function ReviewCard({ review }) {
@@ -392,10 +392,10 @@ function DetailError({ message, onRetry }) {
   return (
     <main id="main-content" className="grid min-h-screen place-items-center bg-zinc-50 p-6">
       <div className="max-w-md rounded-lg border border-red-200 bg-white p-8 text-center shadow-sm">
-        <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-red-50 text-zoomcar"><AlertTriangle size={36} /></div>
+        <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-red-50 text-sigfleet"><AlertTriangle size={36} /></div>
         <h1 className="mt-5 text-2xl font-black text-zinc-950">Car details unavailable</h1>
         <p className="mt-2 font-semibold text-zinc-600">{message}</p>
-        <button onClick={onRetry} className="mt-5 rounded-md bg-zoomcar px-5 py-3 font-black text-white">Retry</button>
+        <button onClick={onRetry} className="mt-5 rounded-md bg-sigfleet px-5 py-3 font-black text-white">Retry</button>
       </div>
     </main>
   )

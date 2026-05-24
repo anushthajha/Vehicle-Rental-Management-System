@@ -1,5 +1,5 @@
-const IDS_KEY = 'zoomcar_wishlist_ids'
-const CARS_KEY = 'zoomcar_wishlist_cars'
+const IDS_KEY = 'sigfleet_wishlist_ids'
+const CARS_KEY = 'sigfleet_wishlist_cars'
 
 export function getLocalWishlistIds() {
   try {

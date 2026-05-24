@@ -124,15 +124,29 @@ async def require_kyc_user(
     return current_user
 
 
-async def require_host(current_user: User = Depends(require_verified_user)) -> User:
-    if not current_user.is_host:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Host access required")
+async def require_customer(current_user: User = Depends(get_current_active_user)) -> User:
+    """Allows only role='customer'. Used for booking actions."""
+    if current_user.role not in ("customer", "admin"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Customer access required.")
+    return current_user
+
+
+async def require_vehicle_manager(current_user: User = Depends(get_current_active_user)) -> User:
+    """Allows only role='vehicle_manager'."""
+    if current_user.role not in ("vehicle_manager", "admin"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vehicle Manager access required.")
     return current_user
 
 
 async def require_admin(current_user: User = Depends(get_current_active_user)) -> User:
+    """Allows only role='admin'."""
     if current_user.role != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required.")
+    return current_user
+
+
+async def require_any_authenticated(current_user: User = Depends(get_current_active_user)) -> User:
+    """Any logged-in user, any role."""
     return current_user
 
 

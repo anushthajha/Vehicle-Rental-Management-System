@@ -26,8 +26,8 @@ export default function DashboardShell({ children, title, eyebrow, actions }) {
       <aside className={`fixed left-0 top-0 z-30 hidden h-screen border-r border-zinc-200 bg-white transition-all lg:block ${collapsed ? 'w-20' : 'w-72'}`}>
         <div className="flex h-16 items-center justify-between border-b border-zinc-100 px-4">
           <Link to="/" className="flex items-center gap-3 overflow-hidden">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-zoomcar text-white"><Car size={21} /></span>
-            {!collapsed && <span className="text-lg font-black">Zoomcar</span>}
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-sigfleet text-white"><Car size={21} /></span>
+            {!collapsed && <span className="text-lg font-black">SigFleet</span>}
           </Link>
           <button onClick={() => setCollapsed((value) => !value)} className="grid h-9 w-9 place-items-center rounded-md border border-zinc-200 text-zinc-600" aria-label="Collapse sidebar">
             <ChevronLeft className={collapsed ? 'rotate-180' : ''} size={18} />
@@ -42,7 +42,7 @@ export default function DashboardShell({ children, title, eyebrow, actions }) {
         <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white/95 px-4 py-4 backdrop-blur lg:px-8">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
             <div>
-              {eyebrow && <p className="text-xs font-black uppercase tracking-wide text-zoomcar">{eyebrow}</p>}
+              {eyebrow && <p className="text-xs font-black uppercase tracking-wide text-sigfleet">{eyebrow}</p>}
               {title && <h1 className="text-2xl font-black text-zinc-950">{title}</h1>}
             </div>
             <div className="flex items-center gap-2">
@@ -59,7 +59,7 @@ export default function DashboardShell({ children, title, eyebrow, actions }) {
           const Icon = item.icon
           const active = isActive(location.pathname, item.to)
           return (
-            <Link key={item.to} to={item.to} className={`grid min-h-16 place-items-center gap-1 px-1 py-2 text-[11px] font-black ${active ? 'text-zoomcar' : 'text-zinc-500'}`}>
+            <Link key={item.to} to={item.to} className={`grid min-h-16 place-items-center gap-1 px-1 py-2 text-[11px] font-black ${active ? 'text-sigfleet' : 'text-zinc-500'}`}>
               <Icon size={21} />
               <span className="truncate">{item.label.replace(' Verification', '')}</span>
             </Link>
@@ -73,7 +73,7 @@ export default function DashboardShell({ children, title, eyebrow, actions }) {
 function NavLink({ item, active, collapsed }) {
   const Icon = item.icon
   return (
-    <Link to={item.to} className={`flex h-11 items-center gap-3 rounded-md px-3 font-black transition ${active ? 'bg-red-50 text-zoomcar' : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950'}`}>
+    <Link to={item.to} className={`flex h-11 items-center gap-3 rounded-md px-3 font-black transition ${active ? 'bg-red-50 text-sigfleet' : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950'}`}>
       <Icon className="shrink-0" size={20} />
       {!collapsed && <span className="truncate">{item.label}</span>}
     </Link>
