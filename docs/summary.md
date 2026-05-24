@@ -1,5 +1,21 @@
 # SigFleet Phase Summary
 
+## Phase B - Vehicle Manager Account Lifecycle
+
+Implemented the PRD Vehicle Manager lifecycle and manager dashboard surface.
+
+- Added `manager_profiles` as the renamed manager profile model with assignment metadata, KPI fields, active state, and payout bank details, while preserving compatibility for existing host payout/booking code.
+- Added Alembic migration for `host_profiles` → `manager_profiles` and the `cars.managerId` application-layer role comment.
+- Added admin endpoints for creating, promoting, demoting, listing, viewing, suspending, and reactivating Vehicle Managers.
+- Admin-created managers are verified, receive a wallet/profile, optional credential welcome email, notifications, and activity feed logs.
+- Added `/api/manager/profile` and `/api/manager/stats` for Vehicle Manager profile editing and dashboard statistics.
+- Added manager role update email tasks for welcome, promotion, demotion, and suspension/reactivation flows.
+- Updated the manager frontend to use a dedicated dark-blue sidebar with PRD navigation, route aliases for `/manager/vehicles`, `/manager/vehicles/add`, `/manager/availability`, and `/manager/statistics`, plus dashboard stats from the new manager API.
+
+Verification:
+- `python3 -m compileall backend/app` passes.
+- `npm run build` from `frontend/` passes.
+
 ## PRD Addendum Phase A - Role Architecture and SigFleet Rename
 
 Implemented the PRD Phase A role overhaul and application rename.

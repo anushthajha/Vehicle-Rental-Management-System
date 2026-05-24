@@ -5,6 +5,16 @@ export async function getHost(path, params = {}) {
   return response.data
 }
 
+export async function getManager(path, params = {}) {
+  const response = await api.get(`/manager${path}`, { params })
+  return response.data
+}
+
+export async function patchManager(path, body = {}) {
+  const response = await api.patch(`/manager${path}`, body)
+  return response.data
+}
+
 export async function postHost(path, body = {}) {
   const response = await api.post(`/host${path}`, body)
   return response.data

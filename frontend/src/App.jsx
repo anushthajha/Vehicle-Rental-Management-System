@@ -33,6 +33,8 @@ const ActiveTripsPage = lazy(() => import('./pages/host/ActiveTripsPage'))
 const HostEarningsPage = lazy(() => import('./pages/host/HostEarningsPage'))
 const HostProfilePage = lazy(() => import('./pages/host/HostProfilePage'))
 const PayoutsPage = lazy(() => import('./pages/host/PayoutsPage'))
+const AvailabilityOverviewPage = lazy(() => import('./pages/host/AvailabilityOverviewPage'))
+const RentalStatisticsPage = lazy(() => import('./pages/host/RentalStatisticsPage'))
 const BookingConfirmPage = lazy(() => import('./pages/booking/BookingConfirmPage'))
 const PaymentPage = lazy(() => import('./pages/booking/PaymentPage'))
 const BookingSuccessPage = lazy(() => import('./pages/booking/BookingSuccessPage'))
@@ -125,7 +127,12 @@ export default function App() {
                 <Route path="cars" element={<ManageCarsPage />} />
                 <Route path="cars/new" element={<ListCarPage />} />
                 <Route path="cars/:carId/edit" element={<EditCarPage />} />
+                <Route path="vehicles" element={<ManageCarsPage />} />
+                <Route path="vehicles/add" element={<ListCarPage />} />
+                <Route path="vehicles/:carId/edit" element={<EditCarPage />} />
                 <Route path="bookings" element={<BookingRequestsPage />} />
+                <Route path="availability" element={<AvailabilityOverviewPage />} />
+                <Route path="statistics" element={<RentalStatisticsPage />} />
                 <Route path="trips/active" element={<ActiveTripsPage />} />
                 <Route path="earnings" element={<HostEarningsPage />} />
                 <Route path="profile" element={<HostProfilePage />} />

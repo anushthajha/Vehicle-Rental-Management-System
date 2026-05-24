@@ -11,7 +11,14 @@ class Car(TimestampMixin, Base):
     __tablename__ = "cars"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
-    managerId: Mapped[str] = mapped_column("managerId", String(36), ForeignKey("users.id"), index=True, nullable=False)
+    managerId: Mapped[str] = mapped_column(
+        "managerId",
+        String(36),
+        ForeignKey("users.id"),
+        index=True,
+        nullable=False,
+        comment="Application layer requires users.role='vehicle_manager'.",
+    )
 
     @property
     def host_id(self) -> str:

@@ -152,6 +152,22 @@ async def send_host_payout_email(to_email: str, amount: float) -> None:
     await _send_html_email(to_email, f"Payout Processed — ₹{amount:,.2f}", _layout("Payout processed", body))
 
 
+async def send_manager_welcome_email(to_email: str, full_name: str, password: str) -> None:
+    url = f"{settings.FRONTEND_URL}/auth/login"
+    body = (
+        f"<p>Hi {escape(full_name)}, an administrator created your SigFleet Vehicle Manager account.</p>"
+        f"<p><strong>Email:</strong> {escape(to_email)}<br><strong>Temporary password:</strong> {escape(password)}</p>"
+        f"{_button(url, 'Open manager dashboard')}"
+        "<p>Please change this password after your first login.</p>"
+    )
+    await _send_html_email(to_email, "Your SigFleet Vehicle Manager account", _layout("Welcome, Vehicle Manager", body))
+
+
+async def send_manager_role_update_email(to_email: str, full_name: str, subject: str, message: str) -> None:
+    body = f"<p>Hi {escape(full_name)},</p><p>{escape(message)}</p>"
+    await _send_html_email(to_email, subject, _layout("Vehicle Manager account update", body))
+
+
 def _booking_details(booking: dict) -> str:
     return f"""
     <p><strong>Car:</strong> {escape(str(booking.get("car_title", booking.get("car_name", ""))))}</p>

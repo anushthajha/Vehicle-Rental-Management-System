@@ -3,7 +3,7 @@ from app.models.car import Car, CarImage, CarAvailabilityBlock, CarPricingRule
 from app.models.booking import Booking, BookingExtension
 from app.models.payment import Payment, WalletTransaction, UserWallet
 from app.models.coupon import Coupon, CouponUsage
-from app.models.host import HostProfile, HostPayoutRequest
+from app.models.host import HostProfile, HostPayoutRequest, ManagerProfile
 from app.models.support import SupportTicket
 from app.models.wishlist import Wishlist
 
@@ -24,6 +24,7 @@ __all__ = [
     "Coupon",
     "CouponUsage",
     "HostProfile",
+    "ManagerProfile",
     "HostPayoutRequest",
     "SupportTicket",
     "Wishlist",

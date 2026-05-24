@@ -3,15 +3,15 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.booking import Booking
 from app.models.car import Car, CarImage
 from app.models.coupon import Coupon
-from app.models.host import HostPayoutRequest
-from app.models.payment import Payment
+from app.models.host import HostPayoutRequest, ManagerProfile
+from app.models.payment import Payment, UserWallet
 from app.models.support import SupportTicket
 from app.models.user import User, UserKYC
 from app.mongo_models.analytics import get_admin_activity_feed, log_activity
@@ -19,8 +19,14 @@ from app.mongo_models.notification import create_notification
 from app.mongo_models.support_message import add_support_message, get_ticket_messages
 from app.redis import get_redis
 from app.services.booking_flow import add_wallet_transaction, get_or_create_wallet, money
-from app.tasks.email_tasks import send_host_payout_email, send_kyc_approved_email, send_kyc_rejected_email
-from app.utils.auth import require_admin
+from app.tasks.email_tasks import (
+    send_host_payout_email,
+    send_kyc_approved_email,
+    send_kyc_rejected_email,
+    send_manager_role_update_email,
+    send_manager_welcome_email,
+)
+from app.utils.auth import get_password_hash, require_admin, validate_password_strength
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -64,6 +70,28 @@ class CouponRequest(BaseModel):
     valid_until: datetime
     applicable_for: str = Field(default="all", pattern="^(all|new_users|specific_users)$")
     is_active: bool = True
+
+
+class VehicleManagerCreateRequest(BaseModel):
+    full_name: str = Field(min_length=2, max_length=200)
+    email: str = Field(min_length=5, max_length=255)
+    phone: str | None = Field(default=None, max_length=20)
+    password: str = Field(min_length=8, max_length=128)
+    send_welcome_email: bool = False
+    department: str | None = Field(default=None, max_length=100)
+
+
+class PromoteManagerRequest(BaseModel):
+    confirm: bool
+    department: str | None = Field(default=None, max_length=100)
+
+
+class DemoteManagerRequest(BaseModel):
+    reason: str = Field(min_length=3, max_length=1000)
+
+
+class SuspendManagerRequest(BaseModel):
+    reason: str = Field(min_length=3, max_length=1000)
 
 
 def _dt(value: datetime | None) -> str | None:
@@ -143,6 +171,248 @@ async def _active_now_count(db: AsyncSession) -> int:
 async def _booking_status_counts(db: AsyncSession) -> dict:
     rows = (await db.execute(select(Booking.status, func.count()).group_by(Booking.status))).all()
     return {status: count for status, count in rows}
+
+
+async def _manager_stats(db: AsyncSession, manager_id: str) -> dict:
+    total_vehicles = await db.scalar(select(func.count()).select_from(Car).where(Car.managerId == manager_id)) or 0
+    active_bookings = await db.scalar(
+        select(func.count()).select_from(Booking).where(Booking.host_id == manager_id, Booking.status.in_(("confirmed", "active")))
+    ) or 0
+    total_revenue = await db.scalar(
+        select(func.coalesce(func.sum(Booking.host_earnings), 0)).where(Booking.host_id == manager_id, Booking.status == "completed")
+    ) or Decimal("0")
+    return {"total_vehicles": total_vehicles, "active_bookings": active_bookings, "total_revenue": money(total_revenue)}
+
+
+async def _get_or_create_manager_profile(db: AsyncSession, manager_id: str, admin_id: str | None = None, department: str | None = None) -> ManagerProfile:
+    profile = await db.scalar(select(ManagerProfile).where(ManagerProfile.user_id == manager_id))
+    if profile is None:
+        profile = ManagerProfile(user_id=manager_id, assigned_by=admin_id, department=department)
+        db.add(profile)
+        await db.flush()
+    else:
+        profile.is_active = True
+        if admin_id and not profile.assigned_by:
+            profile.assigned_by = admin_id
+        if department is not None:
+            profile.department = department
+    return profile
+
+
+@router.post("/vehicle-managers/create", status_code=status.HTTP_201_CREATED)
+async def create_vehicle_manager(payload: VehicleManagerCreateRequest, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    email = payload.email.strip().lower()
+    existing = await db.scalar(select(User).where(func.lower(User.email) == email))
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already in use")
+    if not validate_password_strength(payload.password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password must be 8+ chars with uppercase, digit, and special character")
+    user = User(
+        email=email,
+        hashed_password=get_password_hash(payload.password),
+        full_name=payload.full_name.strip(),
+        phone=payload.phone,
+        role="vehicle_manager",
+        is_host=True,
+        is_verified=True,
+    )
+    db.add(user)
+    await db.flush()
+    db.add(ManagerProfile(user_id=user.id, assigned_by=admin.id, department=payload.department))
+    db.add(UserWallet(user_id=user.id))
+    await db.commit()
+    if payload.send_welcome_email:
+        send_manager_welcome_email.delay(user.email, user.full_name, payload.password)
+    await create_notification(user.id, "Vehicle Manager account created", "Your SigFleet manager account is ready.", "account", action_url="/manager/dashboard")
+    await log_activity(admin.id, "admin_created_vehicle_manager", "user", user.id, {"message": f"Admin created Vehicle Manager account for {email}", "email": email})
+    return {"user_id": user.id, "message": "Vehicle Manager account created successfully."}
+
+
+@router.post("/vehicle-managers/promote/{user_id}")
+async def promote_vehicle_manager(user_id: str, payload: PromoteManagerRequest, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    if not payload.confirm:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Promotion confirmation is required")
+    user = await db.scalar(select(User).where(User.id == user_id))
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if user.role != "customer":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only customer accounts can be promoted")
+    user.role = "vehicle_manager"
+    user.is_host = True
+    user.is_verified = True
+    await _get_or_create_manager_profile(db, user.id, admin.id, payload.department)
+    if await db.scalar(select(func.count()).select_from(UserWallet).where(UserWallet.user_id == user.id)) == 0:
+        db.add(UserWallet(user_id=user.id))
+    await db.commit()
+    send_manager_role_update_email.delay(user.email, user.full_name, "Your account has been upgraded to Vehicle Manager", "Your account has been upgraded to Vehicle Manager. You can now manage vehicles from the manager dashboard.")
+    await create_notification(user.id, "Account upgraded", "Your account has been upgraded to Vehicle Manager.", "account", action_url="/manager/dashboard")
+    await log_activity(admin.id, "admin_promoted_vehicle_manager", "user", user.id, {"email": user.email})
+    return {"message": f"User {user.full_name} promoted to Vehicle Manager."}
+
+
+@router.post("/vehicle-managers/demote/{user_id}")
+async def demote_vehicle_manager(user_id: str, payload: DemoteManagerRequest, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    user = await db.scalar(select(User).where(User.id == user_id))
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if user.role != "vehicle_manager":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is not a Vehicle Manager")
+    blockers = (
+        await db.execute(
+            select(Booking, Car.title)
+            .join(Car, Car.id == Booking.car_id)
+            .where(Booking.host_id == user.id, Booking.status.in_(("confirmed", "active")))
+            .order_by(Booking.pickup_datetime.asc())
+        )
+    ).all()
+    if blockers:
+        blocking_bookings = [
+            {
+                "booking_id": booking.id,
+                "booking_ref": booking.booking_ref,
+                "vehicle": title,
+                "status": booking.status,
+                "pickup_datetime": _dt(booking.pickup_datetime),
+                "return_datetime": _dt(booking.return_datetime),
+            }
+            for booking, title in blockers
+        ]
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"message": "Manager has active or confirmed bookings", "blocking_bookings": blocking_bookings})
+    user.role = "customer"
+    user.is_host = False
+    profile = await db.scalar(select(ManagerProfile).where(ManagerProfile.user_id == user.id))
+    if profile:
+        profile.is_active = False
+    await db.commit()
+    send_manager_role_update_email.delay(user.email, user.full_name, "Vehicle Manager access removed", f"Your Vehicle Manager access was removed. Reason: {payload.reason}")
+    await create_notification(user.id, "Vehicle Manager access removed", payload.reason, "account", action_url="/customer/dashboard")
+    await log_activity(admin.id, "admin_demoted_vehicle_manager", "user", user.id, {"reason": payload.reason})
+    return {"message": "Vehicle Manager demoted to Customer."}
+
+
+@router.get("/vehicle-managers")
+async def list_vehicle_managers(
+    search: str | None = None,
+    is_active: bool | None = None,
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=100),
+    _: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    conditions = [User.role == "vehicle_manager"]
+    if search:
+        like = f"%{search.strip()}%"
+        conditions.append(or_(User.full_name.ilike(like), User.email.ilike(like), User.phone.ilike(like)))
+    if is_active is not None:
+        conditions.append(User.is_active.is_(is_active))
+    total = await db.scalar(select(func.count()).select_from(User).outerjoin(ManagerProfile, ManagerProfile.user_id == User.id).where(*conditions)) or 0
+    rows = (
+        await db.execute(
+            select(User, ManagerProfile)
+            .outerjoin(ManagerProfile, ManagerProfile.user_id == User.id)
+            .where(*conditions)
+            .order_by(User.created_at.desc())
+            .offset((page - 1) * limit)
+            .limit(limit)
+        )
+    ).all()
+    managers = []
+    for user, profile in rows:
+        stats = await _manager_stats(db, user.id)
+        managers.append(
+            {
+                "id": user.id,
+                "full_name": user.full_name,
+                "email": user.email,
+                "phone": user.phone,
+                "is_active": bool(profile.is_active) if profile else user.is_active,
+                "account_active": user.is_active,
+                "department": profile.department if profile else None,
+                "assigned_at": _dt(profile.assigned_at) if profile else None,
+                **stats,
+            }
+        )
+    return {"vehicle_managers": managers, "total": total, "page": page, "pages": _pages(total, limit)}
+
+
+@router.get("/vehicle-managers/{user_id}")
+async def get_vehicle_manager(user_id: str, _: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    row = (
+        await db.execute(
+            select(User, ManagerProfile).outerjoin(ManagerProfile, ManagerProfile.user_id == User.id).where(User.id == user_id, User.role == "vehicle_manager")
+        )
+    ).first()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle Manager not found")
+    user, profile = row
+    cars = (await db.execute(select(Car).where(Car.managerId == user.id).order_by(Car.created_at.desc()))).scalars().all()
+    images = await _image_map(db, [car.id for car in cars])
+    stats = await _manager_stats(db, user.id)
+    booking_statuses = (await db.execute(select(Booking.status, func.count()).where(Booking.host_id == user.id).group_by(Booking.status))).all()
+    return {
+        "user": {"id": user.id, "full_name": user.full_name, "email": user.email, "phone": user.phone, "is_active": user.is_active, "created_at": _dt(user.created_at)},
+        "profile": None
+        if profile is None
+        else {
+            "id": profile.id,
+            "department": profile.department,
+            "bio": profile.bio,
+            "is_active": profile.is_active,
+            "assigned_by": profile.assigned_by,
+            "assigned_at": _dt(profile.assigned_at),
+            "acceptance_rate": money(profile.acceptance_rate),
+            "average_vehicle_rating": money(profile.average_vehicle_rating),
+            "response_time_avg_hours": money(profile.response_time_avg_hours),
+            "payout_bank_name": profile.payout_bank_name,
+            "payout_account_holder": profile.payout_account_holder,
+            "payout_ifsc": profile.payout_ifsc,
+        },
+        "stats": {**stats, "booking_statuses": {status: count for status, count in booking_statuses}},
+        "vehicles": [
+            {
+                "id": car.id,
+                "title": car.title,
+                "make": car.make,
+                "car_model": car.car_model,
+                "year": car.year,
+                "is_available": car.is_available,
+                "is_approved": car.is_approved,
+                "rating": money(car.average_rating),
+                "total_trips": car.total_trips,
+                "total_earnings": money(car.total_earnings),
+                "primary_image_url": _primary_image(images, car.id),
+            }
+            for car in cars
+        ],
+    }
+
+
+@router.patch("/vehicle-managers/{user_id}/suspend")
+async def suspend_vehicle_manager(user_id: str, payload: SuspendManagerRequest, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    user = await db.scalar(select(User).where(User.id == user_id, User.role == "vehicle_manager"))
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle Manager not found")
+    profile = await _get_or_create_manager_profile(db, user.id, admin.id)
+    profile.is_active = False
+    await db.execute(update(Car).where(Car.managerId == user.id).values(is_available=False))
+    await db.commit()
+    send_manager_role_update_email.delay(user.email, user.full_name, "Vehicle Manager account suspended", f"Your Vehicle Manager account was suspended. Reason: {payload.reason}")
+    await create_notification(user.id, "Manager account suspended", payload.reason, "account", action_url="/manager/profile")
+    await log_activity(admin.id, "admin_suspended_vehicle_manager", "user", user.id, {"reason": payload.reason})
+    return {"message": "Vehicle Manager suspended. Vehicles were set unavailable."}
+
+
+@router.patch("/vehicle-managers/{user_id}/reactivate")
+async def reactivate_vehicle_manager(user_id: str, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    user = await db.scalar(select(User).where(User.id == user_id, User.role == "vehicle_manager"))
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle Manager not found")
+    profile = await _get_or_create_manager_profile(db, user.id, admin.id)
+    profile.is_active = True
+    await db.commit()
+    await create_notification(user.id, "Manager account reactivated", "Your manager account is active again. Please manually reactivate vehicles that are ready for bookings.", "account", action_url="/manager/cars")
+    await log_activity(admin.id, "admin_reactivated_vehicle_manager", "user", user.id)
+    return {"message": "Vehicle Manager reactivated. Vehicles remain unavailable until the manager re-activates them."}
 
 
 @router.get("/stats/overview")

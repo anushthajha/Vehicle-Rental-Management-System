@@ -61,3 +61,13 @@ def send_review_request_email(to_email: str, full_name: str, booking_ref: str) -
 @celery_app.task(name="app.tasks.email.send_host_payout_email")
 def send_host_payout_email(to_email: str, amount: float) -> None:
     _run(email.send_host_payout_email(to_email, amount))
+
+
+@celery_app.task(name="app.tasks.email.send_manager_welcome_email")
+def send_manager_welcome_email(to_email: str, full_name: str, password: str) -> None:
+    _run(email.send_manager_welcome_email(to_email, full_name, password))
+
+
+@celery_app.task(name="app.tasks.email.send_manager_role_update_email")
+def send_manager_role_update_email(to_email: str, full_name: str, subject: str, message: str) -> None:
+    _run(email.send_manager_role_update_email(to_email, full_name, subject, message))
