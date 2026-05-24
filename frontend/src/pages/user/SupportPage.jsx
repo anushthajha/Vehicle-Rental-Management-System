@@ -9,7 +9,7 @@ const FILTERS = ['all', 'open', 'in_progress', 'resolved']
 const CATEGORIES = [
   ['booking', 'Booking Issue'],
   ['payment', 'Payment'],
-  ['car_issue', 'Car Issue'],
+  ['car_issue', 'Vehicle Issue'],
   ['account', 'Account'],
   ['other', 'Other'],
 ]
@@ -175,7 +175,7 @@ function NewTicketModal({ open, onOpenChange, onCreated }) {
           <div className="flex items-center justify-between"><Dialog.Title className="text-xl font-black">New Ticket</Dialog.Title><Dialog.Close><X className="text-zinc-500" /></Dialog.Close></div>
           <form onSubmit={submit} className="mt-5 grid gap-4">
             <select className="input h-11" value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}>{CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
-            <input className="input h-11" value={form.booking_ref} onChange={(event) => setForm((current) => ({ ...current, booking_ref: event.target.value.toUpperCase() }))} placeholder="Booking Ref (optional)" />
+            <input className="input h-11" value={form.booking_ref} onChange={(event) => setForm((current) => ({ ...current, booking_ref: event.target.value.toUpperCase() }))} placeholder="Rental ID (optional)" />
             <input className="input h-11" value={form.subject} onChange={(event) => setForm((current) => ({ ...current, subject: event.target.value }))} placeholder="Subject" required />
             <textarea className="input min-h-32" minLength={20} value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Description" required />
             <button disabled={submitting} className="inline-flex justify-center rounded-md bg-sigfleet px-4 py-3 font-black text-white disabled:opacity-60">{submitting ? <Loader2 className="animate-spin" /> : 'Submit Ticket'}</button>

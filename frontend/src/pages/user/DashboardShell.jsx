@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Bell, CalendarDays, Car, ChevronLeft, Headphones, Heart, Home, LayoutDashboard, Settings, ShieldCheck, Star, Wallet } from 'lucide-react'
+import { Bell, CalendarDays, Car as Vehicle, ChevronLeft, Headphones, Heart, Home, LayoutDashboard, Settings, ShieldCheck, Star, Wallet } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import NotificationBell from '../../components/layout/NotificationBell'
 
@@ -26,7 +26,7 @@ export default function DashboardShell({ children, title, eyebrow, actions }) {
       <aside className={`fixed left-0 top-0 z-30 hidden h-screen border-r border-zinc-200 bg-white transition-all lg:block ${collapsed ? 'w-20' : 'w-72'}`}>
         <div className="flex h-16 items-center justify-between border-b border-zinc-100 px-4">
           <Link to="/" className="flex items-center gap-3 overflow-hidden">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-sigfleet text-white"><Car size={21} /></span>
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-sigfleet text-white"><Vehicle size={21} /></span>
             {!collapsed && <span className="text-lg font-black">SigFleet</span>}
           </Link>
           <button onClick={() => setCollapsed((value) => !value)} className="grid h-9 w-9 place-items-center rounded-md border border-zinc-200 text-zinc-600" aria-label="Collapse sidebar">

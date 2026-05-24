@@ -17,7 +17,7 @@ from app.mongo_models.notification import (
 )
 from app.mongo_models.review import (
     ReviewDoc,
-    add_host_reply,
+    add_manager_reply,
     create_review,
     get_booking_reviews,
     get_car_reviews,
@@ -40,7 +40,7 @@ __all__ = [
     "create_review",
     "get_car_reviews",
     "get_user_reviews",
-    "add_host_reply",
+    "add_manager_reply",
     "get_booking_reviews",
     "update_car_avg_rating",
     "SupportMessageDoc",

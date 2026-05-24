@@ -13,14 +13,14 @@ class ReviewDoc(BaseModel):
     reviewer_name: str
     reviewer_photo: Optional[str] = None
     reviewee_id: Optional[str] = None
-    car_id: Optional[str] = None
+    vehicle_id: Optional[str] = None
     rating: int = Field(ge=1, le=5)
     title: Optional[str] = None
     body: Optional[str] = None
-    review_type: Literal["guest_to_car", "guest_to_host", "host_to_guest"]
+    review_type: Literal["customer_to_vehicle", "customer_to_manager", "manager_to_customer"]
     is_published: bool = True
-    host_reply: Optional[str] = None
-    host_replied_at: Optional[datetime] = None
+    manager_reply: Optional[str] = None
+    manager_replied_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     car_snapshot: dict = Field(default_factory=dict)
     trip_snapshot: dict = Field(default_factory=dict)
@@ -45,9 +45,9 @@ async def create_review(data: dict) -> str:
     return str(result.inserted_id)
 
 
-async def get_car_reviews(car_id: str, page: int = 1, limit: int = 10, sort: str = "recent", rating: int | None = None) -> dict:
+async def get_car_reviews(vehicle_id: str, page: int = 1, limit: int = 10, sort: str = "recent", rating: int | None = None) -> dict:
     db = get_mongo_db()
-    query = {"car_id": car_id, "review_type": "guest_to_car", "is_published": True}
+    query = {"vehicle_id": vehicle_id, "review_type": "customer_to_vehicle", "is_published": True}
     if rating:
         query["rating"] = rating
     skip = max(page - 1, 0) * limit
@@ -65,7 +65,7 @@ async def get_car_reviews(car_id: str, page: int = 1, limit: int = 10, sort: str
     reviews = [_serialize_id(doc) for doc in await cursor.to_list(length=limit)]
 
     breakdown = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0}
-    stats_query = {"car_id": car_id, "review_type": "guest_to_car", "is_published": True}
+    stats_query = {"vehicle_id": vehicle_id, "review_type": "customer_to_vehicle", "is_published": True}
     stats = await db.reviews.aggregate(
         [
             {"$match": stats_query},
@@ -97,7 +97,7 @@ async def get_user_reviews(user_id: str, review_type: str = "received") -> list[
         query = {"reviewer_id": user_id, "is_published": True}
     elif review_type == "received":
         query = {"reviewee_id": user_id, "is_published": True}
-    elif review_type in {"guest_to_car", "guest_to_host", "host_to_guest"}:
+    elif review_type in {"customer_to_vehicle", "customer_to_manager", "manager_to_customer"}:
         query = {
             "review_type": review_type,
             "is_published": True,
@@ -111,19 +111,19 @@ async def get_user_reviews(user_id: str, review_type: str = "received") -> list[
     return [_serialize_id(doc) for doc in docs]
 
 
-async def add_host_reply(booking_id: str, reply: str, host_id: str) -> bool:
+async def add_manager_reply(booking_id: str, reply: str, manager_id: str) -> bool:
     db = get_mongo_db()
     result = await db.reviews.update_many(
         {
             "booking_id": booking_id,
-            "review_type": {"$in": ["guest_to_car", "guest_to_host"]},
+            "review_type": {"$in": ["customer_to_vehicle", "customer_to_manager"]},
             "$or": [
-                {"reviewee_id": host_id},
+                {"reviewee_id": manager_id},
                 {"reviewee_id": None},
                 {"reviewee_id": {"$exists": False}},
             ],
         },
-        {"$set": {"host_reply": reply, "host_replied_at": datetime.utcnow()}},
+        {"$set": {"manager_reply": reply, "manager_replied_at": datetime.utcnow()}},
     )
     return result.modified_count > 0
 
@@ -134,10 +134,10 @@ async def get_booking_reviews(booking_id: str) -> list[dict]:
     return [_serialize_id(doc) for doc in docs]
 
 
-async def update_car_avg_rating(car_id: str) -> float:
+async def update_car_avg_rating(vehicle_id: str) -> float:
     pipeline = [
-        {"$match": {"car_id": car_id, "review_type": "guest_to_car", "is_published": True}},
-        {"$group": {"_id": "$car_id", "avg_rating": {"$avg": "$rating"}}},
+        {"$match": {"vehicle_id": vehicle_id, "review_type": "customer_to_vehicle", "is_published": True}},
+        {"$group": {"_id": "$vehicle_id", "avg_rating": {"$avg": "$rating"}}},
     ]
     stats = await get_mongo_db().reviews.aggregate(pipeline).to_list(length=1)
     if not stats:

@@ -6,11 +6,11 @@ from sqlalchemy import select
 from app.celery_app import celery_app
 from app.database import async_session_maker
 from app.models.booking import Booking
-from app.models.host import HostProfile
+from app.models.manager import ManagerProfile
 from app.models.payment import Payment
 from app.models.user import User
 from app.mongo_models.notification import create_notification
-from app.services.superhost import check_and_update_superhost
+from app.services.super_manager import check_and_update_super_manager
 from app.tasks import email_tasks
 from app.tasks.email_tasks import send_review_request_email, send_trip_reminder_email
 
@@ -41,9 +41,9 @@ def send_review_request_task(booking_id: str) -> None:
             booking = await db.scalar(select(Booking).where(Booking.id == booking_id))
             if booking is None or booking.status != "completed":
                 return
-            guest = await db.scalar(select(User).where(User.id == booking.guest_id))
-            if guest:
-                send_review_request_email.delay(guest.email, guest.full_name, booking.booking_ref)
+            customer = await db.scalar(select(User).where(User.id == booking.customer_id))
+            if customer:
+                send_review_request_email.delay(customer.email, customer.full_name, booking.booking_ref)
 
     _run(_task())
 
@@ -64,18 +64,18 @@ def auto_cancel_unpaid_bookings() -> int:
             ).scalars().all()
             for booking in bookings:
                 booking.status = "cancelled"
-                booking.cancellation_reason = "Host did not respond"
+                booking.cancellation_reason = "Vehicle Manager did not respond"
                 booking.cancelled_at = datetime.utcnow()
-                booking.cancelled_by = booking.host_id
+                booking.cancelled_by = booking.manager_id
                 payment = await db.scalar(select(Payment).where(Payment.booking_id == booking.id))
                 if payment and payment.status == "paid":
                     payment.status = "refunded"
                     booking.refund_amount = booking.total_amount
                     booking.refund_status = "processed"
                 await create_notification(
-                    booking.guest_id,
+                    booking.customer_id,
                     "Booking cancelled",
-                    f"Booking {booking.booking_ref} was cancelled because the host did not respond.",
+                    f"Booking {booking.booking_ref} was cancelled because the manager did not respond.",
                     "booking",
                     action_url=f"/dashboard/bookings/{booking.id}",
                     meta={"booking_id": booking.id},
@@ -87,16 +87,16 @@ def auto_cancel_unpaid_bookings() -> int:
     return _run(_task())
 
 
-@celery_app.task(name="app.tasks.maintenance.update_superhost_status")
-def update_superhost_status() -> int:
+@celery_app.task(name="app.tasks.maintenance.update_super_manager_status")
+def update_super_manager_status() -> int:
     async def _task() -> int:
         updated = 0
         async with async_session_maker() as db:
-            profiles = (await db.execute(select(HostProfile))).scalars().all()
+            profiles = (await db.execute(select(ManagerProfile))).scalars().all()
             for profile in profiles:
-                was_superhost = profile.is_superhost
-                await check_and_update_superhost(profile.user_id, db)
-                if profile.is_superhost != was_superhost:
+                was_super_manager = profile.is_super_manager
+                await check_and_update_super_manager(profile.user_id, db)
+                if profile.is_super_manager != was_super_manager:
                     updated += 1
             await db.commit()
         return updated
@@ -111,16 +111,16 @@ def send_trip_reminder_task(booking_id: str) -> None:
             booking = await db.scalar(select(Booking).where(Booking.id == booking_id))
             if booking is None or booking.status not in {"confirmed", "active"}:
                 return
-            guest = await db.scalar(select(User).where(User.id == booking.guest_id))
-            if guest:
+            customer = await db.scalar(select(User).where(User.id == booking.customer_id))
+            if customer:
                 payload = {
                     "booking_ref": booking.booking_ref,
                     "pickup_datetime": booking.pickup_datetime.isoformat(),
                     "return_datetime": booking.return_datetime.isoformat(),
                 }
-                send_trip_reminder_email.delay(guest.email, payload)
+                send_trip_reminder_email.delay(customer.email, payload)
                 await create_notification(
-                    guest.id,
+                    customer.id,
                     "Trip reminder",
                     f"Your trip {booking.booking_ref} starts soon.",
                     "booking",

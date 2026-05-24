@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowDownRight, ArrowUpRight, Car, Headphones, IdCard, IndianRupee, Users, WalletCards } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, Car as Vehicle, Headphones, IdCard, IndianRupee, Users, WalletCards } from 'lucide-react'
 import {
   Area,
   AreaChart,
@@ -92,12 +92,12 @@ export default function AdminDashboardPage() {
     <div className="space-y-6">
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard title="Total Users" value={data.users.total} subtitle={`${data.users.new_this_week} new this week`} icon={Users} />
-        <StatCard title="Total Cars" value={data.cars.total} subtitle={`${data.cars.approved} approved`} icon={Car} />
+        <StatCard title="Total Cars" value={data.vehicles.total} subtitle={`${data.vehicles.approved} approved`} icon={Vehicle} />
         <StatCard title="Revenue This Month" value={formatMoney(data.revenue.this_month)} subtitle={`${formatMoney(data.revenue.this_week)} this week`} icon={IndianRupee} />
         <StatCard title="Active Bookings Now" value={data.bookings.active_now} subtitle={`${data.bookings.this_month} this month`} icon={WalletCards} />
         <StatCard title="Pending KYC" value={data.pending.kyc_count} subtitle="Needs review" icon={IdCard} trend={data.pending.kyc_count ? 'up' : 'down'} />
         <StatCard title="Open Tickets" value={data.pending.support_tickets_count} subtitle="Support queue" icon={Headphones} trend={data.pending.support_tickets_count ? 'up' : 'down'} />
-        <StatCard title="Pending Car Approvals" value={data.pending.car_approval_count} subtitle="Manager listings" icon={Car} trend={data.pending.car_approval_count ? 'up' : 'down'} />
+        <StatCard title="Pending Vehicle Approvals" value={data.pending.car_approval_count} subtitle="Manager listings" icon={Vehicle} trend={data.pending.car_approval_count ? 'up' : 'down'} />
         <StatCard title="Payout Requests" value={data.pending.payout_requests_count} subtitle="Manager payouts" icon={IndianRupee} trend={data.pending.payout_requests_count ? 'up' : 'down'} />
       </section>
 

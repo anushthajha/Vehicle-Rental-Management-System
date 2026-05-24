@@ -12,7 +12,7 @@ class NotificationDoc(BaseModel):
     user_id: str
     title: str
     message: str
-    notification_type: Literal["booking", "payment", "review", "kyc", "promotion", "system", "host"]
+    notification_type: Literal["booking", "payment", "review", "kyc", "promotion", "system", "manager"]
     is_read: bool = False
     action_url: Optional[str] = None
     meta: dict = Field(default_factory=dict)

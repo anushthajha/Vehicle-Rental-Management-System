@@ -13,8 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.models.booking import Booking
-from app.models.car import Car
-from app.models.host import HostProfile
+from app.models.vehicle import Vehicle
+from app.models.manager import ManagerProfile
 from app.models.payment import UserWallet
 from app.models.user import User, UserKYC
 from app.models.wishlist import Wishlist
@@ -58,7 +58,7 @@ def _user_payload(user: User) -> dict:
         "profile_picture": user.profile_picture,
         "is_active": user.is_active,
         "is_verified": user.is_verified,
-        "is_host": user.role == "vehicle_manager",
+        "is_vehicle_manager": user.role == "vehicle_manager",
         "role": user.role,
         "created_at": _dt(user.created_at),
     }
@@ -68,12 +68,12 @@ async def _profile_summary(db: AsyncSession, user_id: str) -> dict:
     kyc = await db.scalar(select(UserKYC).where(UserKYC.user_id == user_id))
     wallet = await db.scalar(select(UserWallet).where(UserWallet.user_id == user_id))
     now = datetime.utcnow()
-    total_trips = await db.scalar(select(func.count()).select_from(Booking).where(Booking.guest_id == user_id)) or 0
+    total_trips = await db.scalar(select(func.count()).select_from(Booking).where(Booking.customer_id == user_id)) or 0
     upcoming = await db.scalar(
         select(func.count())
         .select_from(Booking)
         .where(
-            Booking.guest_id == user_id,
+            Booking.customer_id == user_id,
             Booking.status.in_(("pending", "confirmed")),
             Booking.pickup_datetime >= now,
         )
@@ -81,13 +81,13 @@ async def _profile_summary(db: AsyncSession, user_id: str) -> dict:
     total_spent = await db.scalar(
         select(func.coalesce(func.sum(Booking.total_amount), 0))
         .select_from(Booking)
-        .where(Booking.guest_id == user_id, Booking.status.in_(("confirmed", "active", "completed")))
+        .where(Booking.customer_id == user_id, Booking.status.in_(("confirmed", "active", "completed")))
     ) or Decimal("0.00")
     saved_cars = await db.scalar(select(func.count()).select_from(Wishlist).where(Wishlist.user_id == user_id)) or 0
     return {
         "kyc_status": kyc.kyc_status if kyc else "not_submitted",
         "wallet_balance": money(wallet.balance if wallet else 0),
-        "total_trips_as_guest": total_trips,
+        "total_trips_as_customer": total_trips,
         "upcoming_trips_count": upcoming,
         "total_spent": money(total_spent),
         "saved_cars_count": saved_cars,
@@ -154,26 +154,26 @@ async def get_public_user(user_id: str, db: AsyncSession = Depends(get_db)):
     user = await db.scalar(select(User).where(User.id == user_id, User.is_active.is_(True)))
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    total_trips = await db.scalar(select(func.count()).select_from(Booking).where(Booking.guest_id == user.id, Booking.status == "completed")) or 0
+    total_trips = await db.scalar(select(func.count()).select_from(Booking).where(Booking.customer_id == user.id, Booking.status == "completed")) or 0
     reviews = await get_user_reviews(user.id, "received")
-    guest_reviews = [review for review in reviews if review.get("reviewee_id") == user.id]
-    rating = sum(float(review.get("rating", 0)) for review in guest_reviews) / len(guest_reviews) if guest_reviews else 0
+    customer_reviews = [review for review in reviews if review.get("reviewee_id") == user.id]
+    rating = sum(float(review.get("rating", 0)) for review in customer_reviews) / len(customer_reviews) if customer_reviews else 0
     payload = {
         "full_name": user.full_name,
         "profile_picture": user.profile_picture,
         "member_since": _dt(user.created_at),
-        "rating_as_guest": round(rating, 2),
+        "rating_as_customer": round(rating, 2),
         "total_trips": total_trips,
     }
     if user.role == "vehicle_manager":
-        profile = await db.scalar(select(HostProfile).where(HostProfile.user_id == user.id))
-        total_listings = await db.scalar(select(func.count()).select_from(Car).where(Car.managerId == user.id)) or 0
+        profile = await db.scalar(select(ManagerProfile).where(ManagerProfile.user_id == user.id))
+        total_listings = await db.scalar(select(func.count()).select_from(Vehicle).where(Vehicle.manager_id == user.id)) or 0
         payload.update(
             {
-                "host_rating": money(profile.average_rating) if profile else 0,
+                "manager_rating": money(profile.average_rating) if profile else 0,
                 "total_listings": profile.total_listings if profile else total_listings,
-                "is_superhost": profile.is_superhost if profile else False,
-                "host_bio": profile.bio if profile else None,
+                "is_super_manager": profile.is_super_manager if profile else False,
+                "manager_bio": profile.bio if profile else None,
             }
         )
     return payload

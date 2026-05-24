@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.booking import Booking
-from app.models.car import Car
+from app.models.vehicle import Vehicle
 from app.models.payment import Payment, WalletTransaction
 from app.models.user import User
 from app.services.booking_flow import add_wallet_transaction, get_or_create_wallet, mark_payment_paid, money
@@ -58,8 +58,8 @@ def _transaction_payload(txn: WalletTransaction) -> dict:
 
 
 async def _pay_booking_with_wallet(db: AsyncSession, booking: Booking, payment: Payment, current_user: User) -> dict:
-    if booking.guest_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the guest can pay for this booking")
+    if booking.customer_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the customer can pay for this booking")
     if booking.status != "confirmed":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Booking is not ready for wallet payment")
     if payment.status != "created":
@@ -67,9 +67,9 @@ async def _pay_booking_with_wallet(db: AsyncSession, booking: Booking, payment: 
     wallet = await get_or_create_wallet(db, current_user.id)
     if Decimal(str(wallet.balance)) < Decimal(str(payment.amount)):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient wallet balance")
-    car = await db.scalar(select(Car).where(Car.id == booking.car_id))
-    host = await db.scalar(select(User).where(User.id == booking.host_id))
-    txn_id = await mark_payment_paid(db, booking, payment, car, current_user, host, payment_method="wallet", debit_wallet=True)
+    car = await db.scalar(select(Vehicle).where(Vehicle.id == booking.vehicle_id))
+    manager = await db.scalar(select(User).where(User.id == booking.manager_id))
+    txn_id = await mark_payment_paid(db, booking, payment, car, current_user, manager, payment_method="wallet", debit_wallet=True)
     return {"success": True, "booking_ref": booking.booking_ref, "transaction_id": txn_id, "message": "Payment successful. Booking confirmed!"}
 
 
@@ -128,7 +128,7 @@ async def get_booking_payment(booking_id: str, current_user: User = Depends(get_
     booking = await db.scalar(select(Booking).where(Booking.id == booking_id))
     if booking is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
-    if current_user.id not in {booking.guest_id, booking.host_id} and current_user.role != "admin":
+    if current_user.id not in {booking.customer_id, booking.manager_id} and current_user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to access payment")
     payment = await db.scalar(select(Payment).where(Payment.booking_id == booking_id))
     if payment is None:

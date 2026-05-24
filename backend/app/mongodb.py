@@ -37,8 +37,8 @@ async def _create_indexes() -> None:
     # notifications: fast lookup by user_id + is_read
     await db.notifications.create_index([("user_id", 1), ("created_at", -1)])
     await db.notifications.create_index([("user_id", 1), ("is_read", 1)])
-    # reviews: lookup by car_id, booking_id; one review per booking/review_type pair
-    await db.reviews.create_index([("car_id", 1), ("created_at", -1)])
+    # reviews: lookup by vehicle_id, booking_id; one review per booking/review_type pair
+    await db.reviews.create_index([("vehicle_id", 1), ("created_at", -1)])
     try:
         review_indexes = await db.reviews.index_information()
         for name, details in review_indexes.items():
@@ -50,9 +50,9 @@ async def _create_indexes() -> None:
     await db.reviews.create_index([("reviewer_id", 1)])
     # support_messages: by ticket_id
     await db.support_messages.create_index([("ticket_id", 1), ("created_at", 1)])
-    # car_view_events: by car_id, by city, TTL 90 days
+    # car_view_events: by vehicle_id, by city, TTL 90 days
     await db.car_view_events.create_index("created_at", expireAfterSeconds=7776000)
-    await db.car_view_events.create_index([("car_id", 1)])
+    await db.car_view_events.create_index([("vehicle_id", 1)])
     # activity_feed: TTL 180 days
     await db.activity_feed.create_index("created_at", expireAfterSeconds=15552000)
     await db.activity_feed.create_index([("actor_id", 1)])

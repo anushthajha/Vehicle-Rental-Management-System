@@ -28,28 +28,28 @@ export function FAQBlock({ items }) {
   return <Accordion.Root type="single" collapsible className="space-y-3">{items.map(([q, a]) => <Accordion.Item key={q} value={q} className="rounded-lg border border-zinc-200 bg-white px-5"><Accordion.Trigger className="flex w-full items-center justify-between py-4 text-left font-black">{q}<ChevronDown size={18} /></Accordion.Trigger><Accordion.Content className="pb-4 font-semibold text-zinc-600">{a}</Accordion.Content></Accordion.Item>)}</Accordion.Root>
 }
 
-export function CTA({ title = 'Ready to drive?', to = '/vehicles', label = 'Explore cars' }) {
+export function CTA({ title = 'Ready to drive?', to = '/vehicles', label = 'Explore vehicles' }) {
   return <section className="px-4 py-16"><div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 rounded-lg bg-gradient-to-r from-[#E31837] to-[#FF6B35] p-8 text-white"><h2 className="font-display text-3xl font-black">{title}</h2><Link to={to} className="rounded-md bg-white px-5 py-3 font-black text-[#E31837]">{label}</Link></div></section>
 }
 
 function Footer() {
-  return <footer className="border-t border-zinc-200 bg-white px-4 py-10"><div className="mx-auto grid max-w-7xl gap-6 md:grid-cols-[1fr_auto]"><div><Link to="/" className="font-display text-2xl font-black"><span className="text-[#E31837]">Zoom</span>car</Link><p className="mt-2 max-w-xl text-sm font-semibold text-zinc-500">A full-stack clone for self-drive car rentals, manager earnings, wallet payments, KYC, support, and admin operations.</p></div><div className="flex flex-wrap gap-4 text-sm font-black text-zinc-700"><Link to="/terms">Terms</Link><Link to="/privacy">Privacy</Link><Link to="/refund-policy">Refunds</Link><Link to="/contact">Contact</Link></div></div></footer>
+  return <footer className="border-t border-zinc-200 bg-white px-4 py-10"><div className="mx-auto grid max-w-7xl gap-6 md:grid-cols-[1fr_auto]"><div><Link to="/" className="font-display text-2xl font-black"><span className="text-[#E31837]">Zoom</span>car</Link><p className="mt-2 max-w-xl text-sm font-semibold text-zinc-500">A full-stack clone for self-drive vehicle rentals, manager earnings, wallet payments, KYC, support, and admin operations.</p></div><div className="flex flex-wrap gap-4 text-sm font-black text-zinc-700"><Link to="/terms">Terms</Link><Link to="/privacy">Privacy</Link><Link to="/refund-policy">Refunds</Link><Link to="/contact">Contact</Link></div></div></footer>
 }
 
-export const guestFlow = [
-  { title: 'Search', text: 'Pick your city, trip dates, and preferred car category.' },
-  { title: 'Select', text: 'Compare verified manager cars by price, rating, location, and features.' },
+export const customerFlow = [
+  { title: 'Search', text: 'Pick your city, trip dates, and preferred vehicle category.' },
+  { title: 'Select', text: 'Compare verified manager vehicles by price, rating, location, and features.' },
   { title: 'KYC', text: 'Upload identity and driving documents for secure approval.' },
   { title: 'Book', text: 'Pay securely through wallet or simulated payment methods.' },
-  { title: 'Pickup', text: 'Meet the manager, inspect the car, and start your trip.' },
+  { title: 'Pickup', text: 'Meet the manager, inspect the vehicle, and start your trip.' },
   { title: 'Return', text: 'Return on time, settle extras, and review the experience.' },
 ]
 
 export const managerFlow = [
   { title: 'Register', text: 'Create a manager account and complete profile verification.' },
-  { title: 'Photos', text: 'Upload clear car photos and ownership details.' },
+  { title: 'Photos', text: 'Upload clear vehicle photos and ownership details.' },
   { title: 'Pricing', text: 'Set day/hour prices, limits, and availability blocks.' },
-  { title: 'Receive bookings', text: 'Approve suitable guests and manage requests.' },
-  { title: 'Meet guest', text: 'Complete pickup inspection and hand over keys.' },
+  { title: 'Receive bookings', text: 'Approve suitable customers and manage requests.' },
+  { title: 'Meet customer', text: 'Complete pickup inspection and hand over keys.' },
   { title: 'Earn', text: 'Get earnings credited after trip completion and request payouts.' },
 ]

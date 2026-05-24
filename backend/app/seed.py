@@ -11,9 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import AsyncSessionLocal, engine
 from app.models.booking import Booking, BookingExtension
-from app.models.car import Car, CarImage, CarPricingRule
+from app.models.vehicle import Vehicle, VehicleImage, VehiclePricingRule
 from app.models.coupon import Coupon, CouponUsage
-from app.models.host import HostProfile
+from app.models.manager import ManagerProfile
 from app.models.payment import Payment, UserWallet, WalletTransaction
 from app.models.support import SupportTicket
 from app.models.user import User, UserKYC
@@ -81,8 +81,8 @@ def registration_number(city: str, year: int, index: int) -> str:
 
 
 DEFAULT_CATEGORIES = [
-    ("Hatchback", "hatchback", "Car", 1),
-    ("Sedan", "sedan", "Car", 2),
+    ("Hatchback", "hatchback", "Vehicle", 1),
+    ("Sedan", "sedan", "Vehicle", 2),
     ("SUV", "suv", "Truck", 3),
     ("MUV", "muv", "Users", 4),
     ("Luxury", "luxury", "Gem", 5),
@@ -92,7 +92,7 @@ DEFAULT_CATEGORIES = [
 ]
 
 DEFAULT_VEHICLE_TYPES = [
-    ("Car", "car"),
+    ("Vehicle", "car"),
     ("Bike", "bike"),
     ("Van", "van"),
     ("Truck", "truck"),
@@ -125,7 +125,7 @@ async def ensure_vehicle_taxonomy(db: AsyncSession) -> tuple[dict[str, VehicleCa
 
 
 async def has_demo_data(db: AsyncSession) -> bool:
-    result = await db.execute(select(func.count(Car.id)))
+    result = await db.execute(select(func.count(Vehicle.id)))
     return (result.scalar() or 0) > 0
 
 
@@ -140,7 +140,7 @@ async def create_admin(db: AsyncSession) -> User:
             phone="9000000000",
             is_active=True,
             is_verified=True,
-            is_host=False,
+            is_vehicle_manager=False,
             role="admin",
         )
         db.add(admin)
@@ -155,10 +155,10 @@ async def create_admin(db: AsyncSession) -> User:
     wallet = (await db.execute(select(UserWallet).where(UserWallet.user_id == admin.id))).scalar_one_or_none()
     if wallet is None:
         db.add(UserWallet(user_id=admin.id, balance=money(0)))
-    profile = (await db.execute(select(HostProfile).where(HostProfile.user_id == admin.id))).scalar_one_or_none()
+    profile = (await db.execute(select(ManagerProfile).where(ManagerProfile.user_id == admin.id))).scalar_one_or_none()
     if profile is None:
         db.add(
-            HostProfile(
+            ManagerProfile(
                 user_id=admin.id,
                 bio="Administrative vehicle_manager profile stub for operational tooling.",
                 response_time="Instant",
@@ -177,7 +177,7 @@ async def create_vehicle_managers(db: AsyncSession) -> dict[str, User]:
         ("Sneha Patel", "sneha@manager.com", "Pune", "Fleet West-Central", 14500, 90, 72, "4.60", False),
     ]
     vehicle_managers: dict[str, User] = {}
-    for idx, (name, email, city, department, balance, acceptance, reviews, rating, superhost) in enumerate(manager_rows, start=1):
+    for idx, (name, email, city, department, balance, acceptance, reviews, rating, super_manager) in enumerate(manager_rows, start=1):
         vehicle_manager = User(
             email=email,
             hashed_password=get_password_hash("Pass@1234"),
@@ -185,7 +185,7 @@ async def create_vehicle_managers(db: AsyncSession) -> dict[str, User]:
             phone=f"91111000{idx:02d}",
             is_active=True,
             is_verified=True,
-            is_host=True,
+            is_vehicle_manager=True,
             role="vehicle_manager",
         )
         db.add(vehicle_manager)
@@ -202,18 +202,18 @@ async def create_vehicle_managers(db: AsyncSession) -> dict[str, User]:
                     submitted_at=now_utc() - timedelta(days=45 + idx),
                     reviewed_at=now_utc() - timedelta(days=42 + idx),
                 ),
-                HostProfile(
+                ManagerProfile(
                     user_id=vehicle_manager.id,
                     assigned_by=admin.id if admin else None,
                     department=department,
-                    bio=f"{name} manages clean, well-maintained self-drive cars across {city}.",
+                    bio=f"{name} manages clean, well-maintained self-drive vehicles across {city}.",
                     response_time="Within 10 minutes",
                     acceptance_rate=money(acceptance),
                     total_reviews=reviews,
                     average_rating=money(rating),
                     is_active=True,
-                    is_superhost=superhost,
-                    joined_as_host_at=now_utc() - timedelta(days=260 + idx * 13),
+                    is_super_manager=super_manager,
+                    assigned_at=now_utc() - timedelta(days=260 + idx * 13),
                     payout_bank_name="HDFC Bank",
                     payout_account_number=f"XXXXXX{820000 + idx}",
                     payout_ifsc="HDFC0001234",
@@ -249,7 +249,7 @@ async def create_customers(db: AsyncSession) -> dict[str, User]:
             phone=f"92222000{idx:02d}",
             is_active=True,
             is_verified=True,
-            is_host=False,
+            is_vehicle_manager=False,
             role="customer",
         )
         db.add(customer)
@@ -272,7 +272,7 @@ async def create_customers(db: AsyncSession) -> dict[str, User]:
     return customers
 
 
-CAR_ROWS = [
+VEHICLE_ROWS = [
     ("Priya", "Maruti", "Swift", 2022, "Hatchback", "manual", "petrol", 5, 50, 599, "Bengaluru", "Koramangala", 12.9716, 77.5946, "4.7", 45, ["AC", "Music"], True, True, False),
     ("Priya", "Hyundai", "Creta", 2023, "SUV", "automatic", "petrol", 5, 80, 999, "Bengaluru", "Indiranagar", 12.9352, 77.6245, "4.8", 62, ["AC", "Sunroof", "Music", "Keyless Entry"], False, False, True),
     ("Priya", "Tata", "Nexon EV", 2023, "Electric", "automatic", "electric", 5, 70, 850, "Bengaluru", "Whitefield", 12.9698, 77.7500, "4.9", 30, ["AC", "Music", "GPS", "Keyless Entry"], False, True, True),
@@ -301,13 +301,13 @@ CAR_ROWS = [
 ]
 
 
-async def create_cars(db: AsyncSession, vehicle_managers: dict[str, User]) -> dict[str, Car]:
-    cars: dict[str, Car] = {}
+async def create_cars(db: AsyncSession, vehicle_managers: dict[str, User]) -> dict[str, Vehicle]:
+    vehicles: dict[str, Vehicle] = {}
     category_map, car_type = await ensure_vehicle_taxonomy(db)
-    host_listing_counts: dict[str, int] = {vehicle_manager.id: 0 for vehicle_manager in vehicle_managers.values()}
-    for idx, row in enumerate(CAR_ROWS, start=1):
+    manager_listing_counts: dict[str, int] = {vehicle_manager.id: 0 for vehicle_manager in vehicle_managers.values()}
+    for idx, row in enumerate(VEHICLE_ROWS, start=1):
         (
-            host_key,
+            manager_key,
             make,
             model,
             year,
@@ -330,8 +330,8 @@ async def create_cars(db: AsyncSession, vehicle_managers: dict[str, User]) -> di
         ) = row
         category = category_label.lower()
         title = f"{make} {model} {year}"
-        car = Car(
-            managerId=vehicle_managers[host_key].id,
+        car = Vehicle(
+            manager_id=vehicle_managers[manager_key].id,
             title=title,
             make=make,
             car_model=model,
@@ -369,17 +369,17 @@ async def create_cars(db: AsyncSession, vehicle_managers: dict[str, User]) -> di
         )
         db.add(car)
         await db.flush()
-        cars[model] = car
-        cars[title] = car
-        host_listing_counts[car.managerId] += 1
+        vehicles[model] = car
+        vehicles[title] = car
+        manager_listing_counts[car.manager_id] += 1
 
         image_count = 4 + (idx % 3)
         images = []
         for order in range(image_count):
             seed = f"{make.replace(' ', '')}{idx}" if order == 0 else f"{make.replace(' ', '')}{model.replace(' ', '')}{idx}{order}"
             images.append(
-                CarImage(
-                    car_id=car.id,
+                VehicleImage(
+                    vehicle_id=car.id,
                     image_url=f"https://picsum.photos/seed/{seed}/800/500",
                     is_primary=order == 0,
                     order_index=order,
@@ -387,19 +387,19 @@ async def create_cars(db: AsyncSession, vehicle_managers: dict[str, User]) -> di
             )
         db.add_all(images)
 
-    profiles = await db.execute(select(HostProfile))
+    profiles = await db.execute(select(ManagerProfile))
     for profile in profiles.scalars():
-        if profile.user_id in host_listing_counts:
-            profile.total_listings = host_listing_counts[profile.user_id]
+        if profile.user_id in manager_listing_counts:
+            profile.total_listings = manager_listing_counts[profile.user_id]
 
     db.add_all(
         [
-            CarPricingRule(car_id=cars["Thar"].id, rule_type="long_trip_discount", min_days=3, discount_percent=money(10)),
-            CarPricingRule(car_id=cars["3 Series"].id, rule_type="peak_surcharge", applies_on="weekend", surcharge_percent=money(15)),
-            CarPricingRule(car_id=cars["Fortuner"].id, rule_type="long_trip_discount", min_days=5, discount_percent=money(15)),
+            VehiclePricingRule(vehicle_id=vehicles["Thar"].id, rule_type="long_trip_discount", min_days=3, discount_percent=money(10)),
+            VehiclePricingRule(vehicle_id=vehicles["3 Series"].id, rule_type="peak_surcharge", applies_on="weekend", surcharge_percent=money(15)),
+            VehiclePricingRule(vehicle_id=vehicles["Fortuner"].id, rule_type="long_trip_discount", min_days=5, discount_percent=money(15)),
         ]
     )
-    return cars
+    return vehicles
 
 
 def booking_amounts(total: int | float, insurance: int | float = 0, discount: int | float = 0) -> dict[str, Decimal]:
@@ -414,14 +414,14 @@ def booking_amounts(total: int | float, insurance: int | float = 0, discount: in
         "insurance_amount": insurance_amount,
         "total_amount": total_amount,
         "platform_fee": platform_fee,
-        "host_earnings": (base * Decimal("0.80")).quantize(Decimal("0.01")),
+        "manager_earnings": (base * Decimal("0.80")).quantize(Decimal("0.01")),
     }
 
 
 async def add_booking(
     db: AsyncSession,
     refs: set[str],
-    car: Car,
+    car: Vehicle,
     customer: User,
     status: str,
     pickup: datetime,
@@ -447,9 +447,9 @@ async def add_booking(
     total_hours = money((return_at - pickup).total_seconds() / 3600)
     booking = Booking(
         booking_ref=booking_ref(refs),
-        car_id=car.id,
-        guest_id=customer.id,
-        host_id=car.host_id,
+        vehicle_id=car.id,
+        customer_id=customer.id,
+        manager_id=car.manager_id,
         status=status,
         pickup_datetime=pickup,
         return_datetime=return_at,
@@ -465,7 +465,7 @@ async def add_booking(
         security_deposit_amount=car.security_deposit,
         total_amount=amounts["total_amount"],
         platform_fee=amounts["platform_fee"],
-        host_earnings=amounts["host_earnings"],
+        manager_earnings=amounts["manager_earnings"],
         odometer_start=odometer_start,
         odometer_end=odometer_end,
         cancellation_reason=cancellation_reason,
@@ -473,8 +473,8 @@ async def add_booking(
         cancelled_at=cancelled_at,
         refund_amount=money(refund_amount),
         refund_status=refund_status,
-        host_accepted_at=(created_at or now_utc()) + timedelta(hours=2) if status in {"confirmed", "active", "completed", "cancelled"} else None,
-        guest_notes=customer_notes,
+        manager_accepted_at=(created_at or now_utc()) + timedelta(hours=2) if status in {"confirmed", "active", "completed", "cancelled"} else None,
+        customer_notes=customer_notes,
     )
     if created_at:
         booking.created_at = created_at
@@ -486,32 +486,32 @@ async def add_booking(
 
 async def create_bookings_and_payments(
     db: AsyncSession,
-    cars: dict[str, Car],
+    vehicles: dict[str, Vehicle],
     customers: dict[str, User],
 ) -> tuple[dict[str, Booking], dict[str, Payment]]:
     base = now_utc()
     refs: set[str] = set()
     bookings: dict[str, Booking] = {}
-    bookings["B1"] = await add_booking(db, refs, cars["Creta"], customers["customer1"], "completed", base - timedelta(days=7), base - timedelta(days=5), 1998, "standard", 199, "FLAT100", 100, base - timedelta(days=7), base - timedelta(days=5, hours=-1), 18420, 19065, created_at=base - timedelta(days=8))
-    bookings["B2"] = await add_booking(db, refs, cars["Thar"], customers["customer2"], "completed", base - timedelta(days=10), base - timedelta(days=8), 2598, "platinum", 350, actual_pickup=base - timedelta(days=10), actual_return=base - timedelta(days=8, hours=-2), odometer_start=28110, odometer_end=28780, created_at=base - timedelta(days=11))
-    bookings["B3"] = await add_booking(db, refs, cars["GLA"], customers["customer3"], "completed", base - timedelta(days=15), base - timedelta(days=12), 9000, "platinum", 750, actual_pickup=base - timedelta(days=15), actual_return=base - timedelta(days=12), odometer_start=12340, odometer_end=12910, created_at=base - timedelta(days=16))
-    bookings["B4"] = await add_booking(db, refs, cars["Fortuner"], customers["customer4"], "active", base - timedelta(days=1), base + timedelta(days=2), 3000, "standard", 300, actual_pickup=base - timedelta(days=1), created_at=base - timedelta(days=2))
-    bookings["B5"] = await add_booking(db, refs, cars["Innova Crysta"], customers["customer5"], "active", base.replace(hour=8, minute=0, second=0), base.replace(hour=22, minute=0, second=0), 1100, "basic", 100, actual_pickup=base.replace(hour=8, minute=3, second=0), created_at=base - timedelta(days=1))
-    bookings["B6"] = await add_booking(db, refs, cars["Harrier"], customers["customer6"], "active", base - timedelta(days=2), base + timedelta(days=1), 2300, "standard", 250, actual_pickup=base - timedelta(days=2), created_at=base - timedelta(days=3))
-    bookings["B7"] = await add_booking(db, refs, cars["Seltos"], customers["customer7"], "confirmed", base + timedelta(days=3), base + timedelta(days=5), 2100, "standard", 250, created_at=base - timedelta(hours=12))
-    bookings["B8"] = await add_booking(db, refs, cars["Baleno"], customers["customer1"], "confirmed", base + timedelta(days=5), base + timedelta(days=6), 650, "basic", 50, created_at=base - timedelta(hours=10))
-    bookings["B9"] = await add_booking(db, refs, cars["XUV700"], customers["customer2"], "confirmed", base + timedelta(days=7), base + timedelta(days=10), 3897, "standard", 300, created_at=base - timedelta(hours=8))
-    bookings["B10"] = await add_booking(db, refs, cars["Grand Vitara"], customers["customer3"], "confirmed", base + timedelta(days=10), base + timedelta(days=12), 2100, "standard", 250, created_at=base - timedelta(hours=7))
-    bookings["B11"] = await add_booking(db, refs, cars["City"], customers["customer4"], "pending", base + timedelta(days=2), base + timedelta(days=4), 1500, None, 0, customer_notes="Need pickup around noon.", created_at=base - timedelta(hours=5))
-    bookings["B12"] = await add_booking(db, refs, cars["Dzire"], customers["customer5"], "pending", base + timedelta(days=3), base + timedelta(days=4), 550, None, 0, created_at=base - timedelta(hours=4))
-    bookings["B13"] = await add_booking(db, refs, cars["Kwid"], customers["customer6"], "pending", base + timedelta(days=1), base + timedelta(days=2), 450, None, 0, created_at=base - timedelta(hours=3))
-    bookings["B14"] = await add_booking(db, refs, cars["Tucson"], customers["customer7"], "cancelled", base + timedelta(days=1), base + timedelta(days=3), 2400, "standard", 250, cancellation_reason="Plans changed", cancelled_by=customers["customer7"].id, cancelled_at=base - timedelta(hours=20), refund_amount=1200, refund_status="processed", created_at=base - timedelta(days=2))
-    bookings["B15"] = await add_booking(db, refs, cars["i20"], customers["customer1"], "cancelled", base + timedelta(days=2), base + timedelta(days=3), 650, None, 0, cancellation_reason="Booking was never paid", cancelled_by=customers["customer1"].id, cancelled_at=base - timedelta(hours=15), created_at=base - timedelta(days=1))
-    bookings["B16"] = await add_booking(db, refs, cars["Swift"], customers["customer4"], "cancelled", base + timedelta(days=4), base + timedelta(days=6), 1198, "standard", 150, cancellation_reason="Car maintenance", cancelled_by=cars["Swift"].host_id, cancelled_at=base - timedelta(hours=6), refund_amount=1198, refund_status="processed", created_at=base - timedelta(days=2))
-    bookings["B17"] = await add_booking(db, refs, cars["Venue"], customers["customer2"], "rejected", base + timedelta(days=6), base + timedelta(days=8), 1700, None, 0, cancellation_reason="Dates not available due to maintenance", cancelled_by=cars["Venue"].host_id, cancelled_at=base - timedelta(hours=2), created_at=base - timedelta(days=1))
-    bookings["B18"] = await add_booking(db, refs, cars["Compass"], customers["customer3"], "rejected", base + timedelta(days=8), base + timedelta(days=10), 2800, None, 0, cancellation_reason="Customer rating too low", cancelled_by=cars["Compass"].host_id, cancelled_at=base - timedelta(hours=1), created_at=base - timedelta(hours=20))
-    bookings["B19"] = await add_booking(db, refs, cars["Amaze"], customers["customer6"], "confirmed", base + timedelta(days=12), base + timedelta(days=13), 650, "basic", 75, created_at=base - timedelta(hours=6))
-    bookings["B20"] = await add_booking(db, refs, cars["A4"], customers["customer7"], "pending", base + timedelta(days=14), base + timedelta(days=16), 5600, "platinum", 500, customer_notes="Customer requests evening pickup.", created_at=base - timedelta(hours=2))
+    bookings["B1"] = await add_booking(db, refs, vehicles["Creta"], customers["customer1"], "completed", base - timedelta(days=7), base - timedelta(days=5), 1998, "standard", 199, "FLAT100", 100, base - timedelta(days=7), base - timedelta(days=5, hours=-1), 18420, 19065, created_at=base - timedelta(days=8))
+    bookings["B2"] = await add_booking(db, refs, vehicles["Thar"], customers["customer2"], "completed", base - timedelta(days=10), base - timedelta(days=8), 2598, "platinum", 350, actual_pickup=base - timedelta(days=10), actual_return=base - timedelta(days=8, hours=-2), odometer_start=28110, odometer_end=28780, created_at=base - timedelta(days=11))
+    bookings["B3"] = await add_booking(db, refs, vehicles["GLA"], customers["customer3"], "completed", base - timedelta(days=15), base - timedelta(days=12), 9000, "platinum", 750, actual_pickup=base - timedelta(days=15), actual_return=base - timedelta(days=12), odometer_start=12340, odometer_end=12910, created_at=base - timedelta(days=16))
+    bookings["B4"] = await add_booking(db, refs, vehicles["Fortuner"], customers["customer4"], "active", base - timedelta(days=1), base + timedelta(days=2), 3000, "standard", 300, actual_pickup=base - timedelta(days=1), created_at=base - timedelta(days=2))
+    bookings["B5"] = await add_booking(db, refs, vehicles["Innova Crysta"], customers["customer5"], "active", base.replace(hour=8, minute=0, second=0), base.replace(hour=22, minute=0, second=0), 1100, "basic", 100, actual_pickup=base.replace(hour=8, minute=3, second=0), created_at=base - timedelta(days=1))
+    bookings["B6"] = await add_booking(db, refs, vehicles["Harrier"], customers["customer6"], "active", base - timedelta(days=2), base + timedelta(days=1), 2300, "standard", 250, actual_pickup=base - timedelta(days=2), created_at=base - timedelta(days=3))
+    bookings["B7"] = await add_booking(db, refs, vehicles["Seltos"], customers["customer7"], "confirmed", base + timedelta(days=3), base + timedelta(days=5), 2100, "standard", 250, created_at=base - timedelta(hours=12))
+    bookings["B8"] = await add_booking(db, refs, vehicles["Baleno"], customers["customer1"], "confirmed", base + timedelta(days=5), base + timedelta(days=6), 650, "basic", 50, created_at=base - timedelta(hours=10))
+    bookings["B9"] = await add_booking(db, refs, vehicles["XUV700"], customers["customer2"], "confirmed", base + timedelta(days=7), base + timedelta(days=10), 3897, "standard", 300, created_at=base - timedelta(hours=8))
+    bookings["B10"] = await add_booking(db, refs, vehicles["Grand Vitara"], customers["customer3"], "confirmed", base + timedelta(days=10), base + timedelta(days=12), 2100, "standard", 250, created_at=base - timedelta(hours=7))
+    bookings["B11"] = await add_booking(db, refs, vehicles["City"], customers["customer4"], "pending", base + timedelta(days=2), base + timedelta(days=4), 1500, None, 0, customer_notes="Need pickup around noon.", created_at=base - timedelta(hours=5))
+    bookings["B12"] = await add_booking(db, refs, vehicles["Dzire"], customers["customer5"], "pending", base + timedelta(days=3), base + timedelta(days=4), 550, None, 0, created_at=base - timedelta(hours=4))
+    bookings["B13"] = await add_booking(db, refs, vehicles["Kwid"], customers["customer6"], "pending", base + timedelta(days=1), base + timedelta(days=2), 450, None, 0, created_at=base - timedelta(hours=3))
+    bookings["B14"] = await add_booking(db, refs, vehicles["Tucson"], customers["customer7"], "cancelled", base + timedelta(days=1), base + timedelta(days=3), 2400, "standard", 250, cancellation_reason="Plans changed", cancelled_by=customers["customer7"].id, cancelled_at=base - timedelta(hours=20), refund_amount=1200, refund_status="processed", created_at=base - timedelta(days=2))
+    bookings["B15"] = await add_booking(db, refs, vehicles["i20"], customers["customer1"], "cancelled", base + timedelta(days=2), base + timedelta(days=3), 650, None, 0, cancellation_reason="Booking was never paid", cancelled_by=customers["customer1"].id, cancelled_at=base - timedelta(hours=15), created_at=base - timedelta(days=1))
+    bookings["B16"] = await add_booking(db, refs, vehicles["Swift"], customers["customer4"], "cancelled", base + timedelta(days=4), base + timedelta(days=6), 1198, "standard", 150, cancellation_reason="Vehicle maintenance", cancelled_by=vehicles["Swift"].manager_id, cancelled_at=base - timedelta(hours=6), refund_amount=1198, refund_status="processed", created_at=base - timedelta(days=2))
+    bookings["B17"] = await add_booking(db, refs, vehicles["Venue"], customers["customer2"], "rejected", base + timedelta(days=6), base + timedelta(days=8), 1700, None, 0, cancellation_reason="Dates not available due to maintenance", cancelled_by=vehicles["Venue"].manager_id, cancelled_at=base - timedelta(hours=2), created_at=base - timedelta(days=1))
+    bookings["B18"] = await add_booking(db, refs, vehicles["Compass"], customers["customer3"], "rejected", base + timedelta(days=8), base + timedelta(days=10), 2800, None, 0, cancellation_reason="Customer rating too low", cancelled_by=vehicles["Compass"].manager_id, cancelled_at=base - timedelta(hours=1), created_at=base - timedelta(hours=20))
+    bookings["B19"] = await add_booking(db, refs, vehicles["Amaze"], customers["customer6"], "confirmed", base + timedelta(days=12), base + timedelta(days=13), 650, "basic", 75, created_at=base - timedelta(hours=6))
+    bookings["B20"] = await add_booking(db, refs, vehicles["A4"], customers["customer7"], "pending", base + timedelta(days=14), base + timedelta(days=16), 5600, "platinum", 500, customer_notes="Customer requests evening pickup.", created_at=base - timedelta(hours=2))
 
     db.add_all(
         [
@@ -548,7 +548,7 @@ async def create_bookings_and_payments(
             txn_id = sim_txn()
         payment = Payment(
             booking_id=booking.id,
-            user_id=booking.guest_id,
+            user_id=booking.customer_id,
             amount=booking.total_amount,
             payment_method="simulated",
             simulated_transaction_id=txn_id,
@@ -624,26 +624,26 @@ async def create_wallet_transactions(
     paid_keys = ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9", "B10", "B14", "B16", "B19"]
     for key in paid_keys:
         booking = bookings[key]
-        add_tx(booking.guest_id, "debit", booking.total_amount, f"Booking payment for {booking.booking_ref}", booking.id)
+        add_tx(booking.customer_id, "debit", booking.total_amount, f"Booking payment for {booking.booking_ref}", booking.id)
 
     for key in ["B1", "B2", "B3"]:
         booking = bookings[key]
-        add_tx(booking.host_id, "credit", booking.host_earnings, f"Vehicle Manager earnings for completed trip {booking.booking_ref}", booking.id)
+        add_tx(booking.manager_id, "credit", booking.manager_earnings, f"Vehicle Manager earnings for completed trip {booking.booking_ref}", booking.id)
 
     for key in ["B14", "B16"]:
         booking = bookings[key]
-        add_tx(booking.guest_id, "credit", booking.refund_amount, f"Cancellation refund for {booking.booking_ref}", booking.id)
+        add_tx(booking.customer_id, "credit", booking.refund_amount, f"Cancellation refund for {booking.booking_ref}", booking.id)
 
     db.add_all(transactions)
     for wallet in (await db.execute(select(UserWallet))).scalars():
         wallet.balance = balances[wallet.user_id]
 
 
-async def create_reviews_mongodb(bookings: dict[str, Booking], customers: dict[str, User], vehicle_managers: dict[str, User], cars: dict[str, Car]) -> None:
+async def create_reviews_mongodb(bookings: dict[str, Booking], customers: dict[str, User], vehicle_managers: dict[str, User], vehicles: dict[str, Vehicle]) -> None:
     db = get_mongo_db()
 
-    def car_snapshot(car: Car) -> dict:
-        return {"car_id": car.id, "title": car.title, "city": car.location_city, "area": car.location_area}
+    def car_snapshot(car: Vehicle) -> dict:
+        return {"vehicle_id": car.id, "title": car.title, "city": car.location_city, "area": car.location_area}
 
     def trip_snapshot(booking: Booking) -> dict:
         return {"booking_ref": booking.booking_ref, "pickup": booking.pickup_datetime, "return": booking.return_datetime}
@@ -653,16 +653,16 @@ async def create_reviews_mongodb(bookings: dict[str, Booking], customers: dict[s
             "booking_id": bookings["B1"].id,
             "reviewer_id": customers["customer1"].id,
             "reviewer_name": customers["customer1"].full_name,
-            "reviewee_id": cars["Creta"].host_id,
-            "car_id": cars["Creta"].id,
+            "reviewee_id": vehicles["Creta"].manager_id,
+            "vehicle_id": vehicles["Creta"].id,
             "rating": 5,
             "title": "Perfect SUV for our Coorg trip",
             "body": "Absolutely loved the Creta! AC was ice cold, car was spotless. Priya is a fantastic vehicle_manager.",
-            "review_type": "guest_to_car",
-            "host_reply": "Thank you so much! Hope to see you again soon.",
-            "host_replied_at": now_utc() - timedelta(days=4),
+            "review_type": "customer_to_vehicle",
+            "manager_reply": "Thank you so much! Hope to see you again soon.",
+            "manager_replied_at": now_utc() - timedelta(days=4),
             "created_at": now_utc() - timedelta(days=5),
-            "car_snapshot": car_snapshot(cars["Creta"]),
+            "car_snapshot": car_snapshot(vehicles["Creta"]),
             "trip_snapshot": trip_snapshot(bookings["B1"]),
         },
         {
@@ -673,23 +673,23 @@ async def create_reviews_mongodb(bookings: dict[str, Booking], customers: dict[s
             "rating": 5,
             "title": "Excellent vehicle_manager",
             "body": "Priya responded instantly and handover was smooth. Highly recommend!",
-            "review_type": "guest_to_host",
+            "review_type": "customer_to_manager",
             "created_at": now_utc() - timedelta(days=5),
-            "car_snapshot": car_snapshot(cars["Creta"]),
+            "car_snapshot": car_snapshot(vehicles["Creta"]),
             "trip_snapshot": trip_snapshot(bookings["B1"]),
         },
         {
             "booking_id": bookings["B2"].id,
             "reviewer_id": customers["customer2"].id,
             "reviewer_name": customers["customer2"].full_name,
-            "reviewee_id": cars["Thar"].host_id,
-            "car_id": cars["Thar"].id,
+            "reviewee_id": vehicles["Thar"].manager_id,
+            "vehicle_id": vehicles["Thar"].id,
             "rating": 5,
             "title": "Epic off-road experience!",
             "body": "The Thar is an absolute beast! Perfect for our mountain trail trip. Engine was powerful and everything worked perfectly.",
-            "review_type": "guest_to_car",
+            "review_type": "customer_to_vehicle",
             "created_at": now_utc() - timedelta(days=8),
-            "car_snapshot": car_snapshot(cars["Thar"]),
+            "car_snapshot": car_snapshot(vehicles["Thar"]),
             "trip_snapshot": trip_snapshot(bookings["B2"]),
         },
         {
@@ -699,23 +699,23 @@ async def create_reviews_mongodb(bookings: dict[str, Booking], customers: dict[s
             "reviewee_id": customers["customer2"].id,
             "rating": 4,
             "body": "Great customer, took care of the Thar really well. Returned clean and on time.",
-            "review_type": "host_to_guest",
+            "review_type": "manager_to_customer",
             "created_at": now_utc() - timedelta(days=8),
-            "car_snapshot": car_snapshot(cars["Thar"]),
+            "car_snapshot": car_snapshot(vehicles["Thar"]),
             "trip_snapshot": trip_snapshot(bookings["B2"]),
         },
         {
             "booking_id": bookings["B3"].id,
             "reviewer_id": customers["customer3"].id,
             "reviewer_name": customers["customer3"].full_name,
-            "reviewee_id": cars["GLA"].host_id,
-            "car_id": cars["GLA"].id,
+            "reviewee_id": vehicles["GLA"].manager_id,
+            "vehicle_id": vehicles["GLA"].id,
             "rating": 5,
             "title": "Pure luxury on wheels",
             "body": "Incredible luxury car. Smooth ride, amazing interiors. Worth every rupee for our anniversary trip.",
-            "review_type": "guest_to_car",
+            "review_type": "customer_to_vehicle",
             "created_at": now_utc() - timedelta(days=12),
-            "car_snapshot": car_snapshot(cars["GLA"]),
+            "car_snapshot": car_snapshot(vehicles["GLA"]),
             "trip_snapshot": trip_snapshot(bookings["B3"]),
         },
         {
@@ -726,28 +726,28 @@ async def create_reviews_mongodb(bookings: dict[str, Booking], customers: dict[s
             "rating": 5,
             "title": "5 star vehicle_manager experience",
             "body": "Arjun was incredibly professional. The car was detailed to perfection.",
-            "review_type": "guest_to_host",
+            "review_type": "customer_to_manager",
             "created_at": now_utc() - timedelta(days=12),
-            "car_snapshot": car_snapshot(cars["GLA"]),
+            "car_snapshot": car_snapshot(vehicles["GLA"]),
             "trip_snapshot": trip_snapshot(bookings["B3"]),
         },
     ]
     await db.reviews.insert_many(reviews)
 
 
-async def create_notifications_mongodb(vehicle_managers: dict[str, User], customers: dict[str, User], bookings: dict[str, Booking], cars: dict[str, Car]) -> None:
+async def create_notifications_mongodb(vehicle_managers: dict[str, User], customers: dict[str, User], bookings: dict[str, Booking], vehicles: dict[str, Vehicle]) -> None:
     db = get_mongo_db()
     docs = []
-    host_booking = {"Priya": "B11", "Arjun": "B17", "Kavitha": "B18", "Rohit": "B12", "Sneha": "B13"}
-    host_car = {"Priya": "Swift", "Arjun": "GLA", "Kavitha": "Tucson", "Rohit": "Fortuner", "Sneha": "A4"}
+    manager_booking = {"Priya": "B11", "Arjun": "B17", "Kavitha": "B18", "Rohit": "B12", "Sneha": "B13"}
+    manager_vehicle = {"Priya": "Swift", "Arjun": "GLA", "Kavitha": "Tucson", "Rohit": "Fortuner", "Sneha": "A4"}
     for key, vehicle_manager in vehicle_managers.items():
-        booking = bookings[host_booking[key]]
+        booking = bookings[manager_booking[key]]
         docs.extend(
             [
                 {"user_id": vehicle_manager.id, "title": "New booking request", "message": f"New booking request from {customers['customer4'].full_name}", "notification_type": "booking", "is_read": False, "action_url": f"/manager/bookings/{booking.id}", "meta": {"booking_id": booking.id}, "created_at": now_utc() - timedelta(hours=3)},
                 {"user_id": vehicle_manager.id, "title": "KYC approved", "message": "KYC verification approved", "notification_type": "kyc", "is_read": True, "meta": {}, "created_at": now_utc() - timedelta(days=20)},
-                {"user_id": vehicle_manager.id, "title": "Trip earning credited", "message": f"INR {money(booking.host_earnings)} credited for trip completion", "notification_type": "payment", "is_read": False, "meta": {"amount": float(booking.host_earnings)}, "created_at": now_utc() - timedelta(days=2)},
-                {"user_id": vehicle_manager.id, "title": "Car listing live", "message": f"Your car {cars[host_car[key]].title} is now live and accepting bookings", "notification_type": "system", "is_read": True, "meta": {"car_id": cars[host_car[key]].id}, "created_at": now_utc() - timedelta(days=18)},
+                {"user_id": vehicle_manager.id, "title": "Trip earning credited", "message": f"INR {money(booking.manager_earnings)} credited for trip completion", "notification_type": "payment", "is_read": False, "meta": {"amount": float(booking.manager_earnings)}, "created_at": now_utc() - timedelta(days=2)},
+                {"user_id": vehicle_manager.id, "title": "Vehicle listing live", "message": f"Your car {vehicles[manager_vehicle[key]].title} is now live and accepting bookings", "notification_type": "system", "is_read": True, "meta": {"vehicle_id": vehicles[manager_vehicle[key]].id}, "created_at": now_utc() - timedelta(days=18)},
             ]
         )
 
@@ -755,13 +755,13 @@ async def create_notifications_mongodb(vehicle_managers: dict[str, User], custom
     for idx in range(1, 8):
         customer = customers[f"customer{idx}"]
         booking = bookings[customer_confirmed[idx - 1]]
-        car = next(car for car in cars.values() if isinstance(car, Car) and car.id == booking.car_id)
+        car = next(car for car in vehicles.values() if isinstance(car, Vehicle) and car.id == booking.vehicle_id)
         docs.extend(
             [
                 {"user_id": customer.id, "title": "Booking confirmed", "message": f"Booking {booking.booking_ref} confirmed!", "notification_type": "booking", "is_read": False, "action_url": f"/dashboard/bookings/{booking.id}", "meta": {"booking_id": booking.id}, "created_at": now_utc() - timedelta(hours=idx)},
                 {"user_id": customer.id, "title": "KYC verified", "message": "Your KYC has been verified", "notification_type": "kyc", "is_read": True, "meta": {}, "created_at": now_utc() - timedelta(days=15 + idx)},
                 {"user_id": customer.id, "title": "Trip reminder", "message": "Trip reminder: Your trip starts in 2 hours", "notification_type": "booking", "is_read": False, "meta": {"booking_id": booking.id}, "created_at": now_utc() - timedelta(minutes=30 + idx)},
-                {"user_id": customer.id, "title": "Review your trip", "message": f"Review your recent trip with {car.title}", "notification_type": "review", "is_read": False, "action_url": f"/dashboard/bookings/{booking.id}/review", "meta": {"car_id": car.id}, "created_at": now_utc() - timedelta(days=1 + idx)},
+                {"user_id": customer.id, "title": "Review your trip", "message": f"Review your recent trip with {car.title}", "notification_type": "review", "is_read": False, "action_url": f"/dashboard/bookings/{booking.id}/review", "meta": {"vehicle_id": car.id}, "created_at": now_utc() - timedelta(days=1 + idx)},
             ]
         )
 
@@ -824,9 +824,9 @@ async def create_support_data(db: AsyncSession, admin: User, customers: dict[str
     )
 
 
-async def create_analytics_data(cars: dict[str, Car], customers: dict[str, User]) -> None:
+async def create_analytics_data(vehicles: dict[str, Vehicle], customers: dict[str, User]) -> None:
     db = get_mongo_db()
-    real_cars = [car for car in cars.values() if isinstance(car, Car)]
+    real_cars = [car for car in vehicles.values() if isinstance(car, Vehicle)]
     unique_cars = list({car.id: car for car in real_cars}.values())
     customer_list = list(customers.values())
     cities = ["Bengaluru", "Mumbai", "Delhi", "Pune", "Chennai"]
@@ -856,7 +856,7 @@ async def create_analytics_data(cars: dict[str, Car], customers: dict[str, User]
         user = customer_list[idx % len(customer_list)]
         view_docs.append(
             {
-                "car_id": car.id,
+                "vehicle_id": car.id,
                 "user_id": user.id,
                 "city": car.location_city,
                 "source": ["home", "search", "city_page", "wishlist"][idx % 4],
@@ -870,7 +870,7 @@ async def create_analytics_data(cars: dict[str, Car], customers: dict[str, User]
             "action": "phase_g_demo_seed",
             "entity_type": "system",
             "entity_id": "seed",
-            "payload": {"users": 16, "cars": 25, "bookings": 20, "extensions": 2},
+            "payload": {"users": 16, "vehicles": 25, "bookings": 20, "extensions": 2},
             "created_at": now_utc(),
         }
     )
@@ -903,7 +903,7 @@ def write_seed_credentials_file() -> None:
         [
             "",
             "VEHICLE CATEGORIES SEEDED: 8 (Hatchback, Sedan, SUV, MUV, Luxury, Electric, Convertible, Minivan)",
-            "VEHICLE TYPES SEEDED: 6 (Car, Bike, Van, Truck, Scooter, Bus)",
+            "VEHICLE TYPES SEEDED: 6 (Vehicle, Bike, Van, Truck, Scooter, Bus)",
             "VEHICLES SEEDED: 25 (across 5 cities)",
             "BOOKINGS SEEDED: 20 (various statuses)",
             "",
@@ -927,8 +927,8 @@ async def seed() -> None:
             admin = await create_admin(db)
             vehicle_managers = await create_vehicle_managers(db)
             customers = await create_customers(db)
-            cars = await create_cars(db, vehicle_managers)
-            bookings, _payments = await create_bookings_and_payments(db, cars, customers)
+            vehicles = await create_cars(db, vehicle_managers)
+            bookings, _payments = await create_bookings_and_payments(db, vehicles, customers)
             await create_coupons(db, bookings, customers)
             await create_wallet_transactions(db, [admin, *vehicle_managers.values(), *customers.values()], bookings)
             await db.commit()
@@ -938,10 +938,10 @@ async def seed() -> None:
                 print("MongoDB demo seed marker already exists; skipping MongoDB seed.")
                 return
 
-            await create_reviews_mongodb(bookings, customers, vehicle_managers, cars)
-            await create_notifications_mongodb(vehicle_managers, customers, bookings, cars)
+            await create_reviews_mongodb(bookings, customers, vehicle_managers, vehicles)
+            await create_notifications_mongodb(vehicle_managers, customers, bookings, vehicles)
             await create_support_data(db, admin, customers, bookings)
-            await create_analytics_data(cars, customers)
+            await create_analytics_data(vehicles, customers)
             write_seed_credentials_file()
             print("Demo seed complete.")
     finally:

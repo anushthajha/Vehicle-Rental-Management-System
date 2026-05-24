@@ -7,7 +7,7 @@ import { persist } from 'zustand/middleware'
 import { z } from 'zod'
 import {
   Armchair,
-  Car,
+  Car as Vehicle,
   Check,
   ChevronDown,
   Gauge,
@@ -161,8 +161,8 @@ export default function AddVehiclePage({ editMode = false, carId = null, initial
     setError('')
     try {
       const body = buildCarPayload(activeForm)
-      const response = editMode ? await api.patch(`/vehicles/${carId}`, body) : await api.post('/cars', body)
-      const targetCarId = carId || response.data.car_id
+      const response = editMode ? await api.patch(`/vehicles/${carId}`, body) : await api.post('/vehicles', body)
+      const targetCarId = carId || response.data.vehicle_id
       if (!editMode) {
         for (const photo of activeForm.photos) {
           const data = new FormData()
@@ -185,7 +185,7 @@ export default function AddVehiclePage({ editMode = false, carId = null, initial
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-sm font-black uppercase text-sigfleet">Manager garage</p>
-            <h1 className="text-3xl font-black text-zinc-950">{editMode ? 'Edit car listing' : 'List your car'}</h1>
+            <h1 className="text-3xl font-black text-zinc-950">{editMode ? 'Edit car listing' : 'Add Vehicle'}</h1>
           </div>
           <div className="rounded-md bg-white px-4 py-3 text-sm font-bold text-zinc-600 shadow-sm">Step {step + 1} of {stepNames.length}</div>
         </div>
@@ -271,10 +271,10 @@ function BasicStep({ form, updateForm, categories, vehicleTypes }) {
   const suggestions = MODEL_SUGGESTIONS[form.make] || []
   return (
     <div>
-      <StepTitle icon={Car} title="Basic Info" />
+      <StepTitle icon={Vehicle} title="Basic Info" />
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="Make"><input list="brands" value={form.make} onChange={(e) => updateForm({ make: e.target.value })} className="input" /><datalist id="brands">{BRANDS.map((brand) => <option key={brand} value={brand} />)}</datalist></Field>
-        <Field label="Car Model"><input list="models" value={form.car_model} onChange={(e) => updateForm({ car_model: e.target.value })} className="input" /><datalist id="models">{suggestions.map((model) => <option key={model} value={model} />)}</datalist></Field>
+        <Field label="Vehicle Model"><input list="models" value={form.car_model} onChange={(e) => updateForm({ car_model: e.target.value })} className="input" /><datalist id="models">{suggestions.map((model) => <option key={model} value={model} />)}</datalist></Field>
         <Field label="Year"><select value={form.year} onChange={(e) => updateForm({ year: Number(e.target.value) })} className="input">{Array.from({ length: 15 }, (_, i) => 2024 - i).map((year) => <option key={year}>{year}</option>)}</select></Field>
         <Field label="Registration Number"><input value={form.registration_number} onChange={(e) => updateForm({ registration_number: e.target.value.toUpperCase() })} className="input" placeholder="KA01AB1234" /></Field>
       </div>
@@ -325,7 +325,7 @@ function LocationStep({ form, updateForm }) {
       </div>
       <Field label="Full address" className="mt-4"><textarea value={form.location_address} onChange={(e) => updateForm({ location_address: e.target.value })} rows={3} className="input" /></Field>
       <LocationPicker form={form} updateForm={updateForm} />
-      <p className="mt-3 text-sm font-semibold text-zinc-500">Exact address only shared with confirmed guests.</p>
+      <p className="mt-3 text-sm font-semibold text-zinc-500">Exact address only shared with confirmed customers.</p>
     </div>
   )
 }
@@ -406,7 +406,7 @@ function ReviewStep({ form, setStep }) {
     <div>
       <StepTitle icon={Check} title="Review & Submit" />
       {[
-        ['Car Details', `${form.year} ${form.make} ${form.car_model} | ${form.category_name || form.category_id} | ${form.transmission}`, 0],
+        ['Vehicle Details', `${form.year} ${form.make} ${form.car_model} | ${form.category_name || form.category_id} | ${form.transmission}`, 0],
         ['Location & Features', `${form.location_area}, ${form.location_city} | ${_featureCount(form)} features`, 1],
         ['Pricing', `₹${Number(form.price_per_day).toLocaleString('en-IN')}/day | ₹${form.security_deposit} deposit`, 3],
       ].map(([title, detail, target]) => (
@@ -426,7 +426,7 @@ function SubmittedState() {
         <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-emerald-100 text-emerald-700"><Check size={34} /></div>
         <h2 className="mt-5 text-3xl font-black text-zinc-950">Listing Submitted for Review</h2>
         <p className="mt-3 text-zinc-600">We'll review your listing within 24 hours and notify you.</p>
-        <a href="/manager/vehicles" className="mt-6 inline-flex rounded-md bg-sigfleet px-5 py-3 font-bold text-white">Go to My Cars</a>
+        <a href="/manager/vehicles" className="mt-6 inline-flex rounded-md bg-sigfleet px-5 py-3 font-bold text-white">Go to My Vehicles</a>
       </div>
     </div>
   )

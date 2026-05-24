@@ -1,12 +1,12 @@
 import React from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { BarChart3, CalendarDays, Car, ClipboardList, Gauge, LogOut, Plus, UserRound, Wallet } from 'lucide-react'
+import { BarChart3, CalendarDays, Car as Vehicle, ClipboardList, Gauge, LogOut, Plus, UserRound, Wallet } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import ManagerSidebar from '../../components/layout/ManagerSidebar'
 
 const links = [
   { to: '/manager/dashboard', label: 'Dashboard', icon: Gauge },
-  { to: '/manager/vehicles', label: 'My Vehicles', icon: Car },
+  { to: '/manager/vehicles', label: 'My Vehicles', icon: Vehicle },
   { to: '/manager/bookings', label: 'Booking Requests', icon: ClipboardList },
   { to: '/manager/availability', label: 'Availability Overview', icon: CalendarDays },
   { to: '/manager/statistics', label: 'Rental Statistics', icon: BarChart3 },

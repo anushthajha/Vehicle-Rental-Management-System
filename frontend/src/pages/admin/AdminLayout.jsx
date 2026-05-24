@@ -5,7 +5,7 @@ import {
   BadgeIndianRupee,
   BarChart3,
   CalendarDays,
-  Car,
+  Car as Vehicle,
   ChevronLeft,
   CreditCard,
   Headphones,
@@ -23,7 +23,7 @@ import { getAdmin, initials } from './adminApi'
 const navItems = [
   { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/admin/users', label: 'Users', icon: Users },
-  { to: '/admin/vehicles', label: 'Vehicles', icon: Car, badgeKey: 'car_approval_count' },
+  { to: '/admin/vehicles', label: 'Vehicles', icon: Vehicle, badgeKey: 'car_approval_count' },
   { to: '/admin/categories', label: 'Vehicle Categories', icon: Tags },
   { to: '/admin/bookings', label: 'Bookings', icon: CalendarDays },
   { to: '/admin/kyc', label: 'KYC', icon: IdCard, badgeKey: 'kyc_count' },

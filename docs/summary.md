@@ -1,5 +1,22 @@
 # SigFleet Phase Summary
 
+## Phase H - PRD Terminology Audit
+
+Completed a global PRD terminology alignment across backend, frontend, README, and routing surfaces.
+
+- Renamed backend vehicle modules/routes from car/cars naming to vehicle/vehicles naming, including `/api/vehicles` as the canonical route.
+- Renamed manager modules away from host naming, including manager earnings and super manager service terminology.
+- Updated booking ownership fields toward `customer_id`, `manager_id`, `vehicle_id`, customer notes, manager earnings, and manager acceptance naming.
+- Added an Alembic terminology migration for users, vehicles, bookings, image/block/pricing/wishlist foreign keys, manager payout requests, and super manager profile status.
+- Updated API payload terminology for manager/customer/vehicle response fields and frontend consumers.
+- Renamed frontend page/component imports for Vehicle Detail, Vehicle Listing, Admin Vehicles, VehicleCard, `/vehicles`, and `/manager/*` routes.
+- Updated UI labels, button copy, nav copy, toasts, email templates, and README language from Guest/Host/Car/Booking-ref wording to Customer/Vehicle Manager/Vehicle/Rental ID wording.
+- Rewrote README with the PRD title, credentials, three-dashboard architecture, and PRD feature vocabulary.
+
+Verification:
+- `python3 -m compileall backend/app` passes.
+- `npm run build` from `frontend/` passes with the existing large-chunk warning.
+
 ## Phase G - PRD Seed Data Refresh
 
 Updated backend seeding to match the PRD role and vehicle taxonomy model.

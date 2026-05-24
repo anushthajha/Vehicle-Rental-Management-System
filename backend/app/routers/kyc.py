@@ -250,7 +250,7 @@ async def approve_kyc(
         send_kyc_approved_email.delay(user.email, user.full_name)
     except Exception:
         pass
-    await create_notification(user.id, "KYC verified", "Your documents are approved. You can now book cars.", "kyc", action_url="/dashboard/kyc", meta={"kyc_id": kyc.id})
+    await create_notification(user.id, "KYC verified", "Your documents are approved. You can now book vehicles.", "kyc", action_url="/dashboard/kyc", meta={"kyc_id": kyc.id})
     await log_activity(admin.id, "kyc_approved", "user_kyc", kyc.id)
     return {"status": "approved"}
 

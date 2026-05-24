@@ -24,7 +24,7 @@ celery_app.conf.update(
             "schedule": 30 * 60,
         },
         "update-manager-status": {
-            "task": "app.tasks.maintenance.update_superhost_status",
+            "task": "app.tasks.maintenance.update_super_manager_status",
             "schedule": crontab(hour=2, minute=0),
         },
     },

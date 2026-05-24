@@ -126,7 +126,7 @@ function UserPanel({ details, onClose }) {
         <Info label="Phone" value={user.phone || '-'} /><Info label="Role" value={user.role} /><Info label="Wallet" value={formatMoney(details.wallet_balance)} /><Info label="Member since" value={formatDate(user.created_at)} />
       </dl>
       <section className="mt-6"><h4 className="font-black">KYC</h4><p className="mt-2"><Badge value={kyc?.status || 'not_submitted'} /></p><div className="mt-3 grid grid-cols-2 gap-3">{docs.map((doc) => <img key={doc} alt="" src={doc} className="h-32 w-full rounded-md border border-zinc-200 object-cover" />)}</div></section>
-      <section className="mt-6"><h4 className="font-black">Recent Bookings</h4><div className="mt-3 space-y-2">{details.recent_bookings.map((booking) => <div key={booking.id} className="rounded-md border border-zinc-200 p-3"><p className="font-black">{booking.booking_ref} · {booking.car_title}</p><p className="text-sm text-zinc-500">{booking.status} · {formatMoney(booking.total_amount)}</p></div>)}</div></section>
+      <section className="mt-6"><h4 className="font-black">Recent Bookings</h4><div className="mt-3 space-y-2">{details.recent_bookings.map((booking) => <div key={booking.id} className="rounded-md border border-zinc-200 p-3"><p className="font-black">{booking.booking_ref} · {booking.vehicle_name}</p><p className="text-sm text-zinc-500">{booking.status} · {formatMoney(booking.total_amount)}</p></div>)}</div></section>
     </aside>
   )
 }

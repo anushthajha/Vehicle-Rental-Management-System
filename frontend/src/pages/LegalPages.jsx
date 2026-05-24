@@ -6,13 +6,13 @@ function Legal({ eyebrow, title, intro, sections }) {
 }
 
 export function TermsPage() {
-  return <Legal eyebrow="Terms" title="Terms of Service" intro="Realistic platform rules for guests, managers, payments, and acceptable use." sections={[
+  return <Legal eyebrow="Terms" title="Terms of Service" intro="Realistic platform rules for customers, managers, payments, and acceptable use." sections={[
     ['User eligibility', 'Users must be legally able to contract, provide accurate information, and hold valid driving credentials where required. Accounts may be suspended for false documents or unsafe conduct.'],
-    ['Booking rules', 'Guests must pick up and return cars on time, follow traffic laws, keep the vehicle clean, and avoid unauthorized drivers, racing, towing, commercial carriage, or illegal activity.'],
+    ['Booking rules', 'Customers must pick up and return vehicles on time, follow traffic laws, keep the vehicle clean, and avoid unauthorized drivers, racing, towing, commercial carriage, or illegal activity.'],
     ['Cancellation policy', 'Cancellations may create fees based on timing, manager preparation, and payment status. Manager cancellations can affect acceptance metrics and super manager eligibility.'],
-    ['Damage liability', 'Guests are responsible for damage, fines, tolls, missing fuel, late return costs, and claims not covered by the selected insurance tier. Deposits can be held during investigation.'],
+    ['Damage liability', 'Customers are responsible for damage, fines, tolls, missing fuel, late return costs, and claims not covered by the selected insurance tier. Deposits can be held during investigation.'],
     ['Payment terms', 'Wallet credits, simulated card/UPI payments, refunds, manager earnings, platform fees, and payout holds are recorded in platform ledgers.'],
-    ['Manager responsibilities', 'Managers must provide roadworthy cars, accurate listings, valid ownership details, clean interiors, timely handover, and truthful condition reporting.'],
+    ['Manager responsibilities', 'Managers must provide roadworthy vehicles, accurate listings, valid ownership details, clean interiors, timely handover, and truthful condition reporting.'],
     ['Prohibited uses', 'No illegal transport, subletting, off-road abuse without permission, tampering with tracking, harassment, payment circumvention, or data scraping.'],
   ]} />
 }
@@ -21,7 +21,7 @@ export function PrivacyPage() {
   return <Legal eyebrow="Privacy" title="Privacy Policy" intro="How the clone collects, uses, shares, and protects platform data." sections={[
     ['Data collection', 'We collect profile details, contact information, KYC documents, booking records, payment ledger data, support messages, car listings, reviews, and usage analytics.'],
     ['Usage', 'Data is used to verify identity, process bookings, calculate pricing, manage payouts, prevent abuse, personalize search, send notifications, and improve operations.'],
-    ['Sharing', 'Relevant trip details are shared between guest and manager. Admins can access operational data. Service providers may process email, storage, analytics, and infrastructure events.'],
+    ['Sharing', 'Relevant trip details are shared between customer and manager. Admins can access operational data. Service providers may process email, storage, analytics, and infrastructure events.'],
     ['Security', 'Access controls, token authentication, rate limits, and separated SQL/Mongo stores reduce risk, but users should protect passwords and devices.'],
     ['Cookies', 'Local storage and browser cookies may keep authentication state, preferences, search state, and analytics identifiers.'],
     ['Rights', 'Users can request profile updates, account review, support history, and deletion where operational/legal retention allows.'],

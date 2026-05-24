@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Bell, CalendarDays, Car, Clock3, Copy, LifeBuoy, Route, ShieldCheck, Wallet } from 'lucide-react'
+import { Bell, CalendarDays, Car as Vehicle, Clock3, Copy, LifeBuoy, Route, ShieldCheck, Wallet } from 'lucide-react'
 import { Helmet } from 'react-helmet-async'
 import { Link } from 'react-router-dom'
 import { differenceInCalendarDays, formatDistanceToNow, parseISO } from 'date-fns'
@@ -42,7 +42,7 @@ export default function DashboardPage() {
   const firstName = useMemo(() => (profile?.user?.full_name || user?.full_name || 'there').split(' ')[0], [profile, user])
   const active = bookings.filter((booking) => booking.status === 'active')
   const upcoming = bookings.filter((booking) => ['pending', 'confirmed', 'approved'].includes(booking.status)).slice(0, 3)
-  const completed = Number(profile?.total_trips_as_guest || bookings.filter((booking) => booking.status === 'completed').length)
+  const completed = Number(profile?.total_trips_as_customer || bookings.filter((booking) => booking.status === 'completed').length)
 
   return (
     <main className="min-h-screen bg-[#F7F7F8] text-zinc-950">
@@ -62,7 +62,7 @@ export default function DashboardPage() {
             </section>
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <Stat icon={Car} label="Active Rentals" value={active.length} />
+              <Stat icon={Vehicle} label="Active Rentals" value={active.length} />
               <Stat icon={CalendarDays} label="Upcoming Rentals" value={upcoming.length} />
               <Stat icon={ShieldCheck} label="Completed Trips" value={completed} />
               <Stat icon={Wallet} label="Wallet Balance" value={moneyLabel(profile?.wallet_balance || 0)} to="/customer/wallet" action="Add Money" />

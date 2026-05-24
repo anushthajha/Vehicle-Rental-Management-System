@@ -1,11 +1,11 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
-import { BarChart3, CalendarDays, Car, ClipboardList, Gauge, Headphones, Plus, UserRound, Wallet } from 'lucide-react'
+import { BarChart3, CalendarDays, Car as Vehicle, ClipboardList, Gauge, Headphones, Plus, UserRound, Wallet } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
 const links = [
   { to: '/manager/dashboard', label: 'Dashboard', icon: Gauge },
-  { to: '/manager/vehicles', label: 'My Vehicles', icon: Car },
+  { to: '/manager/vehicles', label: 'My Vehicles', icon: Vehicle },
   { to: '/manager/vehicles/add', label: 'Add Vehicle', icon: Plus },
   { to: '/manager/bookings', label: 'Bookings', icon: ClipboardList },
   { to: '/manager/availability', label: 'Availability', icon: CalendarDays },

@@ -1,5 +1,5 @@
 import React from 'react'
-import { Car, ShieldCheck } from 'lucide-react'
+import { Car as Vehicle, ShieldCheck } from 'lucide-react'
 
 export default function AuthLayout({ children, compact = false }) {
   if (compact) {
@@ -22,7 +22,7 @@ export default function AuthLayout({ children, compact = false }) {
         <div className="relative flex h-full flex-col justify-between p-12 text-white">
           <div className="flex items-center gap-3 text-xl font-black">
             <span className="grid h-11 w-11 place-items-center rounded-md bg-sigfleet">
-              <Car size={24} />
+              <Vehicle size={24} />
             </span>
             SigFleet
           </div>

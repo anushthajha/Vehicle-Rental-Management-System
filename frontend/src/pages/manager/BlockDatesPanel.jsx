@@ -4,12 +4,12 @@ import api from '../../services/api'
 
 const reasons = ['Maintenance', 'Personal Use', 'Repair', 'Inspection', 'Other']
 
-export default function BlockDatesPanel({ cars = [], vehicleId = '', initialBlocks = [], onBlocksChange }) {
-  const [selected, setSelected] = useState(vehicleId || cars[0]?.id || '')
+export default function BlockDatesPanel({ vehicles = [], vehicleId = '', initialBlocks = [], onBlocksChange }) {
+  const [selected, setSelected] = useState(vehicleId || vehicles[0]?.id || '')
   const [blocks, setBlocks] = useState(initialBlocks)
   const [form, setForm] = useState({ blocked_from: '', blocked_to: '', reason: 'Maintenance', note: '' })
 
-  useEffect(() => setSelected(vehicleId || cars[0]?.id || ''), [vehicleId, cars])
+  useEffect(() => setSelected(vehicleId || vehicles[0]?.id || ''), [vehicleId, vehicles])
   useEffect(() => setBlocks(initialBlocks), [initialBlocks])
 
   async function loadBlocks(id = selected) {
@@ -40,7 +40,7 @@ export default function BlockDatesPanel({ cars = [], vehicleId = '', initialBloc
     <section className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
       <h2 className="text-xl font-black text-zinc-950">Block Dates</h2>
       <form onSubmit={addBlock} className="mt-4 grid gap-3">
-        {cars.length > 0 && <select value={selected} onChange={(event) => { setSelected(event.target.value); loadBlocks(event.target.value) }} className="input"><option value="">Select vehicle</option>{cars.map((car) => <option key={car.id} value={car.id}>{car.title}</option>)}</select>}
+        {vehicles.length > 0 && <select value={selected} onChange={(event) => { setSelected(event.target.value); loadBlocks(event.target.value) }} className="input"><option value="">Select vehicle</option>{vehicles.map((car) => <option key={car.id} value={car.id}>{car.title}</option>)}</select>}
         <div className="grid gap-3 sm:grid-cols-2">
           <input type="datetime-local" value={form.blocked_from} onChange={(event) => setForm((current) => ({ ...current, blocked_from: event.target.value }))} className="input" required />
           <input type="datetime-local" value={form.blocked_to} onChange={(event) => setForm((current) => ({ ...current, blocked_to: event.target.value }))} className="input" required />

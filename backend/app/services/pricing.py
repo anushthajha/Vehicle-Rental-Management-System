@@ -68,7 +68,7 @@ def calculate_booking_price(
     security_deposit = float(car.security_deposit)
 
     total_amount = taxable + insurance_amount + platform_fee
-    host_earnings = taxable + insurance_amount - platform_fee
+    manager_earnings = taxable + insurance_amount - platform_fee
 
     return {
         "base_amount": round(base_amount, 2),
@@ -79,7 +79,7 @@ def calculate_booking_price(
         "platform_fee": round(platform_fee, 2),
         "security_deposit": security_deposit,
         "total_amount": round(total_amount, 2),
-        "host_earnings": round(host_earnings, 2),
+        "manager_earnings": round(manager_earnings, 2),
         "duration_hours": round(total_hours, 2),
         "duration_days": round(total_days, 2),
         "coupon_code": coupon_code,

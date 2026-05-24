@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.booking import Booking
-from app.models.car import Car, CarImage
-from app.models.host import ManagerProfile
+from app.models.vehicle import Vehicle, VehicleImage
+from app.models.manager import ManagerProfile
 from app.models.user import User
 from app.services.booking_flow import money
 from app.utils.auth import require_vehicle_manager
@@ -88,36 +88,36 @@ async def update_manager_profile(payload: ManagerProfileUpdate, current_user: Us
 async def manager_stats(current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     now = datetime.utcnow()
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    total_vehicles = await db.scalar(select(func.count()).select_from(Car).where(Car.managerId == current_user.id)) or 0
+    total_vehicles = await db.scalar(select(func.count()).select_from(Vehicle).where(Vehicle.manager_id == current_user.id)) or 0
     active_vehicles = await db.scalar(
-        select(func.count()).select_from(Car).where(Car.managerId == current_user.id, Car.is_available.is_(True), Car.is_approved.is_(True))
+        select(func.count()).select_from(Vehicle).where(Vehicle.manager_id == current_user.id, Vehicle.is_available.is_(True), Vehicle.is_approved.is_(True))
     ) or 0
-    total_bookings = await db.scalar(select(func.count()).select_from(Booking).where(Booking.host_id == current_user.id)) or 0
-    pending_requests = await db.scalar(select(func.count()).select_from(Booking).where(Booking.host_id == current_user.id, Booking.status == "pending")) or 0
-    active_rentals = await db.scalar(select(func.count()).select_from(Booking).where(Booking.host_id == current_user.id, Booking.status == "active")) or 0
-    completed_rentals = await db.scalar(select(func.count()).select_from(Booking).where(Booking.host_id == current_user.id, Booking.status == "completed")) or 0
+    total_bookings = await db.scalar(select(func.count()).select_from(Booking).where(Booking.manager_id == current_user.id)) or 0
+    pending_requests = await db.scalar(select(func.count()).select_from(Booking).where(Booking.manager_id == current_user.id, Booking.status == "pending")) or 0
+    active_rentals = await db.scalar(select(func.count()).select_from(Booking).where(Booking.manager_id == current_user.id, Booking.status == "active")) or 0
+    completed_rentals = await db.scalar(select(func.count()).select_from(Booking).where(Booking.manager_id == current_user.id, Booking.status == "completed")) or 0
     total_revenue = await db.scalar(
-        select(func.coalesce(func.sum(Booking.host_earnings), 0)).where(Booking.host_id == current_user.id, Booking.status == "completed")
+        select(func.coalesce(func.sum(Booking.manager_earnings), 0)).where(Booking.manager_id == current_user.id, Booking.status == "completed")
     ) or Decimal("0")
     this_month_revenue = await db.scalar(
-        select(func.coalesce(func.sum(Booking.host_earnings), 0)).where(
-            Booking.host_id == current_user.id,
+        select(func.coalesce(func.sum(Booking.manager_earnings), 0)).where(
+            Booking.manager_id == current_user.id,
             Booking.status == "completed",
             Booking.actual_return_time >= month_start,
         )
     ) or Decimal("0")
-    approved = await db.scalar(select(func.count()).select_from(Booking).where(Booking.host_id == current_user.id, Booking.status.in_(("confirmed", "active", "completed")))) or 0
-    rejected = await db.scalar(select(func.count()).select_from(Booking).where(Booking.host_id == current_user.id, Booking.status == "rejected")) or 0
+    approved = await db.scalar(select(func.count()).select_from(Booking).where(Booking.manager_id == current_user.id, Booking.status.in_(("confirmed", "active", "completed")))) or 0
+    rejected = await db.scalar(select(func.count()).select_from(Booking).where(Booking.manager_id == current_user.id, Booking.status == "rejected")) or 0
     decided = approved + rejected
     acceptance_rate = round((approved / decided) * 100, 2) if decided else 0
-    avg_vehicle_rating = await db.scalar(select(func.coalesce(func.avg(Car.average_rating), 0)).where(Car.managerId == current_user.id)) or 0
+    avg_vehicle_rating = await db.scalar(select(func.coalesce(func.avg(Vehicle.average_rating), 0)).where(Vehicle.manager_id == current_user.id)) or 0
     recent_rows = (
         await db.execute(
-            select(Booking, Car.title, CarImage.image_url, User.full_name)
-            .join(Car, Car.id == Booking.car_id)
-            .join(User, User.id == Booking.guest_id)
-            .outerjoin(CarImage, (CarImage.car_id == Car.id) & (CarImage.is_primary.is_(True)))
-            .where(Booking.host_id == current_user.id)
+            select(Booking, Vehicle.title, VehicleImage.image_url, User.full_name)
+            .join(Vehicle, Vehicle.id == Booking.vehicle_id)
+            .join(User, User.id == Booking.customer_id)
+            .outerjoin(VehicleImage, (VehicleImage.vehicle_id == Vehicle.id) & (VehicleImage.is_primary.is_(True)))
+            .where(Booking.manager_id == current_user.id)
             .order_by(Booking.created_at.desc())
             .limit(5)
         )
@@ -128,9 +128,9 @@ async def manager_stats(current_user: User = Depends(require_vehicle_manager), d
                 func.month(Booking.created_at),
                 func.sum(case((Booking.status.in_(("confirmed", "active", "completed")), 1), else_=0)),
                 func.sum(case((Booking.status == "rejected", 1), else_=0)),
-                func.coalesce(func.sum(case((Booking.status == "completed", Booking.host_earnings), else_=0)), 0),
+                func.coalesce(func.sum(case((Booking.status == "completed", Booking.manager_earnings), else_=0)), 0),
             )
-            .where(Booking.host_id == current_user.id, Booking.created_at >= now - timedelta(days=185))
+            .where(Booking.manager_id == current_user.id, Booking.created_at >= now - timedelta(days=185))
             .group_by(func.month(Booking.created_at))
         )
     ).all()
@@ -155,14 +155,14 @@ async def manager_stats(current_user: User = Depends(require_vehicle_manager), d
                 "id": booking.id,
                 "booking_ref": booking.booking_ref,
                 "status": booking.status,
-                "customer_name": guest_name,
+                "customer_name": customer_name,
                 "vehicle": title,
                 "primary_image_url": image,
                 "pickup_datetime": _dt(booking.pickup_datetime),
                 "return_datetime": _dt(booking.return_datetime),
                 "total_amount": money(booking.total_amount),
-                "manager_earnings": money(booking.host_earnings),
+                "manager_earnings": money(booking.manager_earnings),
             }
-            for booking, title, image, guest_name in recent_rows
+            for booking, title, image, customer_name in recent_rows
         ],
     }

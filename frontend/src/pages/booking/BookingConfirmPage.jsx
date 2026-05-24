@@ -26,7 +26,7 @@ export default function BookingConfirmPage() {
   const [insurance, setInsurance] = useState(params.get('insurance') || location.state?.insurance_plan || 'standard')
   const [coupon, setCoupon] = useState('')
   const [appliedCoupon, setAppliedCoupon] = useState('')
-  const [guestNotes, setGuestNotes] = useState('')
+  const [customerNotes, setCustomerNotes] = useState('')
   const [preview, setPreview] = useState(null)
   const [couponState, setCouponState] = useState('empty')
   const [loading, setLoading] = useState(true)
@@ -44,7 +44,7 @@ export default function BookingConfirmPage() {
     if (!car) return
     async function loadPreview() {
       const response = await api.post('/bookings/preview', {
-        car_id: carId,
+        vehicle_id: carId,
         pickup_datetime: pickup.toISOString(),
         return_datetime: returnAt.toISOString(),
         insurance_plan: insurance,
@@ -81,12 +81,12 @@ export default function BookingConfirmPage() {
     setError('')
     try {
       const response = await api.post('/bookings/', {
-        car_id: carId,
+        vehicle_id: carId,
         pickup_datetime: pickup.toISOString(),
         return_datetime: returnAt.toISOString(),
         insurance_plan: insurance,
         coupon_code: appliedCoupon || undefined,
-        guest_notes: guestNotes,
+        customer_notes: customerNotes,
       })
       navigate(`/booking/pay/${response.data.booking_id}`, { state: response.data })
     } catch (err) {
@@ -148,7 +148,7 @@ export default function BookingConfirmPage() {
             <div className="flex justify-between border-t border-zinc-200 pt-3 text-xl font-black text-zinc-950"><span>Total</span><span>₹{formatMoney(breakdown.total_amount)}</span></div>
             <p className="text-sm font-bold text-zinc-500">Security deposit: ₹{formatMoney(breakdown.security_deposit || car.security_deposit || 500)} refundable</p>
           </div>
-          <textarea className="input mt-5 min-h-24" value={guestNotes} onChange={(event) => setGuestNotes(event.target.value)} placeholder="Any specific instructions for the manager?" />
+          <textarea className="input mt-5 min-h-24" value={customerNotes} onChange={(event) => setCustomerNotes(event.target.value)} placeholder="Any specific instructions for the manager?" />
           {!kycOk && <div className="mt-4 flex gap-2 rounded-md bg-amber-50 p-3 text-sm font-bold text-amber-800"><AlertTriangle size={18} /> Complete KYC before booking.</div>}
           {!availability.available && <p className="mt-3 rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">{availability.reason}</p>}
           {error && <p className="mt-3 rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p>}
@@ -156,7 +156,7 @@ export default function BookingConfirmPage() {
             {submitting && <Loader2 size={18} className="animate-spin" />} Confirm & Proceed
           </button>
           <button onClick={() => setPolicyOpen(!policyOpen)} className="mt-4 text-sm font-black text-zinc-700">Cancellation policy</button>
-          {policyOpen && <p className="mt-2 text-sm leading-6 text-zinc-600">Guest cancellations get 90% refund before 48 hours, 50% refund between 24 and 48 hours, and no refund within 24 hours. Manager cancellations are fully refunded.</p>}
+          {policyOpen && <p className="mt-2 text-sm leading-6 text-zinc-600">Customer cancellations get 90% refund before 48 hours, 50% refund between 24 and 48 hours, and no refund within 24 hours. Manager cancellations are fully refunded.</p>}
         </aside>
       </section>
     </main>

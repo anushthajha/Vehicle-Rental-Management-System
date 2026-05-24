@@ -21,7 +21,7 @@ const INSURANCE = [
   { key: 'platinum', label: 'Platinum', rate: 0.12, text: 'Full coverage + roadside' },
 ]
 
-export default function CarDetailPage() {
+export default function VehicleDetailPage() {
   const { carId } = useParams()
   const { user } = useAuthStore()
   const [car, setCar] = useState(null)
@@ -67,7 +67,7 @@ export default function CarDetailPage() {
       setReviews(response.data)
       setReviewPage(1)
     })
-    api.get('/vehicles/', { params: { city: car.location_city, category_id: car.category_id, exclude: car.id, limit: 4 } }).then((response) => setSimilar(response.data.cars || []))
+    api.get('/vehicles/', { params: { city: car.location_city, category_id: car.category_id, exclude: car.id, limit: 4 } }).then((response) => setSimilar(response.data.vehicles || []))
   }, [car, reviewFilter])
 
   if (loading) {
@@ -102,7 +102,7 @@ export default function CarDetailPage() {
               <p className="truncate font-black text-zinc-950">{car.title}</p>
               <p className="text-sm font-bold text-zinc-500">₹{formatMoney(car.price_per_day)}/day</p>
             </div>
-            <button onClick={() => setBookingOpen(true)} className="rounded-md bg-sigfleet px-4 py-2 font-black text-white">Book Now</button>
+            <button onClick={() => setBookingOpen(true)} className="rounded-md bg-sigfleet px-4 py-2 font-black text-white">Rent Now</button>
           </div>
         </div>
       )}
@@ -118,7 +118,7 @@ export default function CarDetailPage() {
           <ManagerSection car={car} />
           <ReviewsSection data={reviews} filter={reviewFilter} setFilter={setReviewFilter} onMore={loadMoreReviews} />
           <LocationMap car={car} />
-          <SimilarCars cars={similar} />
+          <SimilarCars vehicles={similar} />
         </section>
 
         <div className="hidden lg:block">
@@ -134,7 +134,7 @@ export default function CarDetailPage() {
             <p className="text-xl font-black text-zinc-950">₹{formatMoney(car.price_per_day)}<span className="text-sm font-bold text-zinc-500">/day</span></p>
             <p className="text-xs font-bold text-zinc-500">Free cancellation before pickup</p>
           </div>
-          <button onClick={() => setBookingOpen(true)} className="rounded-md bg-sigfleet px-5 py-3 font-black text-white">Book Now</button>
+          <button onClick={() => setBookingOpen(true)} className="rounded-md bg-sigfleet px-5 py-3 font-black text-white">Rent Now</button>
         </div>
       </div>
 
@@ -153,7 +153,7 @@ export default function CarDetailPage() {
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-50 bg-black/90" />
           <Dialog.Content className="fixed inset-4 z-50">
-            <Dialog.Title className="sr-only">Car photos</Dialog.Title>
+            <Dialog.Title className="sr-only">Vehicle photos</Dialog.Title>
             <button onClick={() => setLightboxOpen(false)} className="absolute right-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-full bg-white text-zinc-950"><X size={20} /></button>
             <ImageGallery items={galleryItems} startIndex={activeImage} showFullscreenButton={false} showPlayButton={false} />
           </Dialog.Content>
@@ -173,7 +173,7 @@ function HeroGallery({ images, activeImage, setActiveImage, onOpen }) {
       <div className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 py-3">
         {images.map((image, index) => (
           <button key={image.id || index} onClick={() => setActiveImage(index)} className={`h-20 w-32 shrink-0 overflow-hidden rounded-md border-2 ${index === activeImage ? 'border-sigfleet' : 'border-transparent'}`}>
-            <img src={image.thumb_url || image.image_url} alt={`Car gallery thumbnail ${index + 1}`} loading="lazy" decoding="async" width="160" height="100" className="h-full w-full object-cover" />
+            <img src={image.thumb_url || image.image_url} alt={`Vehicle gallery thumbnail ${index + 1}`} loading="lazy" decoding="async" width="160" height="100" className="h-full w-full object-cover" />
           </button>
         ))}
       </div>
@@ -189,7 +189,7 @@ function CarHeader({ car }) {
     const next = !saved
     setSaved(next)
     if (user) {
-      if (next) await api.post('/wishlist/', { car_id: car.id })
+      if (next) await api.post('/wishlist/', { vehicle_id: car.id })
       else await api.delete(`/wishlist/${car.id}`)
     } else if (next) saveLocalWishlistCar(car)
     else removeLocalWishlistCar(car.id)
@@ -315,7 +315,7 @@ function BookingWidget({ car, user, borderless = false }) {
         to={`/booking/confirm/${car.id}?pickup=${encodeURIComponent(pickup.toISOString())}&return=${encodeURIComponent(returnAt.toISOString())}&insurance=${insurance}`}
         className={`mt-4 block w-full rounded-md px-5 py-3 text-center font-black text-white ${availability.available ? 'bg-sigfleet' : 'pointer-events-none bg-zinc-300'}`}
       >
-        Book Now
+        Rent Now
       </Link>
     </aside>
   )
@@ -393,7 +393,7 @@ function ReviewsSection({ data, filter, setFilter, onMore }) {
 }
 
 function ReviewCard({ review }) {
-  const name = review.reviewer_name || 'Guest'
+  const name = review.reviewer_name || 'Customer'
   return <article className="rounded-md border border-zinc-200 bg-white p-4"><div className="flex gap-3"><img src={review.reviewer_photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}`} alt={`${name} profile photo`} loading="lazy" decoding="async" width="44" height="44" className="h-11 w-11 rounded-full" /><div><p className="font-black text-zinc-950">{name}</p><p className="text-sm font-bold text-zinc-500">{relativeDate(review.created_at)}</p></div></div><p className="mt-3 font-black text-amber-500">{'★'.repeat(review.rating || 0)}</p><p className="mt-2 leading-6 text-zinc-700">{review.body || review.title || 'Great trip.'}</p>{review.manager_reply && <div className="mt-3 rounded-md bg-zinc-50 p-3 text-sm"><p className="font-black text-zinc-950">Response from manager</p><p className="mt-1 text-zinc-600">{review.manager_reply}</p></div>}<span className="mt-3 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-xs font-black text-emerald-700"><Check size={13} /> Verified trip</span></article>
 }
 
@@ -402,7 +402,7 @@ function DetailError({ message, onRetry }) {
     <main id="main-content" className="grid min-h-screen place-items-center bg-zinc-50 p-6">
       <div className="max-w-md rounded-lg border border-red-200 bg-white p-8 text-center shadow-sm">
         <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-red-50 text-sigfleet"><AlertTriangle size={36} /></div>
-        <h1 className="mt-5 text-2xl font-black text-zinc-950">Car details unavailable</h1>
+        <h1 className="mt-5 text-2xl font-black text-zinc-950">Vehicle details unavailable</h1>
         <p className="mt-2 font-semibold text-zinc-600">{message}</p>
         <button onClick={onRetry} className="mt-5 rounded-md bg-sigfleet px-5 py-3 font-black text-white">Retry</button>
       </div>
@@ -415,9 +415,9 @@ function LocationMap({ car }) {
   return <Section title="Pickup Area"><div className="h-80 overflow-hidden rounded-lg border border-zinc-200"><MapContainer center={center} zoom={14} className="h-full w-full"><TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" /><Circle center={center} radius={200} pathOptions={{ color: '#e31837', fillColor: '#e31837', fillOpacity: 0.12 }} /><Marker position={center} icon={new DivIcon({ className: '', html: '<div class="car-marker">🚗</div>', iconSize: [40, 40] })} /></MapContainer></div><p className="mt-3 flex items-center gap-2 text-sm font-bold text-zinc-500"><MapPin size={16} /> Exact pickup address shared after booking confirmation</p></Section>
 }
 
-function SimilarCars({ cars }) {
-  if (!cars.length) return null
-  return <Section title="Similar Cars"><div className="flex gap-4 overflow-x-auto pb-2 lg:grid lg:grid-cols-4">{cars.map((car) => <div key={car.id} className="w-80 shrink-0 lg:w-auto"><VehicleCard car={car} /></div>)}</div></Section>
+function SimilarCars({ vehicles }) {
+  if (!vehicles.length) return null
+  return <Section title="Similar Cars"><div className="flex gap-4 overflow-x-auto pb-2 lg:grid lg:grid-cols-4">{vehicles.map((car) => <div key={car.id} className="w-80 shrink-0 lg:w-auto"><VehicleCard car={car} /></div>)}</div></Section>
 }
 
 function Section({ title, children }) {

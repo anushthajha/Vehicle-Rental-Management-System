@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.car import Car
+from app.models.vehicle import Vehicle
 from app.redis import get_redis
 from app.services.availability import AvailabilityService
 from app.services.pricing import calculate_booking_price
@@ -43,7 +43,7 @@ async def check_availability(vehicle_id: str, pickup_date: str, return_date: str
     available, reason = await AvailabilityService.check_vehicle_available(vehicle_id, pickup, return_at, db)
     response = {"available": available, "reason": reason}
     if available:
-        car = await db.scalar(select(Car).where(Car.id == vehicle_id))
+        car = await db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id))
         breakdown = calculate_booking_price(car, pickup, return_at, insurance_plan)
         breakdown["duration"] = AvailabilityService.calculate_rental_duration(pickup, return_at)
         response["price_breakdown"] = breakdown

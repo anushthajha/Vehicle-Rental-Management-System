@@ -1,12 +1,12 @@
 import React, { lazy, Suspense, useEffect } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { AdminRoute, CustomerRoute, GuestRoute, PrivateRoute, VehicleManagerRoute } from './components/RouteGuards'
+import { AdminRoute, CustomerRoute, LoggedOutRoute, PrivateRoute, VehicleManagerRoute } from './components/RouteGuards'
 import { AuthProvider } from './context/AuthContext'
 
 const HomePage = lazy(() => import('./pages/HomePage'))
 const VehicleListingPage = lazy(() => import('./pages/VehicleListingPage'))
-const CarDetailPage = lazy(() => import('./pages/CarDetailPage'))
+const VehicleDetailPage = lazy(() => import('./pages/VehicleDetailPage'))
 const CityPage = lazy(() => import('./pages/CityPage'))
 const WishlistPage = lazy(() => import('./pages/WishlistPage'))
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'))
@@ -46,7 +46,7 @@ const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage')
 const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage'))
 const AdminVehicleManagersPage = lazy(() => import('./pages/admin/AdminVehicleManagersPage'))
 const CreateManagerPage = lazy(() => import('./pages/admin/CreateManagerPage'))
-const AdminCarsPage = lazy(() => import('./pages/admin/AdminCarsPage'))
+const AdminVehiclesPage = lazy(() => import('./pages/admin/AdminVehiclesPage'))
 const AdminCategoriesPage = lazy(() => import('./pages/admin/AdminCategoriesPage'))
 const AdminKYCPage = lazy(() => import('./pages/admin/AdminKYCPage'))
 const AdminSupportPage = lazy(() => import('./pages/admin/AdminSupportPage'))
@@ -92,13 +92,13 @@ export default function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/vehicles" element={<VehicleListingPage />} />
-            <Route path="/search" element={<Navigate to="/vehicles" replace />} />
-            <Route path="/vehicles/:carId" element={<CarDetailPage />} />
+            <Route path="/vehicles" element={<Navigate to="/vehicles" replace />} />
+            <Route path="/vehicles/:carId" element={<VehicleDetailPage />} />
             <Route path="/categories/:categorySlug" element={<VehicleListingPage />} />
             <Route path="/vehicle-types/:typeSlug" element={<VehicleListingPage />} />
             <Route path="/cities/:city" element={<CityPage />} />
             <Route path="/wishlist" element={<WishlistPage />} />
-            <Route element={<GuestRoute />}>
+            <Route element={<LoggedOutRoute />}>
               <Route path="/auth/login" element={<LoginPage />} />
               <Route path="/auth/register" element={<RegisterPage />} />
               <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
@@ -150,8 +150,8 @@ export default function App() {
                 <Route path="earnings" element={<ManagerEarningsPage />} />
                 <Route path="profile" element={<ManagerProfilePage />} />
                 <Route path="payouts" element={<PayoutsPage />} />
-                <Route path="my-cars" element={<Navigate to="/manager/vehicles" replace />} />
-                <Route path="list-car" element={<Navigate to="/manager/vehicles/add" replace />} />
+                <Route path="my-vehicles" element={<Navigate to="/manager/vehicles" replace />} />
+                <Route path="add-vehicle" element={<Navigate to="/manager/vehicles/add" replace />} />
                 <Route path="active-trips" element={<Navigate to="/manager/trips/active" replace />} />
               </Route>
             </Route>
@@ -163,8 +163,8 @@ export default function App() {
                 <Route path="users" element={<AdminUsersPage />} />
                 <Route path="users/managers" element={<AdminVehicleManagersPage />} />
                 <Route path="users/managers/create" element={<CreateManagerPage />} />
-                <Route path="vehicles" element={<AdminCarsPage />} />
-                <Route path="cars" element={<Navigate to="/admin/vehicles" replace />} />
+                <Route path="vehicles" element={<AdminVehiclesPage />} />
+                <Route path="vehicles" element={<Navigate to="/admin/vehicles" replace />} />
                 <Route path="categories" element={<AdminCategoriesPage />} />
                 <Route path="kyc" element={<AdminKYCPage />} />
                 <Route path="bookings" element={<AdminBookingsPage />} />

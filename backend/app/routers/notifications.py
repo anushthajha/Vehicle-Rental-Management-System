@@ -11,7 +11,7 @@ from app.utils.auth import get_current_active_user
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
-VALID_TYPES = {"booking", "payment", "review", "kyc", "promotion", "system", "host"}
+VALID_TYPES = {"booking", "payment", "review", "kyc", "promotion", "system", "manager"}
 
 
 def _object_id(notification_id: str) -> ObjectId:

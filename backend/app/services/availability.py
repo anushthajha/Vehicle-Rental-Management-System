@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.booking import Booking
-from app.models.car import Car, CarAvailabilityBlock
+from app.models.vehicle import Vehicle, VehicleAvailabilityBlock
 from app.models.user import User
 
 
@@ -22,14 +22,14 @@ class AvailabilityService:
         db: AsyncSession,
         exclude_booking_id: str | None = None,
     ) -> tuple[bool, str]:
-        vehicle = await db.scalar(select(Car).where(Car.id == vehicle_id))
+        vehicle = await db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id))
         if vehicle is None or not vehicle.is_available:
             return False, "Vehicle not available"
         if not vehicle.is_approved:
             return False, "Vehicle pending approval"
 
         booking_query = select(Booking.id).where(
-            Booking.car_id == vehicle_id,
+            Booking.vehicle_id == vehicle_id,
             Booking.status.in_(BLOCKING_BOOKING_STATUSES),
             Booking.pickup_datetime < return_date,
             Booking.return_datetime > pickup_date,
@@ -40,11 +40,11 @@ class AvailabilityService:
             return False, "Vehicle is booked during this period"
 
         block = await db.scalar(
-            select(CarAvailabilityBlock.id)
+            select(VehicleAvailabilityBlock.id)
             .where(
-                CarAvailabilityBlock.car_id == vehicle_id,
-                CarAvailabilityBlock.blocked_from < return_date,
-                CarAvailabilityBlock.blocked_to > pickup_date,
+                VehicleAvailabilityBlock.vehicle_id == vehicle_id,
+                VehicleAvailabilityBlock.blocked_from < return_date,
+                VehicleAvailabilityBlock.blocked_to > pickup_date,
             )
             .limit(1)
         )
@@ -60,19 +60,19 @@ class AvailabilityService:
 
         blocks = (
             await db.execute(
-                select(CarAvailabilityBlock).where(
-                    CarAvailabilityBlock.car_id == vehicle_id,
-                    CarAvailabilityBlock.blocked_from < month_end,
-                    CarAvailabilityBlock.blocked_to > month_start,
+                select(VehicleAvailabilityBlock).where(
+                    VehicleAvailabilityBlock.vehicle_id == vehicle_id,
+                    VehicleAvailabilityBlock.blocked_from < month_end,
+                    VehicleAvailabilityBlock.blocked_to > month_start,
                 )
             )
         ).scalars().all()
         bookings = (
             await db.execute(
                 select(Booking, User.full_name)
-                .join(User, User.id == Booking.guest_id)
+                .join(User, User.id == Booking.customer_id)
                 .where(
-                    Booking.car_id == vehicle_id,
+                    Booking.vehicle_id == vehicle_id,
                     Booking.status.in_(BLOCKING_BOOKING_STATUSES),
                     Booking.pickup_datetime < month_end,
                     Booking.return_datetime > month_start,
@@ -94,12 +94,12 @@ class AvailabilityService:
                 if block.blocked_from.date() <= current <= block.blocked_to.date():
                     status = "blocked"
                     break
-            for booking, guest_name in bookings:
+            for booking, customer_name in bookings:
                 if booking.pickup_datetime.date() <= current <= booking.return_datetime.date():
                     status = "pending" if booking.status == "pending" else "booked"
                     booking_id = booking.id
                     booking_ref = booking.booking_ref
-                    customer_name = guest_name
+                    customer_name = customer_name
                     break
             days.append({"date": current.isoformat(), "status": status, "booking_id": booking_id, "booking_ref": booking_ref, "customer_name": customer_name})
         return days
@@ -130,15 +130,15 @@ class AvailabilityService:
         conflicts = (
             await db.execute(
                 select(Booking.pickup_datetime, Booking.return_datetime)
-                .where(Booking.car_id == vehicle_id, Booking.status.in_(BLOCKING_BOOKING_STATUSES), Booking.return_datetime > from_date)
+                .where(Booking.vehicle_id == vehicle_id, Booking.status.in_(BLOCKING_BOOKING_STATUSES), Booking.return_datetime > from_date)
                 .order_by(Booking.pickup_datetime.asc())
             )
         ).all()
         blocks = (
             await db.execute(
-                select(CarAvailabilityBlock.blocked_from, CarAvailabilityBlock.blocked_to)
-                .where(CarAvailabilityBlock.car_id == vehicle_id, CarAvailabilityBlock.blocked_to > from_date)
-                .order_by(CarAvailabilityBlock.blocked_from.asc())
+                select(VehicleAvailabilityBlock.blocked_from, VehicleAvailabilityBlock.blocked_to)
+                .where(VehicleAvailabilityBlock.vehicle_id == vehicle_id, VehicleAvailabilityBlock.blocked_to > from_date)
+                .order_by(VehicleAvailabilityBlock.blocked_from.asc())
             )
         ).all()
         intervals = sorted([(start, end) for start, end in conflicts + blocks], key=lambda item: item[0])
@@ -159,7 +159,7 @@ class AvailabilityService:
         bookings = (
             await db.execute(
                 select(Booking.pickup_datetime, Booking.return_datetime).where(
-                    Booking.car_id == vehicle_id,
+                    Booking.vehicle_id == vehicle_id,
                     Booking.status.in_(BLOCKING_BOOKING_STATUSES),
                     Booking.pickup_datetime < end,
                     Booking.return_datetime > start,
@@ -168,10 +168,10 @@ class AvailabilityService:
         ).all()
         blocks = (
             await db.execute(
-                select(CarAvailabilityBlock.blocked_from, CarAvailabilityBlock.blocked_to).where(
-                    CarAvailabilityBlock.car_id == vehicle_id,
-                    CarAvailabilityBlock.blocked_from < end,
-                    CarAvailabilityBlock.blocked_to > start,
+                select(VehicleAvailabilityBlock.blocked_from, VehicleAvailabilityBlock.blocked_to).where(
+                    VehicleAvailabilityBlock.vehicle_id == vehicle_id,
+                    VehicleAvailabilityBlock.blocked_from < end,
+                    VehicleAvailabilityBlock.blocked_to > start,
                 )
             )
         ).all()

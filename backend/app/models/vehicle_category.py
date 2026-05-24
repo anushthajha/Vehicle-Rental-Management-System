@@ -16,7 +16,7 @@ class VehicleCategory(TimestampMixin, Base):
     display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-    vehicles = relationship("Car", back_populates="category")
+    vehicles = relationship("Vehicle", back_populates="category")
 
 
 class VehicleType(Base):
@@ -29,4 +29,4 @@ class VehicleType(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[DateTime] = mapped_column(DateTime, default=func.now(), nullable=False)
 
-    vehicles = relationship("Car", back_populates="vehicle_type")
+    vehicles = relationship("Vehicle", back_populates="vehicle_type")

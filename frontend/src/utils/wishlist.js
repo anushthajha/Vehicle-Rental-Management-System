@@ -18,8 +18,8 @@ export function saveLocalWishlistCar(car) {
   ids.add(car.id)
   localStorage.setItem(IDS_KEY, JSON.stringify([...ids]))
 
-  const cars = getLocalWishlistCars().filter((item) => item.id !== car.id)
-  localStorage.setItem(CARS_KEY, JSON.stringify([{ ...car, is_saved: true }, ...cars]))
+  const vehicles = getLocalWishlistCars().filter((item) => item.id !== car.id)
+  localStorage.setItem(CARS_KEY, JSON.stringify([{ ...car, is_saved: true }, ...vehicles]))
 }
 
 export function removeLocalWishlistCar(carId) {

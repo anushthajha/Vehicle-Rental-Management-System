@@ -47,7 +47,7 @@ export default function SearchBar({ className = '', compact = false }) {
 
   function submit(event) {
     event.preventDefault()
-    const keepExisting = location.pathname === '/vehicles' || location.pathname === '/search'
+    const keepExisting = location.pathname === '/vehicles' || location.pathname === '/vehicles'
     const query = new URLSearchParams(keepExisting ? location.search : '')
     if (q.trim()) query.set('q', q.trim())
     else query.delete('q')

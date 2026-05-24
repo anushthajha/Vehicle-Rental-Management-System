@@ -48,7 +48,7 @@ export default function VehicleListingPage() {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const filters = useMemo(() => filtersFromParams(searchParams), [searchParams])
-  const [cars, setCars] = useState([])
+  const [vehicles, setCars] = useState([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(Number(searchParams.get('page') || 1))
   const [pages, setPages] = useState(0)
@@ -109,14 +109,14 @@ export default function VehicleListingPage() {
 
   const histogram = useMemo(() => {
     const buckets = Array.from({ length: 16 }, () => 0)
-    cars.forEach((car) => {
+    vehicles.forEach((car) => {
       const max = Math.max(priceRange.max, 1)
       const index = Math.min(15, Math.floor((Number(car.price_per_day || 0) / max) * 16))
       buckets[index] += 1
     })
     const peak = Math.max(...buckets, 1)
     return buckets.map((value) => (value / peak) * 100)
-  }, [cars, priceRange.max])
+  }, [vehicles, priceRange.max])
 
   const queryKey = useMemo(() => JSON.stringify({ search: location.search, viewMode, mapBounds }), [location.search, mapBounds, viewMode])
 
@@ -144,7 +144,7 @@ export default function VehicleListingPage() {
     setError('')
     try {
       const response = await api.get(`/vehicles/?${buildQuery(nextPage).toString()}`)
-      const nextCars = response.data.vehicles || response.data.cars || []
+      const nextCars = response.data.vehicles || response.data.vehicles || []
       setCars((current) => append ? [...current, ...nextCars] : nextCars)
       setTotal(response.data.total || 0)
       setPage(response.data.page || nextPage)
@@ -202,7 +202,7 @@ export default function VehicleListingPage() {
 
       <div className="mx-auto grid max-w-[1500px] gap-5 px-3 py-5 lg:grid-cols-[300px_1fr]">
         <div className="hidden h-[calc(100vh-132px)] overflow-hidden rounded-lg border border-zinc-200 bg-white lg:block lg:sticky lg:top-32">
-          <FilterSidebar filters={filters} setFilters={updateFilters} cars={cars} histogram={histogram} onClear={clearFilters} activeCount={activeCount} total={total} brandsAvailable={brandsAvailable} brandCounts={brandCounts} priceRange={priceRange} />
+          <FilterSidebar filters={filters} setFilters={updateFilters} vehicles={vehicles} histogram={histogram} onClear={clearFilters} activeCount={activeCount} total={total} brandsAvailable={brandsAvailable} brandCounts={brandCounts} priceRange={priceRange} />
         </div>
 
         <section className="min-w-0">
@@ -231,20 +231,20 @@ export default function VehicleListingPage() {
             <SkeletonGrid />
           ) : error ? (
             <ErrorState message={error} onRetry={() => loadCars(page, false)} />
-          ) : cars.length === 0 ? (
+          ) : vehicles.length === 0 ? (
             <EmptyState onClear={clearFilters} />
           ) : viewMode === 'map' ? (
-            <SearchMap cars={cars} selectedCar={selectedMapCar} onSelect={setSelectedMapCar} onBoundsChange={setMapBounds} />
+            <SearchMap vehicles={vehicles} selectedCar={selectedMapCar} onSelect={setSelectedMapCar} onBoundsChange={setMapBounds} />
           ) : (
             <div className={viewMode === 'grid' ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-3' : 'space-y-4'}>
-              {cars.map((car, index) => (
+              {vehicles.map((car, index) => (
                 <VehicleCard key={`${car.id}-${index}`} car={car} viewMode={viewMode} datesSelected={Boolean(searchParams.get('pickup_date') && searchParams.get('return_date'))} />
               ))}
             </div>
           )}
 
           {loadingMore && <div className="grid h-20 place-items-center"><Loader2 className="animate-spin text-sigfleet" /></div>}
-          {!loading && !error && cars.length > 0 && (
+          {!loading && !error && vehicles.length > 0 && (
             <>
               <div className="mt-6 hidden justify-center gap-2 lg:flex">
                 <Pagination page={page} pages={pages} onPage={goToPage} />
@@ -273,7 +273,7 @@ export default function VehicleListingPage() {
           <Dialog.Content className="fixed inset-x-0 bottom-0 z-50 max-h-[90vh] overflow-hidden rounded-t-2xl bg-white shadow-2xl dark:bg-gray-900">
             <Dialog.Title className="sr-only">Filters</Dialog.Title>
             <button onClick={() => setFilterOpen(false)} className="absolute right-3 top-3 z-20 grid h-9 w-9 place-items-center rounded-full bg-zinc-100"><X size={18} /></button>
-            <FilterSidebar filters={filters} setFilters={updateFilters} cars={cars} histogram={histogram} onClear={clearFilters} activeCount={activeCount} total={total} brandsAvailable={brandsAvailable} brandCounts={brandCounts} priceRange={priceRange} showSort onApply={() => setFilterOpen(false)} />
+            <FilterSidebar filters={filters} setFilters={updateFilters} vehicles={vehicles} histogram={histogram} onClear={clearFilters} activeCount={activeCount} total={total} brandsAvailable={brandsAvailable} brandCounts={brandCounts} priceRange={priceRange} showSort onApply={() => setFilterOpen(false)} />
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
@@ -302,12 +302,12 @@ function Pagination({ page, pages, onPage }) {
   )
 }
 
-function SearchMap({ cars, selectedCar, onSelect, onBoundsChange }) {
+function SearchMap({ vehicles, selectedCar, onSelect, onBoundsChange }) {
   const center = useMemo(() => {
-    const first = cars.find((car) => car.location_lat && car.location_lng)
+    const first = vehicles.find((car) => car.location_lat && car.location_lng)
     return first ? [first.location_lat, first.location_lng] : DEFAULT_CENTER
-  }, [cars])
-  const markerCars = useMemo(() => cars.filter((car) => car.location_lat && car.location_lng), [cars])
+  }, [vehicles])
+  const markerCars = useMemo(() => vehicles.filter((car) => car.location_lat && car.location_lng), [vehicles])
 
   return (
     <div className="relative h-[72vh] overflow-hidden rounded-lg border border-zinc-200 bg-white">

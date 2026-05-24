@@ -150,7 +150,7 @@ async def _serialize_user(db: AsyncSession, user: User) -> dict:
         "role": user.role,
         "is_active": user.is_active,
         "is_verified": user.is_verified,
-        "is_host": user.role == "vehicle_manager",
+        "is_vehicle_manager": user.role == "vehicle_manager",
         "profile_picture": user.profile_picture,
         "kyc_status": kyc_status,
         "is_kyc_verified": kyc_status == "approved",
@@ -262,7 +262,7 @@ async def login(payload: LoginRequest, request: Request, db: AsyncSession = Depe
     user.last_login = datetime.utcnow()
     await db.commit()
 
-    client_ip = request.client.host if request.client else ""
+    client_ip = request.client.manager if request.client else ""
     await create_session(user.id, request.headers.get("user-agent", ""), client_ip)
     return {
         "access_token": access_token,

@@ -93,16 +93,16 @@ async def send_booking_confirmation_email(to_email: str, booking: dict) -> None:
     await _send_html_email(to_email, f"Booking Confirmed — {ref}", _layout("Booking confirmed", body))
 
 
-async def send_booking_request_to_host_email(to_email: str, booking: dict) -> None:
-    car_title = booking.get("car_title", "your car")
+async def send_booking_request_to_manager_email(to_email: str, booking: dict) -> None:
+    vehicle_name = booking.get("vehicle_name", "your vehicle")
     url = f"{settings.FRONTEND_URL}/manager/dashboard"
     body = (
-        f"<p>You have a new booking request for <strong>{escape(car_title)}</strong>.</p>"
-        f"<p><strong>Guest:</strong> {escape(str(booking.get('guest_name', 'Guest')))}</p>"
+        f"<p>You have a new booking request for <strong>{escape(vehicle_name)}</strong>.</p>"
+        f"<p><strong>Customer:</strong> {escape(str(booking.get('customer_name', 'Customer')))}</p>"
         f"{_booking_details(booking)}"
         f"{_button(url, 'Open manager dashboard')}"
     )
-    await _send_html_email(to_email, f"New Booking Request — {car_title}", _layout("New booking request", body))
+    await _send_html_email(to_email, f"New Booking Request — {vehicle_name}", _layout("New booking request", body))
 
 
 async def send_booking_cancelled_email(to_email: str, booking: dict, refund_amount: float) -> None:
@@ -147,8 +147,8 @@ async def send_review_request_email(to_email: str, full_name: str, booking_ref: 
     await _send_html_email(to_email, "How was your SigFleet trip?", _layout("Share your trip feedback", body))
 
 
-async def send_host_payout_email(to_email: str, amount: float) -> None:
-    body = f"<p>Your host payout of <strong>₹{amount:,.2f}</strong> has been processed.</p>"
+async def send_manager_payout_email(to_email: str, amount: float) -> None:
+    body = f"<p>Your manager payout of <strong>₹{amount:,.2f}</strong> has been processed.</p>"
     await _send_html_email(to_email, f"Payout Processed — ₹{amount:,.2f}", _layout("Payout processed", body))
 
 
@@ -170,10 +170,10 @@ async def send_manager_role_update_email(to_email: str, full_name: str, subject:
 
 def _booking_details(booking: dict) -> str:
     return f"""
-    <p><strong>Car:</strong> {escape(str(booking.get("car_title", booking.get("car_name", ""))))}</p>
+    <p><strong>Vehicle:</strong> {escape(str(booking.get("vehicle_name", booking.get("car_name", ""))))}</p>
     <p><strong>Pickup:</strong> {escape(str(booking.get("pickup_date", "")))}</p>
     <p><strong>Return:</strong> {escape(str(booking.get("return_date", "")))}</p>
     <p><strong>Location:</strong> {escape(str(booking.get("location", "")))}</p>
     <p><strong>Total amount:</strong> ₹{escape(str(booking.get("total_amount", "")))}</p>
-    <p><strong>Booking ref:</strong> {escape(str(booking.get("booking_ref", "")))}</p>
+    <p><strong>Rental ID:</strong> {escape(str(booking.get("booking_ref", "")))}</p>
     """

@@ -7,22 +7,22 @@ const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 export default function ManagerAvailabilityPage() {
   const [params] = useSearchParams()
-  const [cars, setCars] = useState([])
+  const [vehicles, setCars] = useState([])
   const [selected, setSelected] = useState(params.get('vehicle') || 'all')
   const [calendar, setCalendar] = useState({})
   const today = new Date()
   const days = useMemo(() => Array.from({ length: new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate() }, (_, index) => new Date(today.getFullYear(), today.getMonth(), index + 1)), [today.getFullYear(), today.getMonth()])
 
   useEffect(() => {
-    api.get('/vehicles/manager/vehicles').then((response) => setCars(response.data.cars || []))
+    api.get('/vehicles/manager/vehicles').then((response) => setCars(response.data.vehicles || []))
   }, [])
 
   useEffect(() => {
-    const targets = selected === 'all' ? cars : cars.filter((car) => car.id === selected)
+    const targets = selected === 'all' ? vehicles : vehicles.filter((car) => car.id === selected)
     Promise.all(targets.map((car) => api.get(`/vehicles/${car.id}/availability`, { params: { year: today.getFullYear(), month: today.getMonth() + 1 } }).then((response) => [car.id, Object.fromEntries((response.data.days || []).map((day) => [day.date, day.status]))]).catch(() => [car.id, {}]))).then((entries) => setCalendar(Object.fromEntries(entries)))
-  }, [cars, selected, today.getFullYear(), today.getMonth()])
+  }, [vehicles, selected, today.getFullYear(), today.getMonth()])
 
-  const visibleCars = selected === 'all' ? cars : cars.filter((car) => car.id === selected)
+  const visibleCars = selected === 'all' ? vehicles : vehicles.filter((car) => car.id === selected)
 
   return (
     <div className="px-4 py-8">
@@ -31,10 +31,10 @@ export default function ManagerAvailabilityPage() {
           <div><p className="text-sm font-black uppercase text-sigfleet">Availability Overview</p><h1 className="text-3xl font-black">Fleet calendar</h1></div>
           <select className="rounded-md border border-zinc-200 bg-white px-3 py-2 font-bold" value={selected} onChange={(event) => setSelected(event.target.value)}>
             <option value="all">All vehicles</option>
-            {cars.map((car) => <option key={car.id} value={car.id}>{car.title}</option>)}
+            {vehicles.map((car) => <option key={car.id} value={car.id}>{car.title}</option>)}
           </select>
         </div>
-        <BlockDatesPanel cars={cars} vehicleId={selected === 'all' ? '' : selected} />
+        <BlockDatesPanel vehicles={vehicles} vehicleId={selected === 'all' ? '' : selected} />
         <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white shadow-sm">
           <div className="grid min-w-[980px]" style={{ gridTemplateColumns: `220px repeat(${days.length}, minmax(34px, 1fr))` }}>
             <div className="sticky left-0 z-10 bg-white p-3 text-xs font-black uppercase text-zinc-500">Vehicle</div>

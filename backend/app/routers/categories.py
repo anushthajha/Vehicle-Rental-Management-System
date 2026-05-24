@@ -8,7 +8,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.car import Car, CarImage
+from app.models.vehicle import Vehicle, VehicleImage
 from app.models.user import User
 from app.models.vehicle_category import VehicleCategory, VehicleType
 from app.redis import get_redis
@@ -104,11 +104,11 @@ async def _ensure_unique_slug(db: AsyncSession, model, slug: str, current_id: st
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Slug already exists")
 
 
-async def _primary_image(db: AsyncSession, car_id: str) -> str | None:
+async def _primary_image(db: AsyncSession, vehicle_id: str) -> str | None:
     return await db.scalar(
-        select(CarImage.image_url)
-        .where(CarImage.car_id == car_id)
-        .order_by(CarImage.is_primary.desc(), CarImage.order_index.asc())
+        select(VehicleImage.image_url)
+        .where(VehicleImage.vehicle_id == vehicle_id)
+        .order_by(VehicleImage.is_primary.desc(), VehicleImage.order_index.asc())
         .limit(1)
     )
 
@@ -124,8 +124,8 @@ async def list_categories(db: AsyncSession = Depends(get_db)):
         pass
     rows = (
         await db.execute(
-            select(VehicleCategory, func.count(Car.id))
-            .outerjoin(Car, Car.category_id == VehicleCategory.id)
+            select(VehicleCategory, func.count(Vehicle.id))
+            .outerjoin(Vehicle, Vehicle.category_id == VehicleCategory.id)
             .where(VehicleCategory.is_active.is_(True))
             .group_by(VehicleCategory.id)
             .order_by(VehicleCategory.display_order.asc(), VehicleCategory.name.asc())
@@ -151,19 +151,19 @@ async def get_category(
         category = await db.scalar(select(VehicleCategory).where(VehicleCategory.slug == category_id))
     if category is None or not category.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
-    conditions = [Car.category_id == category.id, Car.is_approved.is_(True), Car.is_available.is_(True)]
-    total = await db.scalar(select(func.count()).select_from(Car).where(*conditions)) or 0
-    cars = (
+    conditions = [Vehicle.category_id == category.id, Vehicle.is_approved.is_(True), Vehicle.is_available.is_(True)]
+    total = await db.scalar(select(func.count()).select_from(Vehicle).where(*conditions)) or 0
+    vehicles = (
         await db.execute(
-            select(Car)
+            select(Vehicle)
             .where(*conditions)
-            .order_by(Car.created_at.desc())
+            .order_by(Vehicle.created_at.desc())
             .offset((page - 1) * limit)
             .limit(limit)
         )
     ).scalars().all()
     items = []
-    for car in cars:
+    for car in vehicles:
         items.append(
             {
                 "id": car.id,
@@ -209,8 +209,8 @@ async def create_category(payload: CategoryCreateRequest, _: User = Depends(requ
 async def admin_list_categories(_: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
     rows = (
         await db.execute(
-            select(VehicleCategory, func.count(Car.id))
-            .outerjoin(Car, Car.category_id == VehicleCategory.id)
+            select(VehicleCategory, func.count(Vehicle.id))
+            .outerjoin(Vehicle, Vehicle.category_id == VehicleCategory.id)
             .group_by(VehicleCategory.id)
             .order_by(VehicleCategory.display_order.asc(), VehicleCategory.name.asc())
         )
@@ -236,8 +236,8 @@ async def update_category(category_id: str, payload: CategoryRequest, _: User = 
     if changes.get("is_active") is False and category.is_active:
         vehicles = (
             await db.execute(
-                select(Car.id, Car.title)
-                .where(Car.category_id == category.id, Car.is_approved.is_(True), Car.is_available.is_(True))
+                select(Vehicle.id, Vehicle.title)
+                .where(Vehicle.category_id == category.id, Vehicle.is_approved.is_(True), Vehicle.is_available.is_(True))
                 .limit(10)
             )
         ).all()
@@ -260,7 +260,7 @@ async def update_category(category_id: str, payload: CategoryRequest, _: User = 
     await db.commit()
     await db.refresh(category)
     await _clear_cache()
-    count = await db.scalar(select(func.count()).select_from(Car).where(Car.category_id == category.id)) or 0
+    count = await db.scalar(select(func.count()).select_from(Vehicle).where(Vehicle.category_id == category.id)) or 0
     return _category_payload(category, count)
 
 
@@ -274,14 +274,14 @@ async def delete_category(
     category = await db.scalar(select(VehicleCategory).where(VehicleCategory.id == category_id))
     if category is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
-    count = await db.scalar(select(func.count()).select_from(Car).where(Car.category_id == category.id)) or 0
+    count = await db.scalar(select(func.count()).select_from(Vehicle).where(Vehicle.category_id == category.id)) or 0
     if count and not reassign_to_category_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Cannot delete — {count} vehicles use this category. Reassign first.")
     if count:
         replacement = await db.scalar(select(VehicleCategory).where(VehicleCategory.id == reassign_to_category_id, VehicleCategory.id != category.id))
         if replacement is None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Replacement category not found")
-        await db.execute(update(Car).where(Car.category_id == category.id).values(category_id=replacement.id))
+        await db.execute(update(Vehicle).where(Vehicle.category_id == category.id).values(category_id=replacement.id))
     await db.delete(category)
     await db.commit()
     await _clear_cache()
@@ -299,8 +299,8 @@ async def list_vehicle_types(db: AsyncSession = Depends(get_db)):
         pass
     rows = (
         await db.execute(
-            select(VehicleType, func.count(Car.id))
-            .outerjoin(Car, Car.vehicle_type_id == VehicleType.id)
+            select(VehicleType, func.count(Vehicle.id))
+            .outerjoin(Vehicle, Vehicle.vehicle_type_id == VehicleType.id)
             .where(VehicleType.is_active.is_(True))
             .group_by(VehicleType.id)
             .order_by(VehicleType.name.asc())
@@ -332,8 +332,8 @@ async def create_vehicle_type(payload: TypeCreateRequest, _: User = Depends(requ
 async def admin_list_vehicle_types(_: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
     rows = (
         await db.execute(
-            select(VehicleType, func.count(Car.id))
-            .outerjoin(Car, Car.vehicle_type_id == VehicleType.id)
+            select(VehicleType, func.count(Vehicle.id))
+            .outerjoin(Vehicle, Vehicle.vehicle_type_id == VehicleType.id)
             .group_by(VehicleType.id)
             .order_by(VehicleType.name.asc())
         )
@@ -350,8 +350,8 @@ async def update_vehicle_type(type_id: str, payload: TypeRequest, _: User = Depe
     if changes.get("is_active") is False and vehicle_type.is_active:
         vehicles = (
             await db.execute(
-                select(Car.id, Car.title)
-                .where(Car.vehicle_type_id == vehicle_type.id, Car.is_approved.is_(True), Car.is_available.is_(True))
+                select(Vehicle.id, Vehicle.title)
+                .where(Vehicle.vehicle_type_id == vehicle_type.id, Vehicle.is_approved.is_(True), Vehicle.is_available.is_(True))
                 .limit(10)
             )
         ).all()
@@ -371,7 +371,7 @@ async def update_vehicle_type(type_id: str, payload: TypeRequest, _: User = Depe
     await db.commit()
     await db.refresh(vehicle_type)
     await _clear_cache()
-    count = await db.scalar(select(func.count()).select_from(Car).where(Car.vehicle_type_id == vehicle_type.id)) or 0
+    count = await db.scalar(select(func.count()).select_from(Vehicle).where(Vehicle.vehicle_type_id == vehicle_type.id)) or 0
     return _type_payload(vehicle_type, count)
 
 
@@ -380,7 +380,7 @@ async def delete_vehicle_type(type_id: str, _: User = Depends(require_admin), db
     vehicle_type = await db.scalar(select(VehicleType).where(VehicleType.id == type_id))
     if vehicle_type is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle type not found")
-    count = await db.scalar(select(func.count()).select_from(Car).where(Car.vehicle_type_id == vehicle_type.id)) or 0
+    count = await db.scalar(select(func.count()).select_from(Vehicle).where(Vehicle.vehicle_type_id == vehicle_type.id)) or 0
     if count:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Cannot delete — {count} vehicles use this type. Reassign first.")
     await db.delete(vehicle_type)

@@ -7,7 +7,7 @@ from app.mongodb import get_mongo_db
 
 
 class CarViewEventDoc(BaseModel):
-    car_id: str
+    vehicle_id: str
     user_id: Optional[str] = None
     city: str
     source: str = "search"
@@ -36,17 +36,17 @@ def _serialize_id(doc: dict) -> dict:
     return doc
 
 
-async def log_car_view(car_id: str, user_id: Optional[str], city: str, source: str = "search") -> None:
+async def log_car_view(vehicle_id: str, user_id: Optional[str], city: str, source: str = "search") -> None:
     """Log every car detail page view. Used for popularity ranking."""
     db = get_mongo_db()
-    doc = CarViewEventDoc(car_id=car_id, user_id=user_id, city=city, source=source)
+    doc = CarViewEventDoc(vehicle_id=vehicle_id, user_id=user_id, city=city, source=source)
     await db.car_view_events.insert_one(doc.model_dump())
 
 
-async def get_car_view_count(car_id: str, days: int = 30) -> int:
+async def get_car_view_count(vehicle_id: str, days: int = 30) -> int:
     since = datetime.utcnow() - timedelta(days=days)
     return await get_mongo_db().car_view_events.count_documents(
-        {"car_id": car_id, "created_at": {"$gte": since}},
+        {"vehicle_id": vehicle_id, "created_at": {"$gte": since}},
     )
 
 

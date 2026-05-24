@@ -11,7 +11,7 @@ export function PrivateRoute() {
   return <PrivateRouteGuard />
 }
 
-export function GuestRoute() {
+export function LoggedOutRoute() {
   const { user, isLoading } = useAuthStore()
   if (isLoading) return <LoadingScreen />
   return user ? <Navigate to="/" replace /> : <Outlet />

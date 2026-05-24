@@ -25,7 +25,7 @@ export default function TrackRentalPage() {
         {!booking ? <div className="rounded-lg border border-dashed border-zinc-300 bg-white p-10 text-center font-black text-zinc-500">No tracked rental found.</div> : (
           <div className="space-y-6">
             <section className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
-              <button onClick={() => { navigator.clipboard?.writeText(booking.booking_ref); toast.success('Booking reference copied') }} className="inline-flex items-center gap-2 text-sm font-black text-[#E31837]">Booking Ref: {booking.booking_ref || booking.id} <Copy size={15} /></button>
+              <button onClick={() => { navigator.clipboard?.writeText(booking.booking_ref); toast.success('Rental IDerence copied') }} className="inline-flex items-center gap-2 text-sm font-black text-[#E31837]">Rental ID: {booking.booking_ref || booking.id} <Copy size={15} /></button>
               <div className="mt-4 flex flex-wrap items-center gap-4"><img src={booking.car?.primary_image_url || 'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=300&q=80'} alt="" className="h-20 w-28 rounded-md object-cover" /><div><h1 className="text-3xl font-black">{booking.car?.title || 'Vehicle rental'}</h1><p className="font-bold text-zinc-500">Manager: {booking.counterparty?.name || booking.manager_name || 'Assigned manager'}</p></div><img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(booking.counterparty?.name || 'Manager')}`} alt="" className="h-12 w-12 rounded-full" /></div>
             </section>
             <section className="grid gap-6 lg:grid-cols-[1fr_0.8fr]">

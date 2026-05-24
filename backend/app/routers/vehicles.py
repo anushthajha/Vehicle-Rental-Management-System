@@ -16,8 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.models.booking import Booking
-from app.models.car import Car, CarAvailabilityBlock, CarImage, CarPricingRule
-from app.models.host import HostProfile
+from app.models.vehicle import Vehicle, VehicleAvailabilityBlock, VehicleImage, VehiclePricingRule
+from app.models.manager import ManagerProfile
 from app.models.user import User
 from app.models.vehicle_category import VehicleCategory, VehicleType
 from app.mongo_models.analytics import log_activity, log_car_view, log_search
@@ -27,20 +27,20 @@ from app.redis import get_redis
 from app.utils.auth import get_current_active_user, require_vehicle_manager, require_kyc_user, verify_token
 
 
-router = APIRouter(prefix="/cars", tags=["cars"])
+router = APIRouter(prefix="/vehicles", tags=["vehicles"])
 vehicles_router = APIRouter(prefix="/vehicles", tags=["vehicles"])
 
 BOOKING_BLOCKING_STATUSES = ("confirmed", "active", "pending")
 FEATURE_MAP = {
-    "ac": Car.has_ac,
-    "music": Car.has_music_system,
-    "gps": Car.has_gps_tracker,
-    "keyless": Car.has_keyless_entry,
-    "sunroof": Car.has_sunroof,
-    "child_seat": Car.has_child_seat,
-    "luggage_carrier": Car.has_luggage_carrier,
+    "ac": Vehicle.has_ac,
+    "music": Vehicle.has_music_system,
+    "gps": Vehicle.has_gps_tracker,
+    "keyless": Vehicle.has_keyless_entry,
+    "sunroof": Vehicle.has_sunroof,
+    "child_seat": Vehicle.has_child_seat,
+    "luggage_carrier": Vehicle.has_luggage_carrier,
 }
-CAR_UPDATE_FIELDS = {
+VEHICLE_UPDATE_FIELDS = {
     "title",
     "make",
     "car_model",
@@ -72,12 +72,12 @@ CAR_UPDATE_FIELDS = {
     "has_sunroof",
     "has_child_seat",
     "has_luggage_carrier",
-    "minimum_guest_rating",
+    "minimum_customer_rating",
     "auto_accept_bookings",
 }
 
 
-class CarCreate(BaseModel):
+class VehicleCreate(BaseModel):
     title: str | None = None
     make: str
     car_model: str
@@ -110,7 +110,7 @@ class CarCreate(BaseModel):
     has_sunroof: bool = False
     has_child_seat: bool = False
     has_luggage_carrier: bool = False
-    minimum_guest_rating: Decimal | None = None
+    minimum_customer_rating: Decimal | None = None
     auto_accept_bookings: bool = False
 
     @field_validator("registration_number")
@@ -124,7 +124,7 @@ class CarCreate(BaseModel):
         return value.strip() if value else value
 
 
-class CarUpdate(BaseModel):
+class VehicleUpdate(BaseModel):
     title: str | None = None
     make: str | None = None
     car_model: str | None = None
@@ -157,7 +157,7 @@ class CarUpdate(BaseModel):
     has_sunroof: bool | None = None
     has_child_seat: bool | None = None
     has_luggage_carrier: bool | None = None
-    minimum_guest_rating: Decimal | None = None
+    minimum_customer_rating: Decimal | None = None
     auto_accept_bookings: bool | None = None
 
     @field_validator("registration_number")
@@ -194,7 +194,7 @@ def _dt(value: datetime | None) -> str | None:
     return value.isoformat() if value else None
 
 
-def _features(car: Car) -> list[str]:
+def _features(car: Vehicle) -> list[str]:
     features = []
     if car.has_ac:
         features.append("ac")
@@ -232,8 +232,8 @@ def _csv_int_values(value: str | None) -> list[int]:
 
 
 def _car_payload(
-    car: Car,
-    host_name: str | None = None,
+    car: Vehicle,
+    manager_name: str | None = None,
     primary_image_url: str | None = None,
     distance_km=None,
     category: VehicleCategory | None = None,
@@ -270,8 +270,8 @@ def _car_payload(
         "total_trips": car.total_trips,
         "primary_image_url": primary_image_url,
         "features": _features(car),
-        "host_name": host_name,
-        "host_id": car.host_id,
+        "manager_name": manager_name,
+        "manager_id": car.manager_id,
         "is_featured": car.is_featured,
         "is_available": car.is_available,
         "is_approved": car.is_approved,
@@ -280,7 +280,7 @@ def _car_payload(
     }
 
 
-def _image_payload(image: CarImage) -> dict:
+def _image_payload(image: VehicleImage) -> dict:
     return {
         "id": image.id,
         "image_url": image.image_url,
@@ -290,7 +290,7 @@ def _image_payload(image: CarImage) -> dict:
     }
 
 
-def _block_payload(block: CarAvailabilityBlock) -> dict:
+def _block_payload(block: VehicleAvailabilityBlock) -> dict:
     return {
         "id": block.id,
         "blocked_from": _dt(block.blocked_from),
@@ -299,7 +299,7 @@ def _block_payload(block: CarAvailabilityBlock) -> dict:
     }
 
 
-def _rule_payload(rule: CarPricingRule) -> dict:
+def _rule_payload(rule: VehiclePricingRule) -> dict:
     return {
         "id": rule.id,
         "rule_type": rule.rule_type,
@@ -321,17 +321,17 @@ async def _optional_user_id(request: Request) -> str | None:
     return payload.get("sub")
 
 
-async def _get_owned_car(car_id: str, host_id: str, db: AsyncSession) -> Car:
-    result = await db.execute(select(Car).where(Car.id == car_id, Car.managerId == host_id))
+async def _get_owned_car(vehicle_id: str, manager_id: str, db: AsyncSession) -> Vehicle:
+    result = await db.execute(select(Vehicle).where(Vehicle.id == vehicle_id, Vehicle.manager_id == manager_id))
     car = result.scalar_one_or_none()
     if car is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Car not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle not found")
     return car
 
 
-async def _clear_availability_cache(car_id: str) -> None:
+async def _clear_availability_cache(vehicle_id: str) -> None:
     redis = get_redis()
-    async for key in redis.scan_iter(f"availability:{car_id}:*"):
+    async for key in redis.scan_iter(f"availability:{vehicle_id}:*"):
         await redis.delete(key)
 
 
@@ -370,8 +370,8 @@ def _distance_expression(lat: float, lng: float):
             1,
             func.greatest(
                 -1,
-                (func.cos(lat_rad) * func.cos(func.radians(Car.location_lat)) * func.cos(func.radians(Car.location_lng) - math.radians(lng)))
-                + (func.sin(lat_rad) * func.sin(func.radians(Car.location_lat))),
+                (func.cos(lat_rad) * func.cos(func.radians(Vehicle.location_lat)) * func.cos(func.radians(Vehicle.location_lng) - math.radians(lng)))
+                + (func.sin(lat_rad) * func.sin(func.radians(Vehicle.location_lat))),
             ),
         )
     )
@@ -379,36 +379,36 @@ def _distance_expression(lat: float, lng: float):
 
 async def _list_rows(db: AsyncSession, conditions: list, sort_by: str, page: int, limit: int, distance_expr=None):
     primary_image = (
-        select(CarImage.image_url)
-        .where(CarImage.car_id == Car.id)
-        .order_by(CarImage.is_primary.desc(), CarImage.order_index.asc())
+        select(VehicleImage.image_url)
+        .where(VehicleImage.vehicle_id == Vehicle.id)
+        .order_by(VehicleImage.is_primary.desc(), VehicleImage.order_index.asc())
         .limit(1)
         .scalar_subquery()
     )
-    columns = [Car, User.full_name, primary_image.label("primary_image_url"), VehicleCategory, VehicleType]
+    columns = [Vehicle, User.full_name, primary_image.label("primary_image_url"), VehicleCategory, VehicleType]
     if distance_expr is not None:
         columns.append(distance_expr.label("distance_km"))
 
     query = (
         select(*columns)
-        .join(User, User.id == Car.managerId)
-        .outerjoin(VehicleCategory, VehicleCategory.id == Car.category_id)
-        .outerjoin(VehicleType, VehicleType.id == Car.vehicle_type_id)
+        .join(User, User.id == Vehicle.manager_id)
+        .outerjoin(VehicleCategory, VehicleCategory.id == Vehicle.category_id)
+        .outerjoin(VehicleType, VehicleType.id == Vehicle.vehicle_type_id)
         .where(*conditions)
     )
     if sort_by == "price_asc":
-        query = query.order_by(Car.price_per_day.asc())
+        query = query.order_by(Vehicle.price_per_day.asc())
     elif sort_by == "price_desc":
-        query = query.order_by(Car.price_per_day.desc())
+        query = query.order_by(Vehicle.price_per_day.desc())
     elif sort_by == "rating":
-        query = query.order_by(Car.average_rating.desc(), Car.total_trips.desc())
+        query = query.order_by(Vehicle.average_rating.desc(), Vehicle.total_trips.desc())
     elif sort_by == "most_booked":
-        query = query.order_by(Car.total_trips.desc(), Car.average_rating.desc())
+        query = query.order_by(Vehicle.total_trips.desc(), Vehicle.average_rating.desc())
     elif sort_by == "newest":
-        query = query.order_by(Car.created_at.desc())
+        query = query.order_by(Vehicle.created_at.desc())
     else:
-        score = (Car.average_rating * 0.4) + (Car.total_trips * 0.3) + (case((Car.is_featured.is_(True), 1), else_=0) * 0.3)
-        query = query.order_by(score.desc(), Car.created_at.desc())
+        score = (Vehicle.average_rating * 0.4) + (Vehicle.total_trips * 0.3) + (case((Vehicle.is_featured.is_(True), 1), else_=0) * 0.3)
+        query = query.order_by(score.desc(), Vehicle.created_at.desc())
 
     query = query.offset((page - 1) * limit).limit(limit)
     result = await db.execute(query)
@@ -418,15 +418,15 @@ async def _list_rows(db: AsyncSession, conditions: list, sort_by: str, page: int
 async def _search_facets(db: AsyncSession, conditions: list) -> dict:
     brand_rows = (
         await db.execute(
-            select(Car.make, func.count(Car.id))
+            select(Vehicle.make, func.count(Vehicle.id))
             .where(*conditions)
-            .group_by(Car.make)
-            .order_by(Car.make.asc())
+            .group_by(Vehicle.make)
+            .order_by(Vehicle.make.asc())
         )
     ).all()
     price_row = (
         await db.execute(
-            select(func.min(Car.price_per_day), func.max(Car.price_per_day))
+            select(func.min(Vehicle.price_per_day), func.max(Vehicle.price_per_day))
             .where(*conditions)
         )
     ).one()
@@ -452,9 +452,9 @@ async def list_vehicle_brands(db: AsyncSession = Depends(get_db)):
 
     brands = (
         await db.execute(
-            select(distinct(Car.make))
-            .where(Car.is_approved.is_(True), Car.make.is_not(None), Car.make != "")
-            .order_by(Car.make.asc())
+            select(distinct(Vehicle.make))
+            .where(Vehicle.is_approved.is_(True), Vehicle.make.is_not(None), Vehicle.make != "")
+            .order_by(Vehicle.make.asc())
         )
     ).scalars().all()
     payload = {"brands": list(brands)}
@@ -491,7 +491,7 @@ async def search_cars(
     radius_km: float = 10,
     rating_min: float | None = Query(default=None, ge=0, le=5),
     min_rating: float | None = Query(default=None, ge=0, le=5),
-    host_id: str | None = None,
+    manager_id: str | None = None,
     exclude: str | None = None,
     sort_by: str = "recommended",
     features: str | None = None,
@@ -499,26 +499,26 @@ async def search_cars(
     limit: int = Query(default=12, ge=1, le=50),
     db: AsyncSession = Depends(get_db),
 ):
-    conditions = [Car.is_approved.is_(True)]
+    conditions = [Vehicle.is_approved.is_(True)]
     active_pickup = pickup_date or start_date
     active_return = return_date or end_date
     if availability is True:
-        conditions.append(Car.is_available.is_(True))
+        conditions.append(Vehicle.is_available.is_(True))
     if active_pickup and active_return:
-        booking_overlap = select(Booking.id).where(Booking.car_id == Car.id, *_overlap_conditions(active_pickup, active_return)).exists()
+        booking_overlap = select(Booking.id).where(Booking.vehicle_id == Vehicle.id, *_overlap_conditions(active_pickup, active_return)).exists()
         block_overlap = (
-            select(CarAvailabilityBlock.id)
+            select(VehicleAvailabilityBlock.id)
             .where(
-                CarAvailabilityBlock.car_id == Car.id,
-                CarAvailabilityBlock.blocked_from < active_return,
-                CarAvailabilityBlock.blocked_to > active_pickup,
+                VehicleAvailabilityBlock.vehicle_id == Vehicle.id,
+                VehicleAvailabilityBlock.blocked_from < active_return,
+                VehicleAvailabilityBlock.blocked_to > active_pickup,
             )
             .exists()
         )
         conditions.append(~booking_overlap)
         conditions.append(~block_overlap)
     if city:
-        conditions.append(func.lower(Car.location_city) == city.lower())
+        conditions.append(func.lower(Vehicle.location_city) == city.lower())
     category_values = _csv_values(category_id)
     if not category_values and category:
         legacy_values = _csv_values(category)
@@ -531,43 +531,43 @@ async def search_cars(
     fuel_values = _csv_values(fuel_type)
     seat_values = _csv_int_values(seats)
     if category_values:
-        conditions.append(Car.category_id.in_(category_values))
+        conditions.append(Vehicle.category_id.in_(category_values))
     if type_values:
-        conditions.append(Car.vehicle_type_id.in_(type_values))
+        conditions.append(Vehicle.vehicle_type_id.in_(type_values))
     if brand_values:
-        conditions.append(func.lower(Car.make).in_(brand_values))
+        conditions.append(func.lower(Vehicle.make).in_(brand_values))
     if q:
         needle = f"%{q.strip()}%"
         conditions.append(
-            (Car.title.ilike(needle))
-            | (Car.make.ilike(needle))
-            | (Car.car_model.ilike(needle))
-            | (Car.description.ilike(needle))
+            (Vehicle.title.ilike(needle))
+            | (Vehicle.make.ilike(needle))
+            | (Vehicle.car_model.ilike(needle))
+            | (Vehicle.description.ilike(needle))
         )
     if transmission_values:
-        conditions.append(Car.transmission.in_(transmission_values))
+        conditions.append(Vehicle.transmission.in_(transmission_values))
     if fuel_values:
-        conditions.append(Car.fuel_type.in_(fuel_values))
+        conditions.append(Vehicle.fuel_type.in_(fuel_values))
     if seat_values:
         exact_seats = [value for value in seat_values if value < 8]
         seat_conditions = []
         if exact_seats:
-            seat_conditions.append(Car.seats.in_(exact_seats))
+            seat_conditions.append(Vehicle.seats.in_(exact_seats))
         if any(value >= 8 for value in seat_values):
-            seat_conditions.append(Car.seats >= 8)
+            seat_conditions.append(Vehicle.seats >= 8)
         if seat_conditions:
             conditions.append(seat_conditions[0] if len(seat_conditions) == 1 else seat_conditions[0] | seat_conditions[1])
     active_rating = rating_min if rating_min is not None else min_rating
     if active_rating is not None:
-        conditions.append(Car.average_rating >= active_rating)
-    if host_id:
-        conditions.append(Car.managerId == host_id)
+        conditions.append(Vehicle.average_rating >= active_rating)
+    if manager_id:
+        conditions.append(Vehicle.manager_id == manager_id)
     if exclude:
-        conditions.append(Car.id != exclude)
+        conditions.append(Vehicle.id != exclude)
     if min_price is not None:
-        conditions.append(Car.price_per_day >= min_price)
+        conditions.append(Vehicle.price_per_day >= min_price)
     if max_price is not None:
-        conditions.append(Car.price_per_day <= max_price)
+        conditions.append(Vehicle.price_per_day <= max_price)
 
     requested_features = _csv_values(features)
     for feature in requested_features:
@@ -578,12 +578,12 @@ async def search_cars(
     distance_expr = None
     if lat is not None and lng is not None:
         distance_expr = _distance_expression(lat, lng)
-        conditions.extend([Car.location_lat.is_not(None), Car.location_lng.is_not(None), distance_expr <= radius_km])
+        conditions.extend([Vehicle.location_lat.is_not(None), Vehicle.location_lng.is_not(None), distance_expr <= radius_km])
 
-    total = await db.scalar(select(func.count()).select_from(Car).where(*conditions)) or 0
+    total = await db.scalar(select(func.count()).select_from(Vehicle).where(*conditions)) or 0
     facets = await _search_facets(db, conditions)
     rows = await _list_rows(db, conditions, sort_by, page, limit, distance_expr)
-    cars = [_car_payload(row[0], row[1], row[2], row[5] if distance_expr is not None else None, row[3], row[4]) for row in rows]
+    vehicles = [_car_payload(row[0], row[1], row[2], row[5] if distance_expr is not None else None, row[3], row[4]) for row in rows]
     pages = math.ceil(total / limit) if total else 0
 
     filters_dict = {
@@ -606,7 +606,7 @@ async def search_cars(
         "lng": lng,
         "radius_km": radius_km,
         "rating_min": active_rating,
-        "host_id": host_id,
+        "manager_id": manager_id,
         "exclude": exclude,
         "features": requested_features,
         "sort_by": sort_by,
@@ -618,8 +618,8 @@ async def search_cars(
     }
     await log_search(await _optional_user_id(request), city or "", filters_dict, total)
     return {
-        "vehicles": cars,
-        "cars": cars,
+        "vehicles": vehicles,
+        "vehicles": vehicles,
         "total": total,
         "page": page,
         "pages": pages,
@@ -634,35 +634,35 @@ async def search_cars(
 
 @router.get("/featured")
 async def featured_cars(db: AsyncSession = Depends(get_db)):
-    rows = await _list_rows(db, [Car.is_featured.is_(True), Car.is_approved.is_(True), Car.is_available.is_(True)], "rating", 1, 6)
-    return {"cars": [_car_payload(row[0], row[1], row[2], category=row[3], vehicle_type=row[4]) for row in rows]}
+    rows = await _list_rows(db, [Vehicle.is_featured.is_(True), Vehicle.is_approved.is_(True), Vehicle.is_available.is_(True)], "rating", 1, 6)
+    return {"vehicles": [_car_payload(row[0], row[1], row[2], category=row[3], vehicle_type=row[4]) for row in rows]}
 
 
 @router.get("/city/{city}")
 async def city_cars(city: str, db: AsyncSession = Depends(get_db)):
     rows = await _list_rows(
         db,
-        [func.lower(Car.location_city) == city.lower(), Car.is_approved.is_(True), Car.is_available.is_(True)],
+        [func.lower(Vehicle.location_city) == city.lower(), Vehicle.is_approved.is_(True), Vehicle.is_available.is_(True)],
         "rating",
         1,
         20,
     )
-    return {"cars": [_car_payload(row[0], row[1], row[2], category=row[3], vehicle_type=row[4]) for row in rows]}
+    return {"vehicles": [_car_payload(row[0], row[1], row[2], category=row[3], vehicle_type=row[4]) for row in rows]}
 
 
 @vehicles_router.get("/manager/vehicles")
-@router.get("/host/my-cars")
-async def host_my_cars(current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Car).where(Car.managerId == current_user.id).order_by(Car.created_at.desc()))
-    cars = result.scalars().all()
+@router.get("/manager/my-vehicles")
+async def manager_my_vehicles(current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Vehicle).where(Vehicle.manager_id == current_user.id).order_by(Vehicle.created_at.desc()))
+    vehicles = result.scalars().all()
     response = []
-    for car in cars:
+    for car in vehicles:
         image = await db.scalar(
-            select(CarImage.image_url).where(CarImage.car_id == car.id).order_by(CarImage.is_primary.desc(), CarImage.order_index.asc()).limit(1)
+            select(VehicleImage.image_url).where(VehicleImage.vehicle_id == car.id).order_by(VehicleImage.is_primary.desc(), VehicleImage.order_index.asc()).limit(1)
         )
-        total_bookings = await db.scalar(select(func.count()).select_from(Booking).where(Booking.car_id == car.id)) or 0
-        total_earnings = await db.scalar(select(func.coalesce(func.sum(Booking.host_earnings), 0)).where(Booking.car_id == car.id)) or 0
-        pending_bookings = await db.scalar(select(func.count()).select_from(Booking).where(Booking.car_id == car.id, Booking.status == "pending")) or 0
+        total_bookings = await db.scalar(select(func.count()).select_from(Booking).where(Booking.vehicle_id == car.id)) or 0
+        total_earnings = await db.scalar(select(func.coalesce(func.sum(Booking.manager_earnings), 0)).where(Booking.vehicle_id == car.id)) or 0
+        pending_bookings = await db.scalar(select(func.count()).select_from(Booking).where(Booking.vehicle_id == car.id, Booking.status == "pending")) or 0
         category = await db.scalar(select(VehicleCategory).where(VehicleCategory.id == car.category_id)) if car.category_id else None
         vehicle_type = await db.scalar(select(VehicleType).where(VehicleType.id == car.vehicle_type_id)) if car.vehicle_type_id else None
         item = _car_payload(car, current_user.full_name, image, category=category, vehicle_type=vehicle_type)
@@ -674,38 +674,38 @@ async def host_my_cars(current_user: User = Depends(require_vehicle_manager), db
             }
         )
         response.append(item)
-    return {"cars": response}
+    return {"vehicles": response}
 
 
-@vehicles_router.patch("/manager/{car_id}/toggle-availability")
-@router.patch("/host/{car_id}/toggle-availability")
-async def toggle_availability(car_id: str, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
-    car = await _get_owned_car(car_id, current_user.id, db)
+@vehicles_router.patch("/manager/{vehicle_id}/toggle-availability")
+@router.patch("/manager/{vehicle_id}/toggle-availability")
+async def toggle_availability(vehicle_id: str, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
+    car = await _get_owned_car(vehicle_id, current_user.id, db)
     car.is_available = not car.is_available
     await db.commit()
-    await _clear_availability_cache(car_id)
+    await _clear_availability_cache(vehicle_id)
     return {"is_available": car.is_available}
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
-async def create_car(payload: CarCreate, current_user: User = Depends(require_kyc_user), db: AsyncSession = Depends(get_db)):
+async def create_car(payload: VehicleCreate, current_user: User = Depends(require_kyc_user), db: AsyncSession = Depends(get_db)):
     if current_user.role != "vehicle_manager":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vehicle Manager access required")
 
-    host_profile = await db.scalar(select(HostProfile).where(HostProfile.user_id == current_user.id))
-    if host_profile is None:
-        host_profile = HostProfile(user_id=current_user.id)
-        db.add(host_profile)
+    manager_profile = await db.scalar(select(ManagerProfile).where(ManagerProfile.user_id == current_user.id))
+    if manager_profile is None:
+        manager_profile = ManagerProfile(user_id=current_user.id)
+        db.add(manager_profile)
 
     data = payload.model_dump()
     title = data.pop("title") or f"{payload.year} {payload.make} {payload.car_model}"
     legacy_category = data.pop("category", None)
     data["category_id"] = await _resolve_category_id(db, data.get("category_id"), legacy_category)
     data["vehicle_type_id"] = await _resolve_vehicle_type_id(db, data.get("vehicle_type_id"))
-    car = Car(managerId=current_user.id, title=title, is_approved=False, is_available=True, **data)
+    car = Vehicle(manager_id=current_user.id, title=title, is_approved=False, is_available=True, **data)
     db.add(car)
     await db.flush()
-    host_profile.total_listings += 1
+    manager_profile.total_listings += 1
     await db.commit()
 
     admins = (await db.execute(select(User).where(User.role == "admin", User.is_active.is_(True)))).scalars().all()
@@ -714,44 +714,44 @@ async def create_car(payload: CarCreate, current_user: User = Depends(require_ky
             admin.id,
             "New car listing pending review",
             f"{current_user.full_name} listed {car.title} in {car.location_city}.",
-            "host",
-            action_url=f"/admin/cars/{car.id}",
-            meta={"car_id": car.id, "title": car.title, "city": car.location_city},
+            "manager",
+            action_url=f"/admin/vehicles/{car.id}",
+            meta={"vehicle_id": car.id, "title": car.title, "city": car.location_city},
         )
     await log_activity(current_user.id, "car_listed", "car", car.id, {"title": car.title, "city": car.location_city})
-    return {"car_id": car.id, "message": "Listing submitted for review. You'll be notified within 24 hours."}
+    return {"vehicle_id": car.id, "message": "Listing submitted for review. You'll be notified within 24 hours."}
 
 
-@vehicles_router.get("/{car_id}")
-@router.get("/{car_id}")
-async def get_car_detail(car_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+@vehicles_router.get("/{vehicle_id}")
+@router.get("/{vehicle_id}")
+async def get_car_detail(vehicle_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(Car, User, HostProfile, VehicleCategory, VehicleType)
-        .join(User, User.id == Car.managerId)
-        .outerjoin(HostProfile, HostProfile.user_id == Car.managerId)
-        .outerjoin(VehicleCategory, VehicleCategory.id == Car.category_id)
-        .outerjoin(VehicleType, VehicleType.id == Car.vehicle_type_id)
-        .where(Car.id == car_id)
+        select(Vehicle, User, ManagerProfile, VehicleCategory, VehicleType)
+        .join(User, User.id == Vehicle.manager_id)
+        .outerjoin(ManagerProfile, ManagerProfile.user_id == Vehicle.manager_id)
+        .outerjoin(VehicleCategory, VehicleCategory.id == Vehicle.category_id)
+        .outerjoin(VehicleType, VehicleType.id == Vehicle.vehicle_type_id)
+        .where(Vehicle.id == vehicle_id)
     )
     row = result.one_or_none()
     if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Car not found")
-    car, host, host_profile, category, vehicle_type = row
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle not found")
+    car, manager, manager_profile, category, vehicle_type = row
 
-    images = (await db.execute(select(CarImage).where(CarImage.car_id == car_id).order_by(CarImage.order_index.asc()))).scalars().all()
-    rules = (await db.execute(select(CarPricingRule).where(CarPricingRule.car_id == car_id))).scalars().all()
+    images = (await db.execute(select(VehicleImage).where(VehicleImage.vehicle_id == vehicle_id).order_by(VehicleImage.order_index.asc()))).scalars().all()
+    rules = (await db.execute(select(VehiclePricingRule).where(VehiclePricingRule.vehicle_id == vehicle_id))).scalars().all()
     blocks = (
         await db.execute(
-            select(CarAvailabilityBlock)
-            .where(CarAvailabilityBlock.car_id == car_id, CarAvailabilityBlock.blocked_from <= datetime.utcnow() + timedelta(days=90))
-            .order_by(CarAvailabilityBlock.blocked_from.asc())
+            select(VehicleAvailabilityBlock)
+            .where(VehicleAvailabilityBlock.vehicle_id == vehicle_id, VehicleAvailabilityBlock.blocked_from <= datetime.utcnow() + timedelta(days=90))
+            .order_by(VehicleAvailabilityBlock.blocked_from.asc())
         )
     ).scalars().all()
-    review_data = await get_car_reviews(car_id, page=1, limit=5)
-    await log_car_view(car_id, await _optional_user_id(request), car.location_city)
-    await get_redis().incr(f"car_views:{car_id}")
+    review_data = await get_car_reviews(vehicle_id, page=1, limit=5)
+    await log_car_view(vehicle_id, await _optional_user_id(request), car.location_city)
+    await get_redis().incr(f"car_views:{vehicle_id}")
 
-    payload = _car_payload(car, host.full_name, images[0].image_url if images else None, category=category, vehicle_type=vehicle_type)
+    payload = _car_payload(car, manager.full_name, images[0].image_url if images else None, category=category, vehicle_type=vehicle_type)
     payload.update(
         {
             "description": car.description,
@@ -764,14 +764,14 @@ async def get_car_detail(car_id: str, request: Request, db: AsyncSession = Depen
             "included_km_per_day": car.included_km_per_day,
             "auto_accept_bookings": car.auto_accept_bookings,
             "images": [_image_payload(image) for image in images],
-            "host_profile": {
-                "name": host.full_name,
-                "photo": host.profile_picture,
-                "rating": _money(host_profile.average_rating) if host_profile else 0,
-                "response_time": host_profile.response_time if host_profile else None,
-                "is_superhost": host_profile.is_superhost if host_profile else False,
-                "joined_date": _dt(host_profile.joined_as_host_at) if host_profile else None,
-                "total_reviews": host_profile.total_reviews if host_profile else 0,
+            "manager_profile": {
+                "name": manager.full_name,
+                "photo": manager.profile_picture,
+                "rating": _money(manager_profile.average_rating) if manager_profile else 0,
+                "response_time": manager_profile.response_time if manager_profile else None,
+                "is_super_manager": manager_profile.is_super_manager if manager_profile else False,
+                "joined_date": _dt(manager_profile.assigned_at) if manager_profile else None,
+                "total_reviews": manager_profile.total_reviews if manager_profile else 0,
             },
             "car_pricing_rules": [_rule_payload(rule) for rule in rules],
             "availability_blocks": [_block_payload(block) for block in blocks],
@@ -786,10 +786,10 @@ async def get_car_detail(car_id: str, request: Request, db: AsyncSession = Depen
     return payload
 
 
-@vehicles_router.patch("/{car_id}")
-@router.patch("/{car_id}")
-async def update_car(car_id: str, payload: CarUpdate, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
-    car = await _get_owned_car(car_id, current_user.id, db)
+@vehicles_router.patch("/{vehicle_id}")
+@router.patch("/{vehicle_id}")
+async def update_car(vehicle_id: str, payload: VehicleUpdate, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
+    car = await _get_owned_car(vehicle_id, current_user.id, db)
     changes = payload.model_dump(exclude_unset=True)
     if "category" in changes or "category_id" in changes:
         changes["category_id"] = await _resolve_category_id(db, changes.get("category_id"), changes.pop("category", None))
@@ -797,47 +797,47 @@ async def update_car(car_id: str, payload: CarUpdate, current_user: User = Depen
         changes["vehicle_type_id"] = await _resolve_vehicle_type_id(db, changes.get("vehicle_type_id"))
     price_changed = any(field in changes for field in ("price_per_hour", "price_per_day"))
     for field, value in changes.items():
-        if field in CAR_UPDATE_FIELDS:
+        if field in VEHICLE_UPDATE_FIELDS:
             setattr(car, field, value)
     await db.commit()
 
     if price_changed:
-        guest_ids = (
-            await db.execute(select(distinct(Booking.guest_id)).where(Booking.car_id == car.id, Booking.status == "pending"))
+        customer_ids = (
+            await db.execute(select(distinct(Booking.customer_id)).where(Booking.vehicle_id == car.id, Booking.status == "pending"))
         ).scalars().all()
-        for guest_id in guest_ids:
+        for customer_id in customer_ids:
             await create_notification(
-                guest_id,
+                customer_id,
                 "Price updated for your pending booking",
-                f"The host updated pricing for {car.title}.",
+                f"The manager updated pricing for {car.title}.",
                 "booking",
-                meta={"car_id": car.id, "title": car.title},
+                meta={"vehicle_id": car.id, "title": car.title},
             )
-    return {"message": "Car updated successfully"}
+    return {"message": "Vehicle updated successfully"}
 
 
-@router.delete("/{car_id}")
-async def delete_car(car_id: str, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
-    car = await _get_owned_car(car_id, current_user.id, db)
+@router.delete("/{vehicle_id}")
+async def delete_car(vehicle_id: str, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
+    car = await _get_owned_car(vehicle_id, current_user.id, db)
     active_count = await db.scalar(
-        select(func.count()).select_from(Booking).where(Booking.car_id == car.id, Booking.status.in_(("confirmed", "active")))
+        select(func.count()).select_from(Booking).where(Booking.vehicle_id == car.id, Booking.status.in_(("confirmed", "active")))
     )
     if active_count:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete a car with active or confirmed bookings")
     car.is_available = False
     await db.commit()
-    return {"message": "Car removed from availability"}
+    return {"message": "Vehicle removed from availability"}
 
 
-@router.post("/{car_id}/images")
+@router.post("/{vehicle_id}/images")
 async def upload_car_image(
-    car_id: str,
+    vehicle_id: str,
     file: UploadFile = File(...),
     current_user: User = Depends(require_vehicle_manager),
     db: AsyncSession = Depends(get_db),
 ):
-    await _get_owned_car(car_id, current_user.id, db)
-    existing_count = await db.scalar(select(func.count()).select_from(CarImage).where(CarImage.car_id == car_id)) or 0
+    await _get_owned_car(vehicle_id, current_user.id, db)
+    existing_count = await db.scalar(select(func.count()).select_from(VehicleImage).where(VehicleImage.vehicle_id == vehicle_id)) or 0
     if existing_count >= 10:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A car can have at most 10 images")
     if file.content_type not in {"image/jpeg", "image/png", "image/webp"}:
@@ -852,7 +852,7 @@ async def upload_car_image(
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid image file") from exc
 
-    upload_dir = os.path.join(settings.UPLOAD_DIR, "cars", car_id)
+    upload_dir = os.path.join(settings.UPLOAD_DIR, "vehicles", vehicle_id)
     os.makedirs(upload_dir, exist_ok=True)
     image_id = str(uuid4())
     image_filename = f"{image_id}.webp"
@@ -864,19 +864,19 @@ async def upload_car_image(
     thumb.thumbnail((400, 300))
     thumb.save(os.path.join(upload_dir, thumb_filename), "WEBP", quality=75)
 
-    image_url = f"/uploads/cars/{car_id}/{image_filename}"
+    image_url = f"/uploads/vehicles/{vehicle_id}/{image_filename}"
     is_primary = existing_count == 0
-    record = CarImage(car_id=car_id, image_url=image_url, is_primary=is_primary, order_index=existing_count)
+    record = VehicleImage(vehicle_id=vehicle_id, image_url=image_url, is_primary=is_primary, order_index=existing_count)
     db.add(record)
     await db.commit()
     await db.refresh(record)
-    return {"image_id": record.id, "image_url": image_url, "thumb_url": f"/uploads/cars/{car_id}/{thumb_filename}"}
+    return {"image_id": record.id, "image_url": image_url, "thumb_url": f"/uploads/vehicles/{vehicle_id}/{thumb_filename}"}
 
 
-@router.delete("/{car_id}/images/{image_id}")
-async def delete_car_image(car_id: str, image_id: str, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
-    await _get_owned_car(car_id, current_user.id, db)
-    image = await db.scalar(select(CarImage).where(CarImage.id == image_id, CarImage.car_id == car_id))
+@router.delete("/{vehicle_id}/images/{image_id}")
+async def delete_car_image(vehicle_id: str, image_id: str, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
+    await _get_owned_car(vehicle_id, current_user.id, db)
+    image = await db.scalar(select(VehicleImage).where(VehicleImage.id == image_id, VehicleImage.vehicle_id == vehicle_id))
     if image is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
     await db.delete(image)
@@ -884,58 +884,58 @@ async def delete_car_image(car_id: str, image_id: str, current_user: User = Depe
     return {"message": "Image deleted"}
 
 
-@router.post("/{car_id}/images/{image_id}/set-primary")
-async def set_primary_image(car_id: str, image_id: str, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
-    await _get_owned_car(car_id, current_user.id, db)
-    image = await db.scalar(select(CarImage).where(CarImage.id == image_id, CarImage.car_id == car_id))
+@router.post("/{vehicle_id}/images/{image_id}/set-primary")
+async def set_primary_image(vehicle_id: str, image_id: str, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
+    await _get_owned_car(vehicle_id, current_user.id, db)
+    image = await db.scalar(select(VehicleImage).where(VehicleImage.id == image_id, VehicleImage.vehicle_id == vehicle_id))
     if image is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
-    await db.execute(update(CarImage).where(CarImage.car_id == car_id).values(is_primary=False))
+    await db.execute(update(VehicleImage).where(VehicleImage.vehicle_id == vehicle_id).values(is_primary=False))
     image.is_primary = True
     await db.commit()
     return {"message": "Primary image updated"}
 
 
-@router.patch("/{car_id}/images/reorder")
-async def reorder_images(car_id: str, payload: list[ImageReorderItem], current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
-    await _get_owned_car(car_id, current_user.id, db)
+@router.patch("/{vehicle_id}/images/reorder")
+async def reorder_images(vehicle_id: str, payload: list[ImageReorderItem], current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
+    await _get_owned_car(vehicle_id, current_user.id, db)
     for item in payload:
-        await db.execute(update(CarImage).where(CarImage.id == item.image_id, CarImage.car_id == car_id).values(order_index=item.order_index))
+        await db.execute(update(VehicleImage).where(VehicleImage.id == item.image_id, VehicleImage.vehicle_id == vehicle_id).values(order_index=item.order_index))
     await db.commit()
     return {"message": "Images reordered"}
 
 
-@vehicles_router.post("/{car_id}/block-dates", status_code=status.HTTP_201_CREATED)
-@router.post("/{car_id}/block-dates", status_code=status.HTTP_201_CREATED)
-async def block_dates(car_id: str, payload: DateBlockRequest, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
-    await _get_owned_car(car_id, current_user.id, db)
+@vehicles_router.post("/{vehicle_id}/block-dates", status_code=status.HTTP_201_CREATED)
+@router.post("/{vehicle_id}/block-dates", status_code=status.HTTP_201_CREATED)
+async def block_dates(vehicle_id: str, payload: DateBlockRequest, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
+    await _get_owned_car(vehicle_id, current_user.id, db)
     if payload.blocked_to <= payload.blocked_from:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="blocked_to must be after blocked_from")
     reason = payload.reason if not payload.note else f"{payload.reason or 'Other'}: {payload.note}"
-    block = CarAvailabilityBlock(car_id=car_id, blocked_from=payload.blocked_from, blocked_to=payload.blocked_to, reason=reason)
+    block = VehicleAvailabilityBlock(vehicle_id=vehicle_id, blocked_from=payload.blocked_from, blocked_to=payload.blocked_to, reason=reason)
     db.add(block)
     await db.commit()
-    await _clear_availability_cache(car_id)
+    await _clear_availability_cache(vehicle_id)
     await db.refresh(block)
     return _block_payload(block)
 
 
-@vehicles_router.delete("/{car_id}/block-dates/{block_id}")
-@router.delete("/{car_id}/block-dates/{block_id}")
-async def delete_block(car_id: str, block_id: str, current_user: User = Depends(get_current_active_user), db: AsyncSession = Depends(get_db)):
+@vehicles_router.delete("/{vehicle_id}/block-dates/{block_id}")
+@router.delete("/{vehicle_id}/block-dates/{block_id}")
+async def delete_block(vehicle_id: str, block_id: str, current_user: User = Depends(get_current_active_user), db: AsyncSession = Depends(get_db)):
     if current_user.role != "admin":
-        await _get_owned_car(car_id, current_user.id, db)
-    block = await db.scalar(select(CarAvailabilityBlock).where(CarAvailabilityBlock.id == block_id, CarAvailabilityBlock.car_id == car_id))
+        await _get_owned_car(vehicle_id, current_user.id, db)
+    block = await db.scalar(select(VehicleAvailabilityBlock).where(VehicleAvailabilityBlock.id == block_id, VehicleAvailabilityBlock.vehicle_id == vehicle_id))
     if block is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Block not found")
     await db.delete(block)
     await db.commit()
-    await _clear_availability_cache(car_id)
+    await _clear_availability_cache(vehicle_id)
     return {"message": "Date block removed"}
 
 
-@router.get("/{car_id}/availability")
-async def get_availability(car_id: str, month: str, db: AsyncSession = Depends(get_db)):
+@router.get("/{vehicle_id}/availability")
+async def get_availability(vehicle_id: str, month: str, db: AsyncSession = Depends(get_db)):
     try:
         year, month_number = [int(part) for part in month.split("-", 1)]
     except ValueError as exc:
@@ -946,17 +946,17 @@ async def get_availability(car_id: str, month: str, db: AsyncSession = Depends(g
 
     blocks = (
         await db.execute(
-            select(CarAvailabilityBlock).where(
-                CarAvailabilityBlock.car_id == car_id,
-                CarAvailabilityBlock.blocked_from <= month_end,
-                CarAvailabilityBlock.blocked_to >= month_start,
+            select(VehicleAvailabilityBlock).where(
+                VehicleAvailabilityBlock.vehicle_id == vehicle_id,
+                VehicleAvailabilityBlock.blocked_from <= month_end,
+                VehicleAvailabilityBlock.blocked_to >= month_start,
             )
         )
     ).scalars().all()
     bookings = (
         await db.execute(
             select(Booking).where(
-                Booking.car_id == car_id,
+                Booking.vehicle_id == vehicle_id,
                 Booking.status.in_(BOOKING_BLOCKING_STATUSES),
                 Booking.pickup_datetime <= month_end,
                 Booking.return_datetime >= month_start,
@@ -976,20 +976,20 @@ async def get_availability(car_id: str, month: str, db: AsyncSession = Depends(g
     return availability
 
 
-@router.post("/{car_id}/pricing-rules", status_code=status.HTTP_201_CREATED)
-async def create_pricing_rule(car_id: str, payload: PricingRuleRequest, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
-    await _get_owned_car(car_id, current_user.id, db)
-    rule = CarPricingRule(car_id=car_id, **payload.model_dump())
+@router.post("/{vehicle_id}/pricing-rules", status_code=status.HTTP_201_CREATED)
+async def create_pricing_rule(vehicle_id: str, payload: PricingRuleRequest, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
+    await _get_owned_car(vehicle_id, current_user.id, db)
+    rule = VehiclePricingRule(vehicle_id=vehicle_id, **payload.model_dump())
     db.add(rule)
     await db.commit()
     await db.refresh(rule)
     return _rule_payload(rule)
 
 
-@router.delete("/{car_id}/pricing-rules/{rule_id}")
-async def delete_pricing_rule(car_id: str, rule_id: str, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
-    await _get_owned_car(car_id, current_user.id, db)
-    rule = await db.scalar(select(CarPricingRule).where(CarPricingRule.id == rule_id, CarPricingRule.car_id == car_id))
+@router.delete("/{vehicle_id}/pricing-rules/{rule_id}")
+async def delete_pricing_rule(vehicle_id: str, rule_id: str, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
+    await _get_owned_car(vehicle_id, current_user.id, db)
+    rule = await db.scalar(select(VehiclePricingRule).where(VehiclePricingRule.id == rule_id, VehiclePricingRule.vehicle_id == vehicle_id))
     if rule is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pricing rule not found")
     await db.delete(rule)

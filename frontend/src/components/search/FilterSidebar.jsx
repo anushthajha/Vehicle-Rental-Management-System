@@ -10,15 +10,15 @@ function toggleValue(values, value) {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value]
 }
 
-function countBy(cars, key) {
-  return cars.reduce((acc, car) => {
+function countBy(vehicles, key) {
+  return vehicles.reduce((acc, car) => {
     const value = car[key]
     if (value !== undefined && value !== null) acc[value] = (acc[value] || 0) + 1
     return acc
   }, {})
 }
 
-function FilterSidebar({ filters, setFilters, cars = [], histogram = [], onClear, showSort = false, onApply, activeCount = 0, total = 0, brandsAvailable = [], brandCounts = {}, priceRange = { min: 0, max: 10000 } }) {
+function FilterSidebar({ filters, setFilters, vehicles = [], histogram = [], onClear, showSort = false, onApply, activeCount = 0, total = 0, brandsAvailable = [], brandCounts = {}, priceRange = { min: 0, max: 10000 } }) {
   const { categories, vehicleTypes } = useVehicleCategories()
   const [qDraft, setQDraft] = useState(filters.q || '')
   const [brandSearch, setBrandSearch] = useState('')
@@ -31,9 +31,9 @@ function FilterSidebar({ filters, setFilters, cars = [], histogram = [], onClear
     },
     staleTime: 5 * 60 * 1000,
   })
-  const categoryCounts = countBy(cars, 'category_id')
-  const typeCounts = countBy(cars, 'vehicle_type_id')
-  const fuelCounts = countBy(cars, 'fuel_type')
+  const categoryCounts = countBy(vehicles, 'category_id')
+  const typeCounts = countBy(vehicles, 'vehicle_type_id')
+  const fuelCounts = countBy(vehicles, 'fuel_type')
   const allBrands = useMemo(() => {
     const merged = new Set([...(brandsQuery.data || []), ...brandsAvailable, ...(filters.brands || [])])
     return Array.from(merged).sort((a, b) => a.localeCompare(b))
@@ -252,7 +252,7 @@ function FilterSidebar({ filters, setFilters, cars = [], histogram = [], onClear
 
 export default memo(FilterSidebar, (prev, next) => (
   prev.filters === next.filters
-  && prev.cars === next.cars
+  && prev.vehicles === next.vehicles
   && prev.histogram === next.histogram
   && prev.activeCount === next.activeCount
   && prev.showSort === next.showSort

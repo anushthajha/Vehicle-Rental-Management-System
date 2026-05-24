@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.booking import Booking
-from app.models.car import Car
+from app.models.vehicle import Vehicle
 from app.models.payment import Payment, UserWallet, WalletTransaction
 from app.models.user import User
 from app.mongo_models.notification import create_notification
@@ -52,10 +52,10 @@ def add_wallet_transaction(
     return txn
 
 
-def booking_email_payload(booking: Booking, car: Car) -> dict:
+def booking_email_payload(booking: Booking, car: Vehicle) -> dict:
     return {
         "booking_ref": booking.booking_ref,
-        "car_title": car.title,
+        "vehicle_name": car.title,
         "pickup_date": booking.pickup_datetime.strftime("%d %b %Y, %I:%M %p"),
         "return_date": booking.return_datetime.strftime("%d %b %Y, %I:%M %p"),
         "location": car.location_address or f"{car.location_area or ''}, {car.location_city}".strip(", "),
@@ -74,9 +74,9 @@ async def mark_payment_paid(
     db: AsyncSession,
     booking: Booking,
     payment: Payment,
-    car: Car,
-    guest: User,
-    host: User,
+    car: Vehicle,
+    customer: User,
+    manager: User,
     payment_method: str = "simulated",
     debit_wallet: bool = False,
 ) -> str:
@@ -88,35 +88,35 @@ async def mark_payment_paid(
     payment.simulated_transaction_id = txn_id
     if booking.status == "pending" and car.auto_accept_bookings:
         booking.status = "confirmed"
-        booking.host_accepted_at = now
+        booking.manager_accepted_at = now
 
     if debit_wallet:
-        guest_wallet = await get_or_create_wallet(db, guest.id)
-        guest_wallet.balance = Decimal(str(guest_wallet.balance)) - Decimal(str(payment.amount))
+        customer_wallet = await get_or_create_wallet(db, customer.id)
+        customer_wallet.balance = Decimal(str(customer_wallet.balance)) - Decimal(str(payment.amount))
         add_wallet_transaction(
             db,
-            guest.id,
+            customer.id,
             "debit",
             payment.amount,
-            guest_wallet.balance,
+            customer_wallet.balance,
             f"Booking payment {booking.booking_ref}",
             booking.id,
         )
 
-    host_wallet = await get_or_create_wallet(db, host.id)
+    manager_wallet = await get_or_create_wallet(db, manager.id)
     add_wallet_transaction(
         db,
-        host.id,
+        manager.id,
         "credit",
-        booking.host_earnings,
-        host_wallet.balance,
-        f"Pending host earning for {booking.booking_ref}",
+        booking.manager_earnings,
+        manager_wallet.balance,
+        f"Pending manager earning for {booking.booking_ref}",
         booking.id,
     )
 
     payload = booking_email_payload(booking, car)
-    queue_booking_confirmation(guest.email, payload)
-    queue_booking_confirmation(host.email, payload)
+    queue_booking_confirmation(customer.email, payload)
+    queue_booking_confirmation(manager.email, payload)
     try:
         reminder_at = booking.pickup_datetime - timedelta(hours=2)
         countdown = max(int((reminder_at - datetime.utcnow()).total_seconds()), 0)
@@ -124,7 +124,7 @@ async def mark_payment_paid(
     except Exception:
         pass
     await create_notification(
-        guest.id,
+        customer.id,
         "Payment successful",
         f"Your booking {booking.booking_ref} is confirmed.",
         "payment",

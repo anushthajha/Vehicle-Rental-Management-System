@@ -16,7 +16,7 @@ class User(TimestampMixin, Base):
     profile_picture: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    is_host: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_vehicle_manager: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     role: Mapped[str] = mapped_column(
         Enum("customer", "vehicle_manager", "admin", name="user_role"),
         default="customer",

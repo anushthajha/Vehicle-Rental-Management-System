@@ -6,7 +6,7 @@ import { CSS } from '@dnd-kit/utilities'
 import * as Icons from 'lucide-react'
 import { deleteAdmin, formatDate, getAdmin, patchAdmin, postAdmin } from './adminApi'
 
-const ICON_NAMES = ['Car', 'CarFront', 'Truck', 'Zap', 'Bike', 'Bus', 'Ship', 'Navigation', 'MapPin', 'Gauge', 'Fuel', 'BatteryCharging', 'Shield', 'Star', 'Crown', 'Sun', 'Mountain', 'Briefcase', 'Users', 'BadgeIndianRupee', 'Van', 'Circle']
+const ICON_NAMES = ['Vehicle', 'CarFront', 'Truck', 'Zap', 'Bike', 'Bus', 'Ship', 'Navigation', 'MapPin', 'Gauge', 'Fuel', 'BatteryCharging', 'Shield', 'Star', 'Crown', 'Sun', 'Mountain', 'Briefcase', 'Users', 'BadgeIndianRupee', 'Van', 'Circle']
 
 function slugify(value) {
   return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
@@ -81,7 +81,7 @@ function CategoryRow({ category, onEdit, onDelete, onToggle }) {
 }
 
 function CategoryModal({ category, onClose, onSaved }) {
-  const [form, setForm] = useState({ name: category.name || '', slug: category.slug || '', description: category.description || '', icon_name: category.icon_name || 'Car', display_order: category.display_order || 0, is_active: category.is_active ?? true })
+  const [form, setForm] = useState({ name: category.name || '', slug: category.slug || '', description: category.description || '', icon_name: category.icon_name || 'Vehicle', display_order: category.display_order || 0, is_active: category.is_active ?? true })
   const Icon = Icons[form.icon_name] || Icons.Car
   function set(key, value) {
     setForm((current) => ({ ...current, [key]: value, ...(key === 'name' && !category.id ? { slug: slugify(value) } : {}) }))

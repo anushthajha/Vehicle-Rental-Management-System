@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.database import get_db
-from app.models.car import Car, CarImage
+from app.models.vehicle import Vehicle, VehicleImage
 from app.models.user import User
 from app.models.vehicle_category import VehicleCategory
 from app.models.wishlist import Wishlist
@@ -15,14 +15,14 @@ router = APIRouter(prefix="/wishlist", tags=["wishlist"])
 
 
 class WishlistRequest(BaseModel):
-    car_id: str
+    vehicle_id: str
 
 
 def _money(value) -> float:
     return float(value or 0)
 
 
-async def _wishlist_car_payload(car: Car, image_url: str | None, category: VehicleCategory | None = None) -> dict:
+async def _wishlist_car_payload(car: Vehicle, image_url: str | None, category: VehicleCategory | None = None) -> dict:
     return {
         "id": car.id,
         "title": car.title,
@@ -57,7 +57,7 @@ async def _wishlist_car_payload(car: Car, image_url: str | None, category: Vehic
             }.items()
             if enabled
         ],
-        "host_id": car.host_id,
+        "manager_id": car.manager_id,
         "is_saved": True,
     }
 
@@ -68,20 +68,20 @@ async def get_wishlist(
     db: AsyncSession = Depends(get_db),
 ):
     primary_image = (
-        select(CarImage.image_url)
-        .where(CarImage.car_id == Car.id)
-        .order_by(CarImage.is_primary.desc(), CarImage.order_index.asc())
+        select(VehicleImage.image_url)
+        .where(VehicleImage.vehicle_id == Vehicle.id)
+        .order_by(VehicleImage.is_primary.desc(), VehicleImage.order_index.asc())
         .limit(1)
         .scalar_subquery()
     )
     result = await db.execute(
-        select(Car, primary_image.label("primary_image_url"), VehicleCategory)
-        .join(Wishlist, Wishlist.car_id == Car.id)
-        .outerjoin(VehicleCategory, VehicleCategory.id == Car.category_id)
+        select(Vehicle, primary_image.label("primary_image_url"), VehicleCategory)
+        .join(Wishlist, Wishlist.vehicle_id == Vehicle.id)
+        .outerjoin(VehicleCategory, VehicleCategory.id == Vehicle.category_id)
         .where(Wishlist.user_id == current_user.id)
         .order_by(Wishlist.created_at.desc())
     )
-    return {"cars": [await _wishlist_car_payload(row[0], row[1], row[2]) for row in result.all()]}
+    return {"vehicles": [await _wishlist_car_payload(row[0], row[1], row[2]) for row in result.all()]}
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -90,24 +90,24 @@ async def add_wishlist_item(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    car = await db.scalar(select(Car).where(Car.id == payload.car_id, Car.is_approved.is_(True)))
+    car = await db.scalar(select(Vehicle).where(Vehicle.id == payload.vehicle_id, Vehicle.is_approved.is_(True)))
     if car is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Car not found")
-    existing = await db.scalar(select(Wishlist).where(Wishlist.user_id == current_user.id, Wishlist.car_id == payload.car_id))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle not found")
+    existing = await db.scalar(select(Wishlist).where(Wishlist.user_id == current_user.id, Wishlist.vehicle_id == payload.vehicle_id))
     if existing is None:
-        db.add(Wishlist(user_id=current_user.id, car_id=payload.car_id))
+        db.add(Wishlist(user_id=current_user.id, vehicle_id=payload.vehicle_id))
         await db.commit()
-    return {"car_id": payload.car_id, "is_saved": True}
+    return {"vehicle_id": payload.vehicle_id, "is_saved": True}
 
 
-@router.delete("/{car_id}")
+@router.delete("/{vehicle_id}")
 async def remove_wishlist_item(
-    car_id: str,
+    vehicle_id: str,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    item = await db.scalar(select(Wishlist).where(Wishlist.user_id == current_user.id, Wishlist.car_id == car_id))
+    item = await db.scalar(select(Wishlist).where(Wishlist.user_id == current_user.id, Wishlist.vehicle_id == vehicle_id))
     if item is not None:
         await db.delete(item)
         await db.commit()
-    return {"car_id": car_id, "is_saved": False}
+    return {"vehicle_id": vehicle_id, "is_saved": False}

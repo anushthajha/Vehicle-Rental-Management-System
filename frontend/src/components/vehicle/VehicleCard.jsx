@@ -34,7 +34,7 @@ function VehicleCard({ car, viewMode = 'grid', onRemoved, datesSelected = false 
     setSaved(next)
     try {
       if (user) {
-        if (next) await api.post('/wishlist/', { car_id: car.id })
+        if (next) await api.post('/wishlist/', { vehicle_id: car.id })
         else await api.delete(`/wishlist/${car.id}`)
       } else if (next) {
         saveLocalWishlistCar(car)
@@ -52,7 +52,7 @@ function VehicleCard({ car, viewMode = 'grid', onRemoved, datesSelected = false 
       <article className="group overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
         <Link to={`/vehicles/${car.id}`} className="grid gap-4 p-3 sm:grid-cols-[200px_1fr_auto]">
             <div className="relative h-48 overflow-hidden rounded-md bg-zinc-100 sm:h-full">
-              <img src={image} alt={`${car.title} rental car in ${car.location_city}`} loading="lazy" decoding="async" width="400" height="260" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+              <img src={image} alt={`${car.title} rental vehicle in ${car.location_city}`} loading="lazy" decoding="async" width="400" height="260" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
               <CategoryBadge category={car.category} label={car.category_name} />
               <AvailabilityBadge available={car.is_available} />
               {datesSelected && car.date_conflicts && <DateConflictOverlay />}
@@ -69,7 +69,7 @@ function VehicleCard({ car, viewMode = 'grid', onRemoved, datesSelected = false 
               </button>
             </div>
             <RatingLine car={car} />
-            <p className="mt-3 line-clamp-2 text-sm leading-6 text-zinc-600">{car.description || 'A clean, city-ready car with flexible pickup and manager-managed availability.'}</p>
+            <p className="mt-3 line-clamp-2 text-sm leading-6 text-zinc-600">{car.description || 'A clean, city-ready vehicle with flexible pickup and manager-managed availability.'}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {featureLabels.concat([titleCase(car.transmission), `${car.seats} Seats`, titleCase(car.fuel_type)]).slice(0, 9).map((feature) => (
                 <span key={feature} className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-bold text-zinc-700">{feature}</span>
@@ -81,7 +81,7 @@ function VehicleCard({ car, viewMode = 'grid', onRemoved, datesSelected = false 
               <p className="text-2xl font-black text-zinc-950">₹{formatMoney(car.price_per_day)}</p>
               <p className="text-xs font-bold text-zinc-500">per day</p>
             </div>
-            <span className="rounded-md border border-sigfleet px-5 py-2.5 text-sm font-black text-sigfleet transition group-hover:bg-sigfleet group-hover:text-white">Book Now</span>
+            <span className="rounded-md border border-sigfleet px-5 py-2.5 text-sm font-black text-sigfleet transition group-hover:bg-sigfleet group-hover:text-white">Rent Now</span>
           </div>
         </Link>
       </article>
@@ -93,7 +93,7 @@ function VehicleCard({ car, viewMode = 'grid', onRemoved, datesSelected = false 
       <Link to={`/vehicles/${car.id}`} className="block">
         <div className="relative aspect-video overflow-hidden bg-zinc-100">
           <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-zinc-100 via-zinc-200 to-zinc-100" />
-          <img src={image} alt={`${car.title} rental car in ${car.location_city}`} loading="lazy" decoding="async" width="480" height="270" className="relative h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+          <img src={image} alt={`${car.title} rental vehicle in ${car.location_city}`} loading="lazy" decoding="async" width="480" height="270" className="relative h-full w-full object-cover transition duration-500 group-hover:scale-105" />
           <CategoryBadge category={car.category} label={car.category_name} />
           <AvailabilityBadge available={car.is_available} />
           {datesSelected && car.date_conflicts && <DateConflictOverlay />}
@@ -116,7 +116,7 @@ function VehicleCard({ car, viewMode = 'grid', onRemoved, datesSelected = false 
             <div>
               <p className="text-2xl font-black text-zinc-950">₹{formatMoney(car.price_per_day)}<span className="text-sm font-bold text-zinc-500">/day</span></p>
             </div>
-            <span className="rounded-md border border-sigfleet px-4 py-2 text-sm font-black text-sigfleet transition group-hover:bg-sigfleet group-hover:text-white">Book Now</span>
+            <span className="rounded-md border border-sigfleet px-4 py-2 text-sm font-black text-sigfleet transition group-hover:bg-sigfleet group-hover:text-white">Rent Now</span>
           </div>
         </div>
       </Link>

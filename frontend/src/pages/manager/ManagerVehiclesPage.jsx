@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Car, Eye, IndianRupee, Loader2, Pencil, Power, Trash2 } from 'lucide-react'
+import { Car as Vehicle, Eye, IndianRupee, Loader2, Pencil, Power, Trash2 } from 'lucide-react'
 import api from '../../services/api'
 
 export default function ManagerVehiclesPage() {
-  const [cars, setCars] = useState([])
+  const [vehicles, setCars] = useState([])
   const [filter, setFilter] = useState('all')
   const [isLoading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -13,9 +13,9 @@ export default function ManagerVehiclesPage() {
     setLoading(true)
     try {
       const response = await api.get('/vehicles/manager/vehicles')
-      setCars(response.data.cars || [])
+      setCars(response.data.vehicles || [])
     } catch (err) {
-      setError(err.response?.data?.detail || 'Unable to load cars.')
+      setError(err.response?.data?.detail || 'Unable to load vehicles.')
     } finally {
       setLoading(false)
     }
@@ -25,18 +25,18 @@ export default function ManagerVehiclesPage() {
     loadCars()
   }, [])
 
-  const filtered = useMemo(() => cars.filter((car) => {
+  const filtered = useMemo(() => vehicles.filter((car) => {
     if (filter === 'active') return car.is_available && car.is_approved
     if (filter === 'pending') return !car.is_approved
     if (filter === 'inactive') return !car.is_available
     return true
-  }), [cars, filter])
+  }), [vehicles, filter])
 
   const stats = {
-    total: cars.length,
-    active: cars.filter((car) => car.is_available && car.is_approved).length,
-    pending: cars.filter((car) => !car.is_approved).length,
-    earnings: cars.reduce((sum, car) => sum + Number(car.total_earnings || 0), 0),
+    total: vehicles.length,
+    active: vehicles.filter((car) => car.is_available && car.is_approved).length,
+    pending: vehicles.filter((car) => !car.is_approved).length,
+    earnings: vehicles.reduce((sum, car) => sum + Number(car.total_earnings || 0), 0),
   }
 
   async function toggle(carId) {
@@ -55,12 +55,12 @@ export default function ManagerVehiclesPage() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-sm font-black uppercase text-sigfleet">Manager garage</p>
-            <h1 className="text-3xl font-black text-zinc-950">My Cars</h1>
+            <h1 className="text-3xl font-black text-zinc-950">My Vehicles</h1>
           </div>
-          <Link to="/manager/vehicles/add" className="rounded-md bg-sigfleet px-5 py-3 font-bold text-white">List a car</Link>
+          <Link to="/manager/vehicles/add" className="rounded-md bg-sigfleet px-5 py-3 font-bold text-white">Add Vehicle</Link>
         </div>
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard icon={Car} label="Total Cars" value={stats.total} />
+          <StatCard icon={Vehicle} label="Total Vehicles" value={stats.total} />
           <StatCard icon={Power} label="Active" value={stats.active} />
           <StatCard icon={Eye} label="Pending Review" value={stats.pending} />
           <StatCard icon={IndianRupee} label="Total Earnings" value={`₹${Math.round(stats.earnings).toLocaleString('en-IN')}`} />
@@ -96,7 +96,7 @@ export default function ManagerVehiclesPage() {
                   </div>
                 </div>
               ))}
-              {filtered.length === 0 && <div className="p-10 text-center font-semibold text-zinc-500">No cars in this view.</div>}
+              {filtered.length === 0 && <div className="p-10 text-center font-semibold text-zinc-500">No vehicles in this view.</div>}
             </div>
           )}
         </div>

@@ -23,9 +23,9 @@ def send_booking_confirmation_email(to_email: str, booking: dict) -> None:
     _run(email.send_booking_confirmation_email(to_email, booking))
 
 
-@celery_app.task(name="app.tasks.email.send_booking_request_to_host_email")
-def send_booking_request_to_host_email(to_email: str, booking: dict) -> None:
-    _run(email.send_booking_request_to_host_email(to_email, booking))
+@celery_app.task(name="app.tasks.email.send_booking_request_to_manager_email")
+def send_booking_request_to_manager_email(to_email: str, booking: dict) -> None:
+    _run(email.send_booking_request_to_manager_email(to_email, booking))
 
 
 @celery_app.task(name="app.tasks.email.send_booking_cancelled_email")
@@ -58,9 +58,9 @@ def send_review_request_email(to_email: str, full_name: str, booking_ref: str) -
     _run(email.send_review_request_email(to_email, full_name, booking_ref))
 
 
-@celery_app.task(name="app.tasks.email.send_host_payout_email")
-def send_host_payout_email(to_email: str, amount: float) -> None:
-    _run(email.send_host_payout_email(to_email, amount))
+@celery_app.task(name="app.tasks.email.send_manager_payout_email")
+def send_manager_payout_email(to_email: str, amount: float) -> None:
+    _run(email.send_manager_payout_email(to_email, amount))
 
 
 @celery_app.task(name="app.tasks.email.send_manager_welcome_email")

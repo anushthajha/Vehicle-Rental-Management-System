@@ -12,9 +12,9 @@ class Booking(TimestampMixin, Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
     booking_ref: Mapped[str] = mapped_column(String(12), unique=True, index=True, nullable=False)
-    car_id: Mapped[str] = mapped_column(String(36), ForeignKey("cars.id"), nullable=False)
-    guest_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
-    host_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    vehicle_id: Mapped[str] = mapped_column(String(36), ForeignKey("vehicles.id"), nullable=False)
+    customer_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    manager_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
     status: Mapped[str] = mapped_column(
         Enum("pending", "confirmed", "active", "completed", "cancelled", "rejected", name="booking_status"),
         nullable=False,
@@ -36,7 +36,7 @@ class Booking(TimestampMixin, Base):
     security_deposit_amount: Mapped[Decimal] = mapped_column(DECIMAL(10, 2), default=Decimal("0.00"), nullable=False)
     total_amount: Mapped[Decimal] = mapped_column(DECIMAL(10, 2), nullable=False)
     platform_fee: Mapped[Decimal] = mapped_column(DECIMAL(10, 2), default=Decimal("0.00"), nullable=False)
-    host_earnings: Mapped[Decimal] = mapped_column(DECIMAL(10, 2), default=Decimal("0.00"), nullable=False)
+    manager_earnings: Mapped[Decimal] = mapped_column(DECIMAL(10, 2), default=Decimal("0.00"), nullable=False)
     extra_km_charged: Mapped[Decimal] = mapped_column(DECIMAL(10, 2), default=Decimal("0.00"), nullable=False)
     odometer_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
     odometer_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -49,8 +49,8 @@ class Booking(TimestampMixin, Base):
         default="not_applicable",
         nullable=False,
     )
-    host_accepted_at: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
-    guest_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    manager_accepted_at: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
+    customer_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class BookingExtension(Base):

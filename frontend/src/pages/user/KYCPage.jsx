@@ -151,7 +151,7 @@ function UnderReview({ record }) {
 }
 
 function Approved({ record }) {
-  return <StatusCard icon={CheckCircle2} tone="text-emerald-700 bg-emerald-50" title="KYC Verified ✓" body="You're fully verified and can book any car on SigFleet!" record={record} cta={<Link to="/vehicles" className="mt-5 inline-flex rounded-md bg-sigfleet px-5 py-3 font-black text-white">Book a Car</Link>} />
+  return <StatusCard icon={CheckCircle2} tone="text-emerald-700 bg-emerald-50" title="KYC Verified ✓" body="You're fully verified and can book any car on SigFleet!" record={record} cta={<Link to="/vehicles" className="mt-5 inline-flex rounded-md bg-sigfleet px-5 py-3 font-black text-white">Book a Vehicle</Link>} />
 }
 
 function Rejected({ record, form, setForm, files, setFiles, onSubmit, submitting }) {

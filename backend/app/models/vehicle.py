@@ -7,26 +7,18 @@ from app.database import Base
 from app.models.base import TimestampMixin, generate_uuid
 
 
-class Car(TimestampMixin, Base):
-    __tablename__ = "cars"
+class Vehicle(TimestampMixin, Base):
+    __tablename__ = "vehicles"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
-    managerId: Mapped[str] = mapped_column(
-        "managerId",
+    manager_id: Mapped[str] = mapped_column(
+        "manager_id",
         String(36),
         ForeignKey("users.id"),
         index=True,
         nullable=False,
         comment="Application layer requires users.role='vehicle_manager'.",
     )
-
-    @property
-    def host_id(self) -> str:
-        return self.managerId
-
-    @host_id.setter
-    def host_id(self, value: str) -> None:
-        self.managerId = value
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     make: Mapped[str] = mapped_column(String(100), nullable=False)
     car_model: Mapped[str] = mapped_column("model", String(100), nullable=False)
@@ -69,40 +61,40 @@ class Car(TimestampMixin, Base):
     has_sunroof: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     has_child_seat: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     has_luggage_carrier: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    minimum_guest_rating: Mapped[Decimal | None] = mapped_column(DECIMAL(3, 2), nullable=True)
+    minimum_customer_rating: Mapped[Decimal | None] = mapped_column(DECIMAL(3, 2), nullable=True)
     auto_accept_bookings: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     average_rating: Mapped[Decimal] = mapped_column(DECIMAL(3, 2), default=Decimal("0.00"), nullable=False)
     total_trips: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_earnings: Mapped[Decimal] = mapped_column(DECIMAL(12, 2), default=Decimal("0.00"), nullable=False)
 
 
-class CarImage(Base):
+class VehicleImage(Base):
     __tablename__ = "car_images"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
-    car_id: Mapped[str] = mapped_column(String(36), ForeignKey("cars.id"), index=True, nullable=False)
+    vehicle_id: Mapped[str] = mapped_column(String(36), ForeignKey("vehicles.id"), index=True, nullable=False)
     image_url: Mapped[str] = mapped_column(String(500), nullable=False)
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     order_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[DateTime] = mapped_column(DateTime, default=func.now(), nullable=False)
 
 
-class CarAvailabilityBlock(Base):
+class VehicleAvailabilityBlock(Base):
     __tablename__ = "car_availability_blocks"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
-    car_id: Mapped[str] = mapped_column(String(36), ForeignKey("cars.id"), nullable=False)
+    vehicle_id: Mapped[str] = mapped_column(String(36), ForeignKey("vehicles.id"), nullable=False)
     blocked_from: Mapped[DateTime] = mapped_column(DateTime, nullable=False)
     blocked_to: Mapped[DateTime] = mapped_column(DateTime, nullable=False)
     reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime, default=func.now(), nullable=False)
 
 
-class CarPricingRule(Base):
+class VehiclePricingRule(Base):
     __tablename__ = "car_pricing_rules"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
-    car_id: Mapped[str] = mapped_column(String(36), ForeignKey("cars.id"), nullable=False)
+    vehicle_id: Mapped[str] = mapped_column(String(36), ForeignKey("vehicles.id"), nullable=False)
     rule_type: Mapped[str] = mapped_column(
         Enum("weekend_discount", "long_trip_discount", "peak_surcharge", name="car_pricing_rule_type"),
         nullable=False,

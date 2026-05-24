@@ -39,7 +39,7 @@ export default function ManagerStatisticsPage() {
           <Chart title="Average Rental Duration"><ResponsiveContainer width="100%" height={270}><BarChart data={perCar.slice(0, 6).map((car) => ({ ...car, avg_days: car.trips ? 1 : 0 }))}><XAxis dataKey="title" hide /><YAxis /><Tooltip /><Bar dataKey="avg_days" fill="#1E3A5F" /></BarChart></ResponsiveContainer></Chart>
         </div>
         <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white shadow-sm">
-          <table className="w-full min-w-[760px] text-left text-sm"><thead className="text-xs uppercase text-zinc-500"><tr><th className="p-3">Vehicle</th><th>Total Bookings</th><th>Revenue</th><th>Avg Rating</th></tr></thead><tbody>{perCar.map((car) => <tr key={car.car_id} className="border-t border-zinc-100"><td className="p-3 font-black">{car.title}</td><td>{car.trips}</td><td>{money(car.net)}</td><td>{car.avg_rating} ★</td></tr>)}</tbody></table>
+          <table className="w-full min-w-[760px] text-left text-sm"><thead className="text-xs uppercase text-zinc-500"><tr><th className="p-3">Vehicle</th><th>Total Bookings</th><th>Revenue</th><th>Avg Rating</th></tr></thead><tbody>{perCar.map((car) => <tr key={car.vehicle_id} className="border-t border-zinc-100"><td className="p-3 font-black">{car.title}</td><td>{car.trips}</td><td>{money(car.net)}</td><td>{car.avg_rating} ★</td></tr>)}</tbody></table>
         </div>
       </section>
     </div>

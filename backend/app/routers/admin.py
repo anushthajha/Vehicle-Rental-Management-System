@@ -8,9 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.booking import Booking
-from app.models.car import Car, CarImage
+from app.models.vehicle import Vehicle, VehicleImage
 from app.models.coupon import Coupon
-from app.models.host import HostPayoutRequest, ManagerProfile
+from app.models.manager import ManagerPayoutRequest, ManagerProfile
 from app.models.payment import Payment, UserWallet
 from app.models.support import SupportTicket
 from app.models.user import User, UserKYC
@@ -21,7 +21,7 @@ from app.mongo_models.support_message import add_support_message, get_ticket_mes
 from app.redis import get_redis
 from app.services.booking_flow import add_wallet_transaction, get_or_create_wallet, money
 from app.tasks.email_tasks import (
-    send_host_payout_email,
+    send_manager_payout_email,
     send_kyc_approved_email,
     send_kyc_rejected_email,
     send_manager_role_update_email,
@@ -103,14 +103,14 @@ def _pages(total: int, limit: int) -> int:
     return (total + limit - 1) // limit if total else 0
 
 
-def _car_status(car: Car) -> str:
+def _car_status(car: Vehicle) -> str:
     if car.is_approved:
         return "approved" if car.is_available else "inactive"
     return "pending" if car.is_available else "rejected"
 
 
-def _primary_image(images: dict[str, str | None], car_id: str) -> str | None:
-    return images.get(car_id)
+def _primary_image(images: dict[str, str | None], vehicle_id: str) -> str | None:
+    return images.get(vehicle_id)
 
 
 def _coupon_payload(coupon: Coupon) -> dict:
@@ -132,19 +132,19 @@ def _coupon_payload(coupon: Coupon) -> dict:
     }
 
 
-async def _image_map(db: AsyncSession, car_ids: list[str]) -> dict[str, str | None]:
-    if not car_ids:
+async def _image_map(db: AsyncSession, vehicle_ids: list[str]) -> dict[str, str | None]:
+    if not vehicle_ids:
         return {}
     rows = (
         await db.execute(
-            select(CarImage)
-            .where(CarImage.car_id.in_(car_ids))
-            .order_by(CarImage.car_id, CarImage.is_primary.desc(), CarImage.order_index)
+            select(VehicleImage)
+            .where(VehicleImage.vehicle_id.in_(vehicle_ids))
+            .order_by(VehicleImage.vehicle_id, VehicleImage.is_primary.desc(), VehicleImage.order_index)
         )
     ).scalars().all()
     images: dict[str, str | None] = {}
     for image in rows:
-        images.setdefault(image.car_id, image.image_url)
+        images.setdefault(image.vehicle_id, image.image_url)
     return images
 
 
@@ -175,12 +175,12 @@ async def _booking_status_counts(db: AsyncSession) -> dict:
 
 
 async def _manager_stats(db: AsyncSession, manager_id: str) -> dict:
-    total_vehicles = await db.scalar(select(func.count()).select_from(Car).where(Car.managerId == manager_id)) or 0
+    total_vehicles = await db.scalar(select(func.count()).select_from(Vehicle).where(Vehicle.manager_id == manager_id)) or 0
     active_bookings = await db.scalar(
-        select(func.count()).select_from(Booking).where(Booking.host_id == manager_id, Booking.status.in_(("confirmed", "active")))
+        select(func.count()).select_from(Booking).where(Booking.manager_id == manager_id, Booking.status.in_(("confirmed", "active")))
     ) or 0
     total_revenue = await db.scalar(
-        select(func.coalesce(func.sum(Booking.host_earnings), 0)).where(Booking.host_id == manager_id, Booking.status == "completed")
+        select(func.coalesce(func.sum(Booking.manager_earnings), 0)).where(Booking.manager_id == manager_id, Booking.status == "completed")
     ) or Decimal("0")
     return {"total_vehicles": total_vehicles, "active_bookings": active_bookings, "total_revenue": money(total_revenue)}
 
@@ -214,7 +214,7 @@ async def create_vehicle_manager(payload: VehicleManagerCreateRequest, admin: Us
         full_name=payload.full_name.strip(),
         phone=payload.phone,
         role="vehicle_manager",
-        is_host=True,
+        is_vehicle_manager=True,
         is_verified=True,
     )
     db.add(user)
@@ -239,7 +239,7 @@ async def promote_vehicle_manager(user_id: str, payload: PromoteManagerRequest, 
     if user.role != "customer":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only customer accounts can be promoted")
     user.role = "vehicle_manager"
-    user.is_host = True
+    user.is_vehicle_manager = True
     user.is_verified = True
     await _get_or_create_manager_profile(db, user.id, admin.id, payload.department)
     if await db.scalar(select(func.count()).select_from(UserWallet).where(UserWallet.user_id == user.id)) == 0:
@@ -260,9 +260,9 @@ async def demote_vehicle_manager(user_id: str, payload: DemoteManagerRequest, ad
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is not a Vehicle Manager")
     blockers = (
         await db.execute(
-            select(Booking, Car.title)
-            .join(Car, Car.id == Booking.car_id)
-            .where(Booking.host_id == user.id, Booking.status.in_(("confirmed", "active")))
+            select(Booking, Vehicle.title)
+            .join(Vehicle, Vehicle.id == Booking.vehicle_id)
+            .where(Booking.manager_id == user.id, Booking.status.in_(("confirmed", "active")))
             .order_by(Booking.pickup_datetime.asc())
         )
     ).all()
@@ -280,7 +280,7 @@ async def demote_vehicle_manager(user_id: str, payload: DemoteManagerRequest, ad
         ]
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"message": "Manager has active or confirmed bookings", "blocking_bookings": blocking_bookings})
     user.role = "customer"
-    user.is_host = False
+    user.is_vehicle_manager = False
     profile = await db.scalar(select(ManagerProfile).where(ManagerProfile.user_id == user.id))
     if profile:
         profile.is_active = False
@@ -346,10 +346,10 @@ async def get_vehicle_manager(user_id: str, _: User = Depends(require_admin), db
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle Manager not found")
     user, profile = row
-    cars = (await db.execute(select(Car).where(Car.managerId == user.id).order_by(Car.created_at.desc()))).scalars().all()
-    images = await _image_map(db, [car.id for car in cars])
+    vehicles = (await db.execute(select(Vehicle).where(Vehicle.manager_id == user.id).order_by(Vehicle.created_at.desc()))).scalars().all()
+    images = await _image_map(db, [car.id for car in vehicles])
     stats = await _manager_stats(db, user.id)
-    booking_statuses = (await db.execute(select(Booking.status, func.count()).where(Booking.host_id == user.id).group_by(Booking.status))).all()
+    booking_statuses = (await db.execute(select(Booking.status, func.count()).where(Booking.manager_id == user.id).group_by(Booking.status))).all()
     return {
         "user": {"id": user.id, "full_name": user.full_name, "email": user.email, "phone": user.phone, "is_active": user.is_active, "created_at": _dt(user.created_at)},
         "profile": None
@@ -383,7 +383,7 @@ async def get_vehicle_manager(user_id: str, _: User = Depends(require_admin), db
                 "total_earnings": money(car.total_earnings),
                 "primary_image_url": _primary_image(images, car.id),
             }
-            for car in cars
+            for car in vehicles
         ],
     }
 
@@ -395,7 +395,7 @@ async def suspend_vehicle_manager(user_id: str, payload: SuspendManagerRequest, 
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle Manager not found")
     profile = await _get_or_create_manager_profile(db, user.id, admin.id)
     profile.is_active = False
-    await db.execute(update(Car).where(Car.managerId == user.id).values(is_available=False))
+    await db.execute(update(Vehicle).where(Vehicle.manager_id == user.id).values(is_available=False))
     await db.commit()
     send_manager_role_update_email.delay(user.email, user.full_name, "Vehicle Manager account suspended", f"Your Vehicle Manager account was suspended. Reason: {payload.reason}")
     await create_notification(user.id, "Manager account suspended", payload.reason, "account", action_url="/manager/profile")
@@ -411,7 +411,7 @@ async def reactivate_vehicle_manager(user_id: str, admin: User = Depends(require
     profile = await _get_or_create_manager_profile(db, user.id, admin.id)
     profile.is_active = True
     await db.commit()
-    await create_notification(user.id, "Manager account reactivated", "Your manager account is active again. Please manually reactivate vehicles that are ready for bookings.", "account", action_url="/manager/cars")
+    await create_notification(user.id, "Manager account reactivated", "Your manager account is active again. Please manually reactivate vehicles that are ready for bookings.", "account", action_url="/manager/vehicles")
     await log_activity(admin.id, "admin_reactivated_vehicle_manager", "user", user.id)
     return {"message": "Vehicle Manager reactivated. Vehicles remain unavailable until the manager re-activates them."}
 
@@ -426,21 +426,21 @@ async def stats_overview(_: User = Depends(require_admin), db: AsyncSession = De
     total_users = await db.scalar(select(func.count()).select_from(User)) or 0
     new_today = await db.scalar(select(func.count()).select_from(User).where(User.created_at >= today)) or 0
     new_week = await db.scalar(select(func.count()).select_from(User).where(User.created_at >= week_start)) or 0
-    total_managers = await db.scalar(select(func.count()).select_from(User).where(or_(User.role == "vehicle_manager", User.is_host.is_(True)))) or 0
+    total_managers = await db.scalar(select(func.count()).select_from(User).where(or_(User.role == "vehicle_manager", User.is_vehicle_manager.is_(True)))) or 0
     new_managers_month = await db.scalar(
-        select(func.count()).select_from(User).where(or_(User.role == "vehicle_manager", User.is_host.is_(True)), User.created_at >= month_start)
+        select(func.count()).select_from(User).where(or_(User.role == "vehicle_manager", User.is_vehicle_manager.is_(True)), User.created_at >= month_start)
     ) or 0
 
-    car_rows = (await db.execute(select(Car.is_approved, Car.is_available, func.count()).group_by(Car.is_approved, Car.is_available))).all()
-    cars = {"total": 0, "approved": 0, "pending_approval": 0, "inactive": 0}
+    car_rows = (await db.execute(select(Vehicle.is_approved, Vehicle.is_available, func.count()).group_by(Vehicle.is_approved, Vehicle.is_available))).all()
+    vehicles = {"total": 0, "approved": 0, "pending_approval": 0, "inactive": 0}
     for approved, available, count in car_rows:
-        cars["total"] += count
+        vehicles["total"] += count
         if approved:
-            cars["approved"] += count
+            vehicles["approved"] += count
         elif available:
-            cars["pending_approval"] += count
+            vehicles["pending_approval"] += count
         if not available:
-            cars["inactive"] += count
+            vehicles["inactive"] += count
 
     total_bookings = await db.scalar(select(func.count()).select_from(Booking)) or 0
     bookings_month = await db.scalar(select(func.count()).select_from(Booking).where(Booking.created_at >= month_start)) or 0
@@ -456,13 +456,13 @@ async def stats_overview(_: User = Depends(require_admin), db: AsyncSession = De
 
     pending_kyc = await db.scalar(select(func.count()).select_from(UserKYC).where(UserKYC.kyc_status == "under_review")) or 0
     open_tickets = await db.scalar(select(func.count()).select_from(SupportTicket).where(SupportTicket.status.in_(("open", "in_progress")))) or 0
-    pending_payouts = await db.scalar(select(func.count()).select_from(HostPayoutRequest).where(HostPayoutRequest.status == "pending")) or 0
+    pending_payouts = await db.scalar(select(func.count()).select_from(ManagerPayoutRequest).where(ManagerPayoutRequest.status == "pending")) or 0
 
     return {
         "users": {"total": total_users, "new_today": new_today, "new_this_week": new_week},
         "vehicle_managers": {"total": total_managers, "new_this_month": new_managers_month},
-        "hosts": {"total": total_managers, "new_this_month": new_managers_month},
-        "cars": cars,
+        "managers": {"total": total_managers, "new_this_month": new_managers_month},
+        "vehicles": vehicles,
         "bookings": {
             "total": total_bookings,
             "this_month": bookings_month,
@@ -478,7 +478,7 @@ async def stats_overview(_: User = Depends(require_admin), db: AsyncSession = De
         },
         "pending": {
             "kyc_count": pending_kyc,
-            "car_approval_count": cars["pending_approval"],
+            "car_approval_count": vehicles["pending_approval"],
             "support_tickets_count": open_tickets,
             "payout_requests_count": pending_payouts,
         },
@@ -501,7 +501,7 @@ async def revenue_analytics(
                 func.month(Payment.created_at).label("month"),
                 func.coalesce(func.sum(Payment.amount), 0),
                 func.coalesce(func.sum(Booking.platform_fee), 0),
-                func.coalesce(func.sum(Booking.host_earnings), 0),
+                func.coalesce(func.sum(Booking.manager_earnings), 0),
                 func.coalesce(func.sum(case((Payment.status == "refunded", Payment.amount), else_=0)), 0),
             )
             .join(Booking, Booking.id == Payment.booking_id)
@@ -516,7 +516,7 @@ async def revenue_analytics(
             "month": names[index - 1],
             "gross": money(by_month.get(index, [None, 0, 0, 0, 0])[1]),
             "platform_fee": money(by_month.get(index, [None, 0, 0, 0, 0])[2]),
-            "host_payouts": money(by_month.get(index, [None, 0, 0, 0, 0])[3]),
+            "manager_payouts": money(by_month.get(index, [None, 0, 0, 0, 0])[3]),
             "refunds": money(by_month.get(index, [None, 0, 0, 0, 0])[4]),
         }
         for index in range(1, 13)
@@ -561,14 +561,14 @@ async def city_analytics(_: User = Depends(require_admin), db: AsyncSession = De
     rows = (
         await db.execute(
             select(
-                Car.location_city,
+                Vehicle.location_city,
                 func.count(Booking.id),
                 func.coalesce(func.sum(Booking.total_amount), 0),
-                func.count(func.distinct(case((and_(Car.is_approved.is_(True), Car.is_available.is_(True)), Car.id)))),
+                func.count(func.distinct(case((and_(Vehicle.is_approved.is_(True), Vehicle.is_available.is_(True)), Vehicle.id)))),
             )
-            .select_from(Car)
-            .outerjoin(Booking, Booking.car_id == Car.id)
-            .group_by(Car.location_city)
+            .select_from(Vehicle)
+            .outerjoin(Booking, Booking.vehicle_id == Vehicle.id)
+            .group_by(Vehicle.location_city)
             .order_by(func.count(Booking.id).desc())
             .limit(10)
         )
@@ -576,14 +576,14 @@ async def city_analytics(_: User = Depends(require_admin), db: AsyncSession = De
     return [{"city": city, "booking_count": bookings, "revenue": money(revenue), "active_cars": active_cars} for city, bookings, revenue, active_cars in rows]
 
 
-@router.get("/analytics/top-cars")
+@router.get("/analytics/top-vehicles")
 async def top_cars(limit: int = Query(default=10, ge=1, le=50), _: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
     rows = (
         await db.execute(
-            select(Car, User.full_name, func.count(Booking.id), func.coalesce(func.sum(Booking.total_amount), 0))
-            .join(User, User.id == Car.managerId)
-            .outerjoin(Booking, Booking.car_id == Car.id)
-            .group_by(Car.id, User.full_name)
+            select(Vehicle, User.full_name, func.count(Booking.id), func.coalesce(func.sum(Booking.total_amount), 0))
+            .join(User, User.id == Vehicle.manager_id)
+            .outerjoin(Booking, Booking.vehicle_id == Vehicle.id)
+            .group_by(Vehicle.id, User.full_name)
             .order_by(func.coalesce(func.sum(Booking.total_amount), 0).desc())
             .limit(limit)
         )
@@ -594,12 +594,12 @@ async def top_cars(limit: int = Query(default=10, ge=1, le=50), _: User = Depend
             "id": car.id,
             "title": car.title,
             "image": _primary_image(images, car.id),
-            "host_name": host_name,
+            "manager_name": manager_name,
             "trips": trips or car.total_trips,
             "revenue": money(revenue),
             "rating": money(car.average_rating),
         }
-        for car, host_name, trips, revenue in rows
+        for car, manager_name, trips, revenue in rows
     ]
 
 
@@ -616,8 +616,8 @@ async def activity_feed(
 async def category_distribution(_: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
     rows = (
         await db.execute(
-            select(VehicleCategory.name, func.count(Car.id))
-            .outerjoin(Car, Car.category_id == VehicleCategory.id)
+            select(VehicleCategory.name, func.count(Vehicle.id))
+            .outerjoin(Vehicle, Vehicle.category_id == VehicleCategory.id)
             .group_by(VehicleCategory.id, VehicleCategory.name)
             .order_by(VehicleCategory.display_order.asc())
         )
@@ -668,7 +668,7 @@ async def list_users(
                 func.count(Booking.id).label("booking_count"),
             )
             .outerjoin(UserKYC, UserKYC.user_id == User.id)
-            .outerjoin(Booking, Booking.guest_id == User.id)
+            .outerjoin(Booking, Booking.customer_id == User.id)
             .where(*conditions)
             .group_by(User.id, UserKYC.kyc_status)
             .order_by(User.created_at.desc())
@@ -708,9 +708,9 @@ async def user_details(user_id: str, _: User = Depends(require_admin), db: Async
     wallet = await get_or_create_wallet(db, user_id)
     rows = (
         await db.execute(
-            select(Booking, Car.title)
-            .outerjoin(Car, Car.id == Booking.car_id)
-            .where(Booking.guest_id == user_id)
+            select(Booking, Vehicle.title)
+            .outerjoin(Vehicle, Vehicle.id == Booking.vehicle_id)
+            .where(Booking.customer_id == user_id)
             .order_by(Booking.created_at.desc())
             .limit(5)
         )
@@ -718,7 +718,7 @@ async def user_details(user_id: str, _: User = Depends(require_admin), db: Async
     summary = (
         await db.execute(
             select(Booking.status, func.count(), func.coalesce(func.sum(Booking.total_amount), 0))
-            .where(Booking.guest_id == user_id)
+            .where(Booking.customer_id == user_id)
             .group_by(Booking.status)
         )
     ).all()
@@ -733,7 +733,7 @@ async def user_details(user_id: str, _: User = Depends(require_admin), db: Async
             "role": user.role,
             "is_active": user.is_active,
             "is_verified": user.is_verified,
-            "is_host": user.role == "vehicle_manager",
+            "is_vehicle_manager": user.role == "vehicle_manager",
             "created_at": _dt(user.created_at),
             "last_login": _dt(user.last_login),
         },
@@ -757,7 +757,7 @@ async def user_details(user_id: str, _: User = Depends(require_admin), db: Async
             {
                 "id": booking.id,
                 "booking_ref": booking.booking_ref,
-                "car_title": title,
+                "vehicle_name": title,
                 "status": booking.status,
                 "pickup_datetime": _dt(booking.pickup_datetime),
                 "total_amount": money(booking.total_amount),
@@ -774,11 +774,11 @@ async def update_user(user_id: str, payload: UserUpdateRequest, admin: User = De
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     if payload.role is not None:
         user.role = payload.role
-        user.is_host = payload.role == "vehicle_manager" or user.is_host
+        user.is_vehicle_manager = payload.role == "vehicle_manager" or user.is_vehicle_manager
     if payload.is_active is not None:
         user.is_active = payload.is_active
         if not payload.is_active:
-            pending = (await db.execute(select(Booking).where(Booking.guest_id == user.id, Booking.status == "pending"))).scalars().all()
+            pending = (await db.execute(select(Booking).where(Booking.customer_id == user.id, Booking.status == "pending"))).scalars().all()
             for booking in pending:
                 booking.status = "cancelled"
                 booking.cancelled_by = admin.id
@@ -790,14 +790,14 @@ async def update_user(user_id: str, payload: UserUpdateRequest, admin: User = De
     return {"message": "User updated"}
 
 
-@router.get("/cars")
+@router.get("/vehicles")
 async def list_cars(
     status_filter: str = Query(default="all", alias="status", pattern="^(pending|approved|inactive|rejected|all)$"),
     city: str | None = None,
     category: str | None = None,
     category_id: str | None = None,
     vehicle_type_id: str | None = None,
-    host_id: str | None = None,
+    manager_id: str | None = None,
     sort: str = Query(default="newest"),
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=100),
@@ -806,39 +806,39 @@ async def list_cars(
 ):
     conditions = []
     if status_filter == "pending":
-        conditions += [Car.is_approved.is_(False), Car.is_available.is_(True)]
+        conditions += [Vehicle.is_approved.is_(False), Vehicle.is_available.is_(True)]
     elif status_filter == "approved":
-        conditions.append(Car.is_approved.is_(True))
+        conditions.append(Vehicle.is_approved.is_(True))
     elif status_filter == "inactive":
-        conditions.append(Car.is_available.is_(False))
+        conditions.append(Vehicle.is_available.is_(False))
     elif status_filter == "rejected":
-        conditions += [Car.is_approved.is_(False), Car.is_available.is_(False)]
+        conditions += [Vehicle.is_approved.is_(False), Vehicle.is_available.is_(False)]
     if city:
-        conditions.append(Car.location_city == city)
+        conditions.append(Vehicle.location_city == city)
     if category_id:
-        conditions.append(Car.category_id == category_id)
+        conditions.append(Vehicle.category_id == category_id)
     elif category:
         category_match = await db.scalar(select(VehicleCategory).where((VehicleCategory.id == category) | (VehicleCategory.slug == category)))
         if category_match:
-            conditions.append(Car.category_id == category_match.id)
+            conditions.append(Vehicle.category_id == category_match.id)
     if vehicle_type_id:
-        conditions.append(Car.vehicle_type_id == vehicle_type_id)
-    if host_id:
-        conditions.append(Car.managerId == host_id)
-    total = await db.scalar(select(func.count()).select_from(Car).where(*conditions)) or 0
-    order = Car.created_at.desc()
+        conditions.append(Vehicle.vehicle_type_id == vehicle_type_id)
+    if manager_id:
+        conditions.append(Vehicle.manager_id == manager_id)
+    total = await db.scalar(select(func.count()).select_from(Vehicle).where(*conditions)) or 0
+    order = Vehicle.created_at.desc()
     if sort == "oldest":
-        order = Car.created_at.asc()
+        order = Vehicle.created_at.asc()
     elif sort == "price":
-        order = Car.price_per_day.asc()
+        order = Vehicle.price_per_day.asc()
     elif sort == "rating":
-        order = Car.average_rating.desc()
+        order = Vehicle.average_rating.desc()
     rows = (
         await db.execute(
-            select(Car, User.full_name, User.email, VehicleCategory, VehicleType)
-            .join(User, User.id == Car.managerId)
-            .outerjoin(VehicleCategory, VehicleCategory.id == Car.category_id)
-            .outerjoin(VehicleType, VehicleType.id == Car.vehicle_type_id)
+            select(Vehicle, User.full_name, User.email, VehicleCategory, VehicleType)
+            .join(User, User.id == Vehicle.manager_id)
+            .outerjoin(VehicleCategory, VehicleCategory.id == Vehicle.category_id)
+            .outerjoin(VehicleType, VehicleType.id == Vehicle.vehicle_type_id)
             .where(*conditions)
             .order_by(order)
             .offset((page - 1) * limit)
@@ -854,8 +854,8 @@ async def list_cars(
                 "image": _primary_image(images, car.id),
                 "city": car.location_city,
                 "area": car.location_area,
-                "vehicle_manager": {"id": car.host_id, "name": host_name, "email": host_email},
-                "manager": {"id": car.host_id, "name": host_name, "email": host_email},
+                "vehicle_manager": {"id": car.manager_id, "name": manager_name, "email": manager_email},
+                "manager": {"id": car.manager_id, "name": manager_name, "email": manager_email},
                 "category": category.slug if category else None,
                 "category_id": car.category_id,
                 "category_name": category.name if category else None,
@@ -872,7 +872,7 @@ async def list_cars(
                 "listed_date": _dt(car.created_at),
                 "description": car.description,
             }
-            for car, host_name, host_email, category, vehicle_type in rows
+            for car, manager_name, manager_email, category, vehicle_type in rows
         ],
         "total": total,
         "page": page,
@@ -880,37 +880,37 @@ async def list_cars(
     }
 
 
-@router.patch("/cars/{car_id}/approve")
-async def approve_car(car_id: str, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
-    car = await db.scalar(select(Car).where(Car.id == car_id))
+@router.patch("/vehicles/{vehicle_id}/approve")
+async def approve_car(vehicle_id: str, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    car = await db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id))
     if car is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Car not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle not found")
     car.is_approved = True
     car.is_available = True
     await db.commit()
-    await create_notification(car.host_id, "Car approved", f"{car.title} is live for bookings.", "host", action_url="/manager/cars", meta={"car_id": car.id})
+    await create_notification(car.manager_id, "Vehicle approved", f"{car.title} is live for bookings.", "manager", action_url="/manager/vehicles", meta={"vehicle_id": car.id})
     await log_activity(admin.id, "car_approved", "car", car.id, {"title": car.title})
     return {"status": "approved"}
 
 
-@router.patch("/cars/{car_id}/reject")
-async def reject_car(car_id: str, payload: RejectRequest, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
-    car = await db.scalar(select(Car).where(Car.id == car_id))
+@router.patch("/vehicles/{vehicle_id}/reject")
+async def reject_car(vehicle_id: str, payload: RejectRequest, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    car = await db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id))
     if car is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Car not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle not found")
     car.is_approved = False
     car.is_available = False
     await db.commit()
-    await create_notification(car.host_id, "Car rejected", payload.reason, "host", action_url="/manager/cars", meta={"car_id": car.id})
+    await create_notification(car.manager_id, "Vehicle rejected", payload.reason, "manager", action_url="/manager/vehicles", meta={"vehicle_id": car.id})
     await log_activity(admin.id, "car_rejected", "car", car.id, {"reason": payload.reason})
     return {"status": "rejected"}
 
 
-@router.patch("/cars/{car_id}/feature")
-async def feature_car(car_id: str, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
-    car = await db.scalar(select(Car).where(Car.id == car_id))
+@router.patch("/vehicles/{vehicle_id}/feature")
+async def feature_car(vehicle_id: str, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    car = await db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id))
     if car is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Car not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle not found")
     car.is_featured = not car.is_featured
     await db.commit()
     await log_activity(admin.id, "car_feature_toggled", "car", car.id, {"is_featured": car.is_featured})
@@ -936,13 +936,13 @@ async def list_bookings(
     if end_date:
         conditions.append(Booking.pickup_datetime <= end_date)
     if city:
-        conditions.append(Car.location_city == city)
-    total = await db.scalar(select(func.count()).select_from(Booking).join(Car, Car.id == Booking.car_id).where(*conditions)) or 0
+        conditions.append(Vehicle.location_city == city)
+    total = await db.scalar(select(func.count()).select_from(Booking).join(Vehicle, Vehicle.id == Booking.vehicle_id).where(*conditions)) or 0
     rows = (
         await db.execute(
-            select(Booking, Car.title, Car.location_city, User.full_name)
-            .join(Car, Car.id == Booking.car_id)
-            .join(User, User.id == Booking.guest_id)
+            select(Booking, Vehicle.title, Vehicle.location_city, User.full_name)
+            .join(Vehicle, Vehicle.id == Booking.vehicle_id)
+            .join(User, User.id == Booking.customer_id)
             .where(*conditions)
             .order_by(Booking.created_at.desc())
             .offset((page - 1) * limit)
@@ -954,9 +954,9 @@ async def list_bookings(
             {
                 "id": booking.id,
                 "booking_ref": booking.booking_ref,
-                "car_title": title,
+                "vehicle_name": title,
                 "city": city_name,
-                "guest_name": customer,
+                "customer_name": customer,
                 "status": booking.status,
                 "pickup_datetime": _dt(booking.pickup_datetime),
                 "return_datetime": _dt(booking.return_datetime),
@@ -975,26 +975,26 @@ async def list_bookings(
 async def booking_details(booking_id: str, _: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
     row = (
         await db.execute(
-            select(Booking, Car, User.full_name.label("guest_name"))
-            .join(Car, Car.id == Booking.car_id)
-            .join(User, User.id == Booking.guest_id)
+            select(Booking, Vehicle, User.full_name.label("customer_name"))
+            .join(Vehicle, Vehicle.id == Booking.vehicle_id)
+            .join(User, User.id == Booking.customer_id)
             .where(Booking.id == booking_id)
         )
     ).first()
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
-    booking, car, guest_name = row
+    booking, car, customer_name = row
     return {"booking": {
         "id": booking.id,
         "booking_ref": booking.booking_ref,
         "status": booking.status,
-        "guest_name": guest_name,
-        "car_title": car.title,
+        "customer_name": customer_name,
+        "vehicle_name": car.title,
         "pickup_datetime": _dt(booking.pickup_datetime),
         "return_datetime": _dt(booking.return_datetime),
         "total_amount": money(booking.total_amount),
         "platform_fee": money(booking.platform_fee),
-        "host_earnings": money(booking.host_earnings),
+        "manager_earnings": money(booking.manager_earnings),
     }}
 
 
@@ -1342,14 +1342,14 @@ async def list_payouts(
 ):
     conditions = []
     if status_filter:
-        conditions.append(HostPayoutRequest.status == status_filter)
-    total = await db.scalar(select(func.count()).select_from(HostPayoutRequest).where(*conditions)) or 0
+        conditions.append(ManagerPayoutRequest.status == status_filter)
+    total = await db.scalar(select(func.count()).select_from(ManagerPayoutRequest).where(*conditions)) or 0
     rows = (
         await db.execute(
-            select(HostPayoutRequest, User.full_name, User.email)
-            .join(User, User.id == HostPayoutRequest.host_id)
+            select(ManagerPayoutRequest, User.full_name, User.email)
+            .join(User, User.id == ManagerPayoutRequest.manager_id)
             .where(*conditions)
-            .order_by(HostPayoutRequest.requested_at.desc())
+            .order_by(ManagerPayoutRequest.requested_at.desc())
             .offset((page - 1) * limit)
             .limit(limit)
         )
@@ -1358,8 +1358,8 @@ async def list_payouts(
         "items": [
             {
                 "id": payout.id,
-                "vehicle_manager": {"id": payout.host_id, "name": name, "email": email},
-                "host": {"id": payout.host_id, "name": name, "email": email},
+                "vehicle_manager": {"id": payout.manager_id, "name": name, "email": email},
+                "manager": {"id": payout.manager_id, "name": name, "email": email},
                 "amount": money(payout.amount),
                 "status": payout.status,
                 "requested_at": _dt(payout.requested_at),
@@ -1374,10 +1374,10 @@ async def list_payouts(
 
 
 async def _payout_action(payout_id: str, action: str, admin: User, db: AsyncSession) -> dict:
-    payout = await db.scalar(select(HostPayoutRequest).where(HostPayoutRequest.id == payout_id))
+    payout = await db.scalar(select(ManagerPayoutRequest).where(ManagerPayoutRequest.id == payout_id))
     if payout is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payout request not found")
-    vehicle_manager = await db.scalar(select(User).where(User.id == payout.host_id))
+    vehicle_manager = await db.scalar(select(User).where(User.id == payout.manager_id))
     if action == "process":
         payout.status = "processing"
     elif action == "complete":
@@ -1385,20 +1385,20 @@ async def _payout_action(payout_id: str, action: str, admin: User, db: AsyncSess
         payout.processed_at = datetime.utcnow()
         if vehicle_manager:
             try:
-                send_host_payout_email.delay(vehicle_manager.email, money(payout.amount))
+                send_manager_payout_email.delay(vehicle_manager.email, money(payout.amount))
             except Exception:
                 pass
-            await create_notification(vehicle_manager.id, "Payout paid", f"₹{money(payout.amount):,.2f} was processed.", "host", action_url="/manager/earnings")
+            await create_notification(vehicle_manager.id, "Payout paid", f"₹{money(payout.amount):,.2f} was processed.", "manager", action_url="/manager/earnings")
     elif action == "fail":
         payout.status = "failed"
         payout.processed_at = datetime.utcnow()
-        wallet = await get_or_create_wallet(db, payout.host_id)
+        wallet = await get_or_create_wallet(db, payout.manager_id)
         wallet.balance = Decimal(str(wallet.balance)) + Decimal(str(payout.amount))
-        add_wallet_transaction(db, payout.host_id, "credit", payout.amount, wallet.balance, "Failed payout returned to wallet", payout.id)
+        add_wallet_transaction(db, payout.manager_id, "credit", payout.amount, wallet.balance, "Failed payout returned to wallet", payout.id)
         if vehicle_manager:
-            await create_notification(vehicle_manager.id, "Payout failed", "Your payout was returned to wallet.", "host", action_url="/manager/earnings")
+            await create_notification(vehicle_manager.id, "Payout failed", "Your payout was returned to wallet.", "manager", action_url="/manager/earnings")
     await db.commit()
-    await log_activity(admin.id, f"payout_{action}", "host_payout_request", payout.id)
+    await log_activity(admin.id, f"payout_{action}", "manager_payout_request", payout.id)
     return {"status": payout.status}
 
 

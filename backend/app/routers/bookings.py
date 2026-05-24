@@ -11,9 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.booking import Booking, BookingExtension
-from app.models.car import Car, CarImage, CarPricingRule
+from app.models.vehicle import Vehicle, VehicleImage, VehiclePricingRule
 from app.models.coupon import Coupon, CouponUsage
-from app.models.host import HostProfile
+from app.models.manager import ManagerProfile
 from app.models.payment import Payment
 from app.models.user import User
 from app.mongo_models.notification import create_notification
@@ -27,8 +27,8 @@ from app.services.booking_flow import (
 )
 from app.services.availability import AvailabilityService
 from app.services.pricing import calculate_booking_price
-from app.services.superhost import check_and_update_superhost
-from app.tasks.email_tasks import send_booking_cancelled_email, send_booking_request_to_host_email
+from app.services.super_manager import check_and_update_super_manager
+from app.tasks.email_tasks import send_booking_cancelled_email, send_booking_request_to_manager_email
 from app.tasks.maintenance_tasks import send_review_request_task
 from app.utils.auth import get_current_active_user, require_customer, require_vehicle_manager, require_kyc_user
 
@@ -39,7 +39,7 @@ BLOCKING_STATUSES = ("confirmed", "active", "pending")
 
 
 class BookingPreviewRequest(BaseModel):
-    car_id: str
+    vehicle_id: str
     pickup_datetime: datetime
     return_datetime: datetime
     insurance_plan: str = "standard"
@@ -57,7 +57,7 @@ class BookingPreviewRequest(BaseModel):
 
 
 class BookingCreateRequest(BookingPreviewRequest):
-    guest_notes: str | None = Field(default=None, max_length=1000)
+    customer_notes: str | None = Field(default=None, max_length=1000)
 
 
 class RejectRequest(BaseModel):
@@ -93,28 +93,28 @@ def _validation_error(field: str, message: str, code: str) -> HTTPException:
     return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"detail": "VALIDATION_ERROR", "field": field, "message": message, "code": code})
 
 
-async def _load_car(db: AsyncSession, car_id: str) -> Car:
-    car = await db.scalar(select(Car).where(Car.id == car_id))
+async def _load_car(db: AsyncSession, vehicle_id: str) -> Vehicle:
+    car = await db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id))
     if car is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Car not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle not found")
     return car
 
 
-async def _attach_pricing_rules(db: AsyncSession, car: Car) -> None:
-    rules = (await db.execute(select(CarPricingRule).where(CarPricingRule.car_id == car.id))).scalars().all()
+async def _attach_pricing_rules(db: AsyncSession, car: Vehicle) -> None:
+    rules = (await db.execute(select(VehiclePricingRule).where(VehiclePricingRule.vehicle_id == car.id))).scalars().all()
     setattr(car, "pricing_rules", rules)
 
 
-async def _primary_image(db: AsyncSession, car_id: str) -> str | None:
+async def _primary_image(db: AsyncSession, vehicle_id: str) -> str | None:
     return await db.scalar(
-        select(CarImage.image_url)
-        .where(CarImage.car_id == car_id)
-        .order_by(CarImage.is_primary.desc(), CarImage.order_index.asc())
+        select(VehicleImage.image_url)
+        .where(VehicleImage.vehicle_id == vehicle_id)
+        .order_by(VehicleImage.is_primary.desc(), VehicleImage.order_index.asc())
         .limit(1)
     )
 
 
-async def _validate_dates(car: Car, pickup: datetime, return_at: datetime) -> None:
+async def _validate_dates(car: Vehicle, pickup: datetime, return_at: datetime) -> None:
     if return_at <= pickup:
         raise _validation_error("return_date", "Return date must be after pickup date", "INVALID_RANGE")
     if pickup < datetime.utcnow() + timedelta(hours=1):
@@ -142,13 +142,13 @@ async def _validate_coupon(db: AsyncSession, code: str | None, user: User | None
     if base_amount < money(coupon.min_booking_amount):
         return None, f"Minimum booking amount is ₹{money(coupon.min_booking_amount):.0f}"
     if coupon.applicable_for == "new_users" and user is not None:
-        previous = await db.scalar(select(func.count()).select_from(Booking).where(Booking.guest_id == user.id))
+        previous = await db.scalar(select(func.count()).select_from(Booking).where(Booking.customer_id == user.id))
         if previous:
             return None, "Coupon is only for new users"
     return coupon, None
 
 
-async def _price_breakdown(db: AsyncSession, car: Car, payload: BookingPreviewRequest, user: User | None = None) -> tuple[dict, Coupon | None, str | None]:
+async def _price_breakdown(db: AsyncSession, car: Vehicle, payload: BookingPreviewRequest, user: User | None = None) -> tuple[dict, Coupon | None, str | None]:
     await _attach_pricing_rules(db, car)
     raw = calculate_booking_price(car, payload.pickup_datetime, payload.return_datetime, payload.insurance_plan, payload.coupon_code)
     coupon, coupon_error = await _validate_coupon(db, payload.coupon_code, user, raw["base_amount"])
@@ -157,15 +157,15 @@ async def _price_breakdown(db: AsyncSession, car: Car, payload: BookingPreviewRe
     return breakdown, coupon, coupon_error
 
 
-async def _ensure_available(db: AsyncSession, car: Car, pickup: datetime, return_at: datetime, guest_id: str | None = None) -> None:
+async def _ensure_available(db: AsyncSession, car: Vehicle, pickup: datetime, return_at: datetime, customer_id: str | None = None) -> None:
     available, reason = await AvailabilityService.check_vehicle_available(car.id, pickup, return_at, db)
     if not available:
         raise _validation_error("pickup_date", reason, "OVERLAP_CONFLICT")
-    if guest_id:
-        guest_conflict = await db.scalar(
-            select(func.count()).select_from(Booking).where(Booking.guest_id == guest_id, Booking.status.in_(BLOCKING_STATUSES), Booking.pickup_datetime < return_at, Booking.return_datetime > pickup)
+    if customer_id:
+        customer_conflict = await db.scalar(
+            select(func.count()).select_from(Booking).where(Booking.customer_id == customer_id, Booking.status.in_(BLOCKING_STATUSES), Booking.pickup_datetime < return_at, Booking.return_datetime > pickup)
         )
-        if guest_conflict:
+        if customer_conflict:
             raise _validation_error("pickup_date", "You already have a booking during this time", "CUSTOMER_OVERLAP")
 
 
@@ -182,7 +182,7 @@ async def _booking_with_access(booking_id: str, current_user: User, db: AsyncSes
     booking = await db.scalar(select(Booking).where(Booking.id == booking_id))
     if booking is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
-    if current_user.id not in {booking.guest_id, booking.host_id} and current_user.role != "admin":
+    if current_user.id not in {booking.customer_id, booking.manager_id} and current_user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to access this booking")
     return booking
 
@@ -194,12 +194,12 @@ async def _payment_for(db: AsyncSession, booking_id: str) -> Payment:
     return payment
 
 
-def _booking_payload(booking: Booking, car: Car, image: str | None, counterparty: User | None = None, payment: Payment | None = None) -> dict:
+def _booking_payload(booking: Booking, car: Vehicle, image: str | None, counterparty: User | None = None, payment: Payment | None = None) -> dict:
     return {
         "id": booking.id,
         "booking_ref": booking.booking_ref,
-        "guest_id": booking.guest_id,
-        "host_id": booking.host_id,
+        "customer_id": booking.customer_id,
+        "manager_id": booking.manager_id,
         "status": booking.status,
         "created_at": _dt(booking.created_at),
         "pickup_datetime": _dt(booking.pickup_datetime),
@@ -216,11 +216,11 @@ def _booking_payload(booking: Booking, car: Car, image: str | None, counterparty
         "security_deposit_amount": money(booking.security_deposit_amount),
         "total_amount": money(booking.total_amount),
         "platform_fee": money(booking.platform_fee),
-        "host_earnings": money(booking.host_earnings),
+        "manager_earnings": money(booking.manager_earnings),
         "extra_km_charged": money(booking.extra_km_charged),
         "refund_amount": money(booking.refund_amount),
         "refund_status": booking.refund_status,
-        "guest_notes": booking.guest_notes,
+        "customer_notes": booking.customer_notes,
         "cancellation_reason": booking.cancellation_reason,
         "car": {
             "id": car.id,
@@ -251,7 +251,7 @@ def _booking_payload(booking: Booking, car: Car, image: str | None, counterparty
 
 @router.post("/preview")
 async def preview_booking(payload: BookingPreviewRequest, db: AsyncSession = Depends(get_db)):
-    car = await _load_car(db, payload.car_id)
+    car = await _load_car(db, payload.vehicle_id)
     await _validate_dates(car, payload.pickup_datetime, payload.return_datetime)
     available, reason = await AvailabilityService.check_vehicle_available(car.id, payload.pickup_datetime, payload.return_datetime, db)
     if not available:
@@ -264,7 +264,7 @@ async def preview_booking(payload: BookingPreviewRequest, db: AsyncSession = Dep
 async def create_booking(payload: BookingCreateRequest, current_user: User = Depends(require_kyc_user), db: AsyncSession = Depends(get_db)):
     if current_user.role not in {"customer", "admin"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Customer access required.")
-    car = await _load_car(db, payload.car_id)
+    car = await _load_car(db, payload.vehicle_id)
     await _validate_dates(car, payload.pickup_datetime, payload.return_datetime)
     await _ensure_available(db, car, payload.pickup_datetime, payload.return_datetime, current_user.id)
     breakdown, coupon, coupon_error = await _price_breakdown(db, car, payload, current_user)
@@ -274,9 +274,9 @@ async def create_booking(payload: BookingCreateRequest, current_user: User = Dep
     ref = await _booking_ref(db)
     booking = Booking(
         booking_ref=ref,
-        car_id=car.id,
-        guest_id=current_user.id,
-        host_id=car.host_id,
+        vehicle_id=car.id,
+        customer_id=current_user.id,
+        manager_id=car.manager_id,
         status="confirmed" if car.auto_accept_bookings else "pending",
         pickup_datetime=payload.pickup_datetime,
         return_datetime=payload.return_datetime,
@@ -290,9 +290,9 @@ async def create_booking(payload: BookingCreateRequest, current_user: User = Dep
         security_deposit_amount=Decimal(str(breakdown["security_deposit"])),
         total_amount=Decimal(str(breakdown["total_amount"])),
         platform_fee=Decimal(str(breakdown["platform_fee"])),
-        host_earnings=Decimal(str(breakdown["host_earnings"])),
-        guest_notes=payload.guest_notes,
-        host_accepted_at=datetime.utcnow() if car.auto_accept_bookings else None,
+        manager_earnings=Decimal(str(breakdown["manager_earnings"])),
+        customer_notes=payload.customer_notes,
+        manager_accepted_at=datetime.utcnow() if car.auto_accept_bookings else None,
     )
     db.add(booking)
     await db.flush()
@@ -303,21 +303,21 @@ async def create_booking(payload: BookingCreateRequest, current_user: User = Dep
 
     payment = Payment(booking_id=booking.id, user_id=current_user.id, amount=booking.total_amount, payment_method="simulated", status="created")
     db.add(payment)
-    host = await db.scalar(select(User).where(User.id == car.host_id))
+    manager = await db.scalar(select(User).where(User.id == car.manager_id))
     image = await _primary_image(db, car.id)
 
-    if car.auto_accept_bookings and host:
-        await mark_payment_paid(db, booking, payment, car, current_user, host)
+    if car.auto_accept_bookings and manager:
+        await mark_payment_paid(db, booking, payment, car, current_user, manager)
 
     await db.commit()
 
-    if host:
-        notify_payload = booking_email_payload(booking, car) | {"guest_name": current_user.full_name}
+    if manager:
+        notify_payload = booking_email_payload(booking, car) | {"customer_name": current_user.full_name}
         try:
-            send_booking_request_to_host_email.delay(host.email, notify_payload)
+            send_booking_request_to_manager_email.delay(manager.email, notify_payload)
         except Exception:
             pass
-        await create_notification(host.id, "New booking request", f"{current_user.full_name} requested {car.title}.", "booking", action_url="/manager/bookings", meta={"booking_id": booking.id})
+        await create_notification(manager.id, "New booking request", f"{current_user.full_name} requested {car.title}.", "booking", action_url="/manager/bookings", meta={"booking_id": booking.id})
     await create_notification(current_user.id, "Booking request submitted", f"Booking {booking.booking_ref} was created.", "booking", action_url=f"/dashboard/bookings/{booking.id}", meta={"booking_id": booking.id})
 
     return {
@@ -325,7 +325,7 @@ async def create_booking(payload: BookingCreateRequest, current_user: User = Dep
         "booking_ref": booking.booking_ref,
         "status": booking.status,
         "price_breakdown": breakdown,
-        "car_title": car.title,
+        "vehicle_name": car.title,
         "car_primary_image": image,
         "requires_payment": not car.auto_accept_bookings,
     }
@@ -334,16 +334,16 @@ async def create_booking(payload: BookingCreateRequest, current_user: User = Dep
 @router.post("/{booking_id}/simulate-payment")
 async def simulate_payment(booking_id: str, current_user: User = Depends(require_customer), db: AsyncSession = Depends(get_db)):
     booking = await _booking_with_access(booking_id, current_user, db)
-    if booking.guest_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the guest can pay for this booking")
-    car = await _load_car(db, booking.car_id)
+    if booking.customer_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the customer can pay for this booking")
+    car = await _load_car(db, booking.vehicle_id)
     if not (booking.status == "confirmed" or (booking.status == "pending" and car.auto_accept_bookings)):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Booking is not ready for payment")
     payment = await _payment_for(db, booking.id)
     if payment.status != "created":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Payment is not payable")
-    host = await db.scalar(select(User).where(User.id == booking.host_id))
-    txn_id = await mark_payment_paid(db, booking, payment, car, current_user, host)
+    manager = await db.scalar(select(User).where(User.id == booking.manager_id))
+    txn_id = await mark_payment_paid(db, booking, payment, car, current_user, manager)
     await db.commit()
     return {"success": True, "booking_ref": booking.booking_ref, "transaction_id": txn_id, "message": "Payment successful. Booking confirmed!"}
 
@@ -351,22 +351,22 @@ async def simulate_payment(booking_id: str, current_user: User = Depends(require
 @router.patch("/{booking_id}/accept")
 async def accept_booking(booking_id: str, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     booking = await _booking_with_access(booking_id, current_user, db)
-    if booking.host_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the host can accept this booking")
+    if booking.manager_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the manager can accept this booking")
     if booking.status != "pending":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only pending bookings can be accepted")
     booking.status = "confirmed"
-    booking.host_accepted_at = datetime.utcnow()
+    booking.manager_accepted_at = datetime.utcnow()
     await db.commit()
-    await create_notification(booking.guest_id, "Booking accepted", "Your booking request was accepted! Complete payment to confirm.", "booking", action_url=f"/booking/pay/{booking.id}", meta={"booking_id": booking.id})
+    await create_notification(booking.customer_id, "Booking accepted", "Your booking request was accepted! Complete payment to confirm.", "booking", action_url=f"/booking/pay/{booking.id}", meta={"booking_id": booking.id})
     return {"status": booking.status}
 
 
 @router.patch("/{booking_id}/reject")
 async def reject_booking(booking_id: str, payload: RejectRequest, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     booking = await _booking_with_access(booking_id, current_user, db)
-    if booking.host_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the host can reject this booking")
+    if booking.manager_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the manager can reject this booking")
     if booking.status != "pending":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only pending bookings can be rejected")
     booking.status = "rejected"
@@ -375,7 +375,7 @@ async def reject_booking(booking_id: str, payload: RejectRequest, current_user: 
     if payment and payment.status == "paid":
         booking.refund_status = "pending"
     await db.commit()
-    await create_notification(booking.guest_id, "Booking rejected", payload.reason, "booking", action_url=f"/dashboard/bookings/{booking.id}", meta={"booking_id": booking.id})
+    await create_notification(booking.customer_id, "Booking rejected", payload.reason, "booking", action_url=f"/dashboard/bookings/{booking.id}", meta={"booking_id": booking.id})
     return {"status": booking.status}
 
 
@@ -385,11 +385,11 @@ async def cancel_booking(booking_id: str, payload: CancelRequest, current_user: 
     if booking.status in {"cancelled", "completed", "rejected"}:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Booking cannot be cancelled")
     payment = await db.scalar(select(Payment).where(Payment.booking_id == booking.id))
-    is_host_cancel = False
+    is_manager_cancel = False
     refund = Decimal("0.00")
     if payment and payment.status == "paid":
         hours_to_pickup = (booking.pickup_datetime - datetime.utcnow()).total_seconds() / 3600
-        if is_host_cancel:
+        if is_manager_cancel:
             refund = Decimal(str(payment.amount))
         elif hours_to_pickup > 48:
             refund = Decimal(str(payment.amount)) * Decimal("0.90")
@@ -402,18 +402,18 @@ async def cancel_booking(booking_id: str, payload: CancelRequest, current_user: 
     booking.refund_amount = refund.quantize(Decimal("0.01"))
     booking.refund_status = "processed" if refund > 0 else "not_applicable"
     if refund > 0:
-        wallet = await get_or_create_wallet(db, booking.guest_id)
+        wallet = await get_or_create_wallet(db, booking.customer_id)
         wallet.balance = Decimal(str(wallet.balance)) + refund
-        add_wallet_transaction(db, booking.guest_id, "credit", refund, wallet.balance, f"Refund for {booking.booking_ref}", booking.id)
-    if is_host_cancel:
-        profile = await db.scalar(select(HostProfile).where(HostProfile.user_id == booking.host_id))
+        add_wallet_transaction(db, booking.customer_id, "credit", refund, wallet.balance, f"Refund for {booking.booking_ref}", booking.id)
+    if is_manager_cancel:
+        profile = await db.scalar(select(ManagerProfile).where(ManagerProfile.user_id == booking.manager_id))
         if profile:
             profile.acceptance_rate = max(Decimal("0.00"), Decimal(str(profile.acceptance_rate)) - Decimal("2.00"))
-    car = await _load_car(db, booking.car_id)
-    guest = await db.scalar(select(User).where(User.id == booking.guest_id))
-    host = await db.scalar(select(User).where(User.id == booking.host_id))
+    car = await _load_car(db, booking.vehicle_id)
+    customer = await db.scalar(select(User).where(User.id == booking.customer_id))
+    manager = await db.scalar(select(User).where(User.id == booking.manager_id))
     await db.commit()
-    for user in [guest, host]:
+    for user in [customer, manager]:
         if user:
             await create_notification(user.id, "Booking cancelled", f"{booking.booking_ref} was cancelled.", "booking", action_url=f"/dashboard/bookings/{booking.id}", meta={"booking_id": booking.id, "refund_amount": money(refund)})
             try:
@@ -426,8 +426,8 @@ async def cancel_booking(booking_id: str, payload: CancelRequest, current_user: 
 @router.patch("/{booking_id}/start-trip")
 async def start_trip(booking_id: str, payload: StartTripRequest, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     booking = await _booking_with_access(booking_id, current_user, db)
-    if booking.host_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the host can start this trip")
+    if booking.manager_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the manager can start this trip")
     if booking.status != "confirmed":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only confirmed bookings can be started")
     booking.status = "active"
@@ -440,13 +440,13 @@ async def start_trip(booking_id: str, payload: StartTripRequest, current_user: U
 @router.patch("/{booking_id}/end-trip")
 async def end_trip(booking_id: str, payload: EndTripRequest, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     booking = await _booking_with_access(booking_id, current_user, db)
-    if booking.host_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the host can end this trip")
+    if booking.manager_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the manager can end this trip")
     if booking.status != "active":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only active trips can be ended")
     if booking.odometer_start is not None and payload.odometer_end < booking.odometer_start:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ending odometer must be greater than starting odometer")
-    car = await _load_car(db, booking.car_id)
+    car = await _load_car(db, booking.vehicle_id)
     days = max(math.ceil(money(booking.total_hours) / 24), 1)
     allowed_km = car.included_km_per_day * days
     actual_km = max((payload.odometer_end - (booking.odometer_start or payload.odometer_end)), 0)
@@ -455,20 +455,20 @@ async def end_trip(booking_id: str, payload: EndTripRequest, current_user: User 
     booking.status = "completed"
     booking.actual_return_time = datetime.utcnow()
     booking.odometer_end = payload.odometer_end
-    guest_wallet = await get_or_create_wallet(db, booking.guest_id)
-    guest_wallet.balance = Decimal(str(guest_wallet.balance)) + Decimal(str(booking.security_deposit_amount))
-    add_wallet_transaction(db, booking.guest_id, "credit", booking.security_deposit_amount, guest_wallet.balance, f"Security deposit released for {booking.booking_ref}", booking.id)
-    host_wallet = await get_or_create_wallet(db, booking.host_id)
-    host_wallet.balance = Decimal(str(host_wallet.balance)) + Decimal(str(booking.host_earnings))
-    add_wallet_transaction(db, booking.host_id, "credit", booking.host_earnings, host_wallet.balance, f"Host earning for {booking.booking_ref}", booking.id)
+    customer_wallet = await get_or_create_wallet(db, booking.customer_id)
+    customer_wallet.balance = Decimal(str(customer_wallet.balance)) + Decimal(str(booking.security_deposit_amount))
+    add_wallet_transaction(db, booking.customer_id, "credit", booking.security_deposit_amount, customer_wallet.balance, f"Security deposit released for {booking.booking_ref}", booking.id)
+    manager_wallet = await get_or_create_wallet(db, booking.manager_id)
+    manager_wallet.balance = Decimal(str(manager_wallet.balance)) + Decimal(str(booking.manager_earnings))
+    add_wallet_transaction(db, booking.manager_id, "credit", booking.manager_earnings, manager_wallet.balance, f"Vehicle Manager earning for {booking.booking_ref}", booking.id)
     car.total_trips += 1
-    profile = await db.scalar(select(HostProfile).where(HostProfile.user_id == booking.host_id))
+    profile = await db.scalar(select(ManagerProfile).where(ManagerProfile.user_id == booking.manager_id))
     if profile:
         profile.acceptance_rate = min(Decimal("100.00"), max(Decimal(str(profile.acceptance_rate)), Decimal("95.00")))
-    guest = await db.scalar(select(User).where(User.id == booking.guest_id))
-    await check_and_update_superhost(booking.host_id, db)
+    customer = await db.scalar(select(User).where(User.id == booking.customer_id))
+    await check_and_update_super_manager(booking.manager_id, db)
     await db.commit()
-    if guest:
+    if customer:
         try:
             send_review_request_task.apply_async(args=[booking.id], countdown=7200)
         except Exception:
@@ -491,7 +491,7 @@ async def list_bookings(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Customer access required.")
     if as_role == "vehicle_manager" and current_user.role not in {"vehicle_manager", "admin"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vehicle Manager access required.")
-    conditions = [Booking.guest_id == current_user.id] if as_role == "customer" else [Booking.host_id == current_user.id]
+    conditions = [Booking.customer_id == current_user.id] if as_role == "customer" else [Booking.manager_id == current_user.id]
     if status_filter:
         statuses = [item.strip() for item in status_filter.split(",") if item.strip()]
         conditions.append(Booking.status.in_(statuses))
@@ -503,9 +503,9 @@ async def list_bookings(
     rows = (await db.execute(select(Booking).where(*conditions).order_by(Booking.created_at.desc()).offset((page - 1) * limit).limit(limit))).scalars().all()
     items = []
     for booking in rows:
-        car = await _load_car(db, booking.car_id)
+        car = await _load_car(db, booking.vehicle_id)
         image = await _primary_image(db, car.id)
-        counterparty_id = booking.host_id if as_role == "customer" else booking.guest_id
+        counterparty_id = booking.manager_id if as_role == "customer" else booking.customer_id
         counterparty = await db.scalar(select(User).where(User.id == counterparty_id))
         payment = await db.scalar(select(Payment).where(Payment.booking_id == booking.id))
         items.append(_booking_payload(booking, car, image, counterparty, payment))
@@ -516,9 +516,9 @@ async def list_bookings(
 @router.get("/{booking_id}")
 async def get_booking(booking_id: str, current_user: User = Depends(get_current_active_user), db: AsyncSession = Depends(get_db)):
     booking = await _booking_with_access(booking_id, current_user, db)
-    car = await _load_car(db, booking.car_id)
+    car = await _load_car(db, booking.vehicle_id)
     image = await _primary_image(db, car.id)
-    counterparty_id = booking.host_id if current_user.id == booking.guest_id else booking.guest_id
+    counterparty_id = booking.manager_id if current_user.id == booking.customer_id else booking.customer_id
     counterparty = await db.scalar(select(User).where(User.id == counterparty_id))
     payment = await db.scalar(select(Payment).where(Payment.booking_id == booking.id))
     reviews = await get_booking_reviews(booking.id)
@@ -530,13 +530,13 @@ async def get_booking(booking_id: str, current_user: User = Depends(get_current_
 @router.post("/{booking_id}/extend", status_code=status.HTTP_201_CREATED)
 async def extend_booking(booking_id: str, payload: ExtendRequest, current_user: User = Depends(require_customer), db: AsyncSession = Depends(get_db)):
     booking = await _booking_with_access(booking_id, current_user, db)
-    if booking.guest_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the guest can request an extension")
+    if booking.customer_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the customer can request an extension")
     if booking.status != "active":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only active bookings can be extended")
     if payload.new_return_datetime <= booking.return_datetime:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New return datetime must be later than current return")
-    car = await _load_car(db, booking.car_id)
+    car = await _load_car(db, booking.vehicle_id)
     available, reason = await AvailabilityService.check_vehicle_available(car.id, booking.return_datetime, payload.new_return_datetime, db, exclude_booking_id=booking.id)
     if not available:
         raise _validation_error("return_date", reason, "OVERLAP_CONFLICT")
@@ -546,7 +546,7 @@ async def extend_booking(booking_id: str, payload: ExtendRequest, current_user: 
     db.add(extension)
     await db.commit()
     await db.refresh(extension)
-    await create_notification(booking.host_id, "Extension requested", f"{booking.booking_ref} has an extension request.", "booking", action_url="/manager/bookings", meta={"booking_id": booking.id, "extension_id": extension.id})
+    await create_notification(booking.manager_id, "Extension requested", f"{booking.booking_ref} has an extension request.", "booking", action_url="/manager/bookings", meta={"booking_id": booking.id, "extension_id": extension.id})
     return {"extension_id": extension.id, "status": extension.status, "additional_amount": money(additional_amount)}
 
 
@@ -556,8 +556,8 @@ async def respond_extension(extension_id: str, payload: ExtensionResponse, curre
     if extension is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Extension not found")
     booking = await _booking_with_access(extension.booking_id, current_user, db)
-    if booking.host_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the host can respond")
+    if booking.manager_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the manager can respond")
     if extension.status != "pending":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Extension already responded")
     extension.status = "approved" if payload.approved else "rejected"
@@ -565,5 +565,5 @@ async def respond_extension(extension_id: str, payload: ExtensionResponse, curre
     if payload.approved:
         booking.return_datetime = extension.extended_return_datetime
     await db.commit()
-    await create_notification(booking.guest_id, "Extension response", f"Your extension was {extension.status}.", "booking", action_url=f"/dashboard/bookings/{booking.id}", meta={"booking_id": booking.id, "extension_id": extension.id})
+    await create_notification(booking.customer_id, "Extension response", f"Your extension was {extension.status}.", "booking", action_url=f"/dashboard/bookings/{booking.id}", meta={"booking_id": booking.id, "extension_id": extension.id})
     return {"status": extension.status}
