@@ -1,5 +1,21 @@
 # SigFleet Phase Summary
 
+## Phase G - PRD Seed Data Refresh
+
+Updated backend seeding to match the PRD role and vehicle taxonomy model.
+
+- Seeded the eight PRD vehicle categories with required slugs, icons, display order, and active status.
+- Seeded six dynamic vehicle types: Car, Bike, Van, Truck, Scooter, and Bus.
+- Updated default accounts to the three-role model: one admin, five admin-created Vehicle Managers, and ten customers.
+- Vehicle Managers now use `@manager.com` credentials, manager profiles with `assigned_by`, department, acceptance rate, average vehicle rating, active state, approved KYC, and seeded wallets.
+- Customers now use `customer1@test.com` through `customer10@test.com`, `Customer@1234`, `role='customer'`, seeded wallets, and PRD KYC statuses.
+- Reassigned the 25 demo vehicles across five Vehicle Managers by city, using dynamic category/type foreign keys and the current `managerId` vehicle ownership model.
+- Updated booking seed terminology toward customers while preserving current schema columns, restricted booking customers to the approved KYC customer set, and expanded booking seed data to 20 bookings.
+- Added development-only `/app/seed_credentials.txt` output with default credentials and seed counts.
+
+Verification:
+- `python3 -m py_compile backend/app/seed.py` passes.
+
 ## Phase F - PRD Vehicle Search and Filter Overhaul
 
 Implemented the PRD search and filter requirements for public vehicle discovery.
