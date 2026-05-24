@@ -24,6 +24,7 @@ const navItems = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/admin/users', label: 'Users', icon: Users },
   { to: '/admin/cars', label: 'Cars', icon: Car, badgeKey: 'car_approval_count' },
+  { to: '/admin/categories', label: 'Categories', icon: Tags },
   { to: '/admin/bookings', label: 'Bookings', icon: CalendarDays },
   { to: '/admin/kyc', label: 'KYC', icon: IdCard, badgeKey: 'kyc_count' },
   { to: '/admin/payments', label: 'Payments', icon: CreditCard },

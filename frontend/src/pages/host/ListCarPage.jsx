@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import 'leaflet/dist/leaflet.css'
 import api from '../../services/api'
+import { useVehicleCategories } from '../../hooks/useVehicleCategories'
 
 const BRANDS = [
   'Maruti Suzuki', 'Hyundai', 'Honda', 'Tata', 'Toyota', 'Mahindra', 'Kia', 'MG', 'Ford', 'Volkswagen',
@@ -64,9 +65,8 @@ const CITIES = [
   ['Raipur', 'Chhattisgarh', 21.2514, 81.6296], ['Jamshedpur', 'Jharkhand', 22.8046, 86.2029], ['Meerut', 'Uttar Pradesh', 28.9845, 77.7064],
 ]
 const COLOR_PRESETS = ['White', 'Black', 'Silver', 'Grey', 'Red', 'Blue', 'Brown', 'Green']
-const CATEGORIES = ['hatchback', 'sedan', 'suv', 'muv', 'luxury', 'electric', 'convertible']
 const initialForm = {
-  make: 'Maruti Suzuki', car_model: '', year: 2024, color: 'White', registration_number: '', category: 'hatchback',
+  make: 'Maruti Suzuki', car_model: '', year: 2024, color: 'White', registration_number: '', category_id: '', vehicle_type_id: '',
   transmission: 'manual', fuel_type: 'petrol', seats: 5, has_ac: true, has_music_system: true, has_gps_tracker: false,
   has_keyless_entry: false, has_sunroof: false, has_child_seat: false, has_luggage_carrier: false, description: '',
   location_city: 'Bengaluru', location_area: '', location_address: '', location_lat: 12.9716, location_lng: 77.5946,
@@ -75,7 +75,7 @@ const initialForm = {
 }
 
 const schemas = [
-  z.object({ make: z.string().min(1), car_model: z.string().min(1), year: z.number(), registration_number: z.string().min(6), category: z.string(), transmission: z.string(), fuel_type: z.string(), seats: z.number().min(2) }),
+  z.object({ make: z.string().min(1), car_model: z.string().min(1), year: z.number(), registration_number: z.string().min(6), category_id: z.string().min(1), vehicle_type_id: z.string().optional(), transmission: z.string(), fuel_type: z.string(), seats: z.number().min(2) }),
   z.object({ description: z.string().min(50).max(1000) }),
   z.object({ location_city: z.string().min(1), location_area: z.string().min(2), location_address: z.string().min(10), location_lat: z.number(), location_lng: z.number() }),
   z.object({ price_per_hour: z.number().min(20), price_per_day: z.number().min(100), included_km_per_day: z.number().min(0), extra_km_charge: z.number().min(0), min_trip_hours: z.number(), max_trip_days: z.number() }),
@@ -123,6 +123,7 @@ export default function ListCarPage({ editMode = false, carId = null, initialDat
   const [error, setError] = useState('')
   const [isSubmitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const { categories, vehicleTypes } = useVehicleCategories()
   const activeForm = form
   const stepNames = ['Basic Info', 'Features', 'Location', 'Pricing', 'Photos', 'Review']
 
@@ -131,6 +132,11 @@ export default function ListCarPage({ editMode = false, carId = null, initialDat
       updateForm(initialData)
     }
   }, [initialData, updateForm])
+
+  useEffect(() => {
+    if (!activeForm.category_id && categories.length) updateForm({ category_id: categories[0].id })
+    if (!activeForm.vehicle_type_id && vehicleTypes.length) updateForm({ vehicle_type_id: vehicleTypes[0].id })
+  }, [activeForm.category_id, activeForm.vehicle_type_id, categories, updateForm, vehicleTypes])
 
   function validateStep(nextStep = step) {
     const parsed = schemas[nextStep].safeParse(activeForm)
@@ -199,7 +205,7 @@ export default function ListCarPage({ editMode = false, carId = null, initialDat
             {error && <div className="mb-5 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div>}
             {submitted ? <SubmittedState /> : (
               <>
-                {step === 0 && <BasicStep form={activeForm} updateForm={updateForm} />}
+                {step === 0 && <BasicStep form={activeForm} updateForm={updateForm} categories={categories} vehicleTypes={vehicleTypes} />}
                 {step === 1 && <FeatureStep form={activeForm} updateForm={updateForm} />}
                 {step === 2 && <LocationStep form={activeForm} updateForm={updateForm} />}
                 {step === 3 && <PricingStep form={activeForm} updateForm={updateForm} />}
@@ -232,7 +238,8 @@ function buildCarPayload(form) {
     year: Number(form.year),
     color: form.color,
     registration_number: form.registration_number,
-    category: form.category,
+    category_id: form.category_id,
+    vehicle_type_id: form.vehicle_type_id || undefined,
     transmission: form.transmission,
     fuel_type: form.fuel_type,
     seats: Number(form.seats),
@@ -260,7 +267,7 @@ function buildCarPayload(form) {
   }
 }
 
-function BasicStep({ form, updateForm }) {
+function BasicStep({ form, updateForm, categories, vehicleTypes }) {
   const suggestions = MODEL_SUGGESTIONS[form.make] || []
   return (
     <div>
@@ -275,7 +282,8 @@ function BasicStep({ form, updateForm }) {
         <p className="label">Color</p>
         <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-8">{COLOR_PRESETS.map((color) => <button key={color} onClick={() => updateForm({ color })} className={`rounded-md border px-3 py-2 text-sm font-bold ${form.color === color ? 'border-sigfleet text-sigfleet' : 'border-zinc-200 text-zinc-600'}`}>{color}</button>)}</div>
       </div>
-      <SelectorGrid label="Category" options={CATEGORIES} value={form.category} onChange={(category) => updateForm({ category })} />
+      <SelectorGrid label="Category" options={categories.map((item) => ({ value: item.id, label: item.name }))} value={form.category_id} onChange={(category_id) => updateForm({ category_id })} />
+      <SelectorGrid label="Vehicle Type" options={vehicleTypes.map((item) => ({ value: item.id, label: item.name }))} value={form.vehicle_type_id} onChange={(vehicle_type_id) => updateForm({ vehicle_type_id })} />
       <CardOptions label="Transmission" options={['manual', 'automatic']} value={form.transmission} onChange={(transmission) => updateForm({ transmission })} />
       <CardOptions label="Fuel Type" options={['petrol', 'diesel', 'electric', 'hybrid', 'cng']} value={form.fuel_type} onChange={(fuel_type) => updateForm({ fuel_type })} />
       <CardOptions label="Seats" options={[2, 4, 5, 6, 7, 8]} value={form.seats} onChange={(seats) => updateForm({ seats: Number(seats) })} />
@@ -398,7 +406,7 @@ function ReviewStep({ form, setStep }) {
     <div>
       <StepTitle icon={Check} title="Review & Submit" />
       {[
-        ['Car Details', `${form.year} ${form.make} ${form.car_model} | ${form.category} | ${form.transmission}`, 0],
+        ['Car Details', `${form.year} ${form.make} ${form.car_model} | ${form.category_name || form.category_id} | ${form.transmission}`, 0],
         ['Location & Features', `${form.location_area}, ${form.location_city} | ${_featureCount(form)} features`, 1],
         ['Pricing', `₹${Number(form.price_per_day).toLocaleString('en-IN')}/day | ₹${form.security_deposit} deposit`, 3],
       ].map(([title, detail, target]) => (
@@ -433,7 +441,10 @@ function Field({ label, children, className = '' }) {
 }
 
 function SelectorGrid({ label, options, value, onChange }) {
-  return <div className="mt-5"><p className="label">{label}</p><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">{options.map((option) => <button key={option} onClick={() => onChange(option)} className={`rounded-md border px-3 py-3 text-sm font-bold capitalize ${value === option ? 'border-sigfleet bg-red-50 text-sigfleet' : 'border-zinc-200 text-zinc-600'}`}>{option}</button>)}</div></div>
+  return <div className="mt-5"><p className="label">{label}</p><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">{options.map((option) => {
+    const item = typeof option === 'string' ? { value: option, label: option } : option
+    return <button key={item.value} onClick={() => onChange(item.value)} className={`rounded-md border px-3 py-3 text-sm font-bold capitalize ${value === item.value ? 'border-sigfleet bg-red-50 text-sigfleet' : 'border-zinc-200 text-zinc-600'}`}>{item.label}</button>
+  })}</div></div>
 }
 
 function CardOptions({ label, options, value, onChange }) {

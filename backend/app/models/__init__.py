@@ -5,6 +5,7 @@ from app.models.payment import Payment, WalletTransaction, UserWallet
 from app.models.coupon import Coupon, CouponUsage
 from app.models.host import HostProfile, HostPayoutRequest, ManagerProfile
 from app.models.support import SupportTicket
+from app.models.vehicle_category import VehicleCategory, VehicleType
 from app.models.wishlist import Wishlist
 
 __all__ = [
@@ -27,5 +28,7 @@ __all__ = [
     "ManagerProfile",
     "HostPayoutRequest",
     "SupportTicket",
+    "VehicleCategory",
+    "VehicleType",
     "Wishlist",
 ]

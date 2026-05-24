@@ -14,6 +14,7 @@ from app.models.host import HostPayoutRequest, ManagerProfile
 from app.models.payment import Payment, UserWallet
 from app.models.support import SupportTicket
 from app.models.user import User, UserKYC
+from app.models.vehicle_category import VehicleCategory, VehicleType
 from app.mongo_models.analytics import get_admin_activity_feed, log_activity
 from app.mongo_models.notification import create_notification
 from app.mongo_models.support_message import add_support_message, get_ticket_messages
@@ -613,8 +614,15 @@ async def activity_feed(
 
 @router.get("/analytics/category-distribution")
 async def category_distribution(_: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
-    rows = (await db.execute(select(Car.category, func.count()).group_by(Car.category))).all()
-    return [{"name": category, "value": count} for category, count in rows]
+    rows = (
+        await db.execute(
+            select(VehicleCategory.name, func.count(Car.id))
+            .outerjoin(Car, Car.category_id == VehicleCategory.id)
+            .group_by(VehicleCategory.id, VehicleCategory.name)
+            .order_by(VehicleCategory.display_order.asc())
+        )
+    ).all()
+    return [{"name": category or "Unassigned", "value": count} for category, count in rows]
 
 
 @router.get("/analytics/booking-funnel")
@@ -787,6 +795,8 @@ async def list_cars(
     status_filter: str = Query(default="all", alias="status", pattern="^(pending|approved|inactive|rejected|all)$"),
     city: str | None = None,
     category: str | None = None,
+    category_id: str | None = None,
+    vehicle_type_id: str | None = None,
     host_id: str | None = None,
     sort: str = Query(default="newest"),
     page: int = Query(default=1, ge=1),
@@ -805,8 +815,14 @@ async def list_cars(
         conditions += [Car.is_approved.is_(False), Car.is_available.is_(False)]
     if city:
         conditions.append(Car.location_city == city)
-    if category:
-        conditions.append(Car.category == category)
+    if category_id:
+        conditions.append(Car.category_id == category_id)
+    elif category:
+        category_match = await db.scalar(select(VehicleCategory).where((VehicleCategory.id == category) | (VehicleCategory.slug == category)))
+        if category_match:
+            conditions.append(Car.category_id == category_match.id)
+    if vehicle_type_id:
+        conditions.append(Car.vehicle_type_id == vehicle_type_id)
     if host_id:
         conditions.append(Car.managerId == host_id)
     total = await db.scalar(select(func.count()).select_from(Car).where(*conditions)) or 0
@@ -819,8 +835,10 @@ async def list_cars(
         order = Car.average_rating.desc()
     rows = (
         await db.execute(
-            select(Car, User.full_name, User.email)
+            select(Car, User.full_name, User.email, VehicleCategory, VehicleType)
             .join(User, User.id == Car.managerId)
+            .outerjoin(VehicleCategory, VehicleCategory.id == Car.category_id)
+            .outerjoin(VehicleType, VehicleType.id == Car.vehicle_type_id)
             .where(*conditions)
             .order_by(order)
             .offset((page - 1) * limit)
@@ -838,7 +856,12 @@ async def list_cars(
                 "area": car.location_area,
                 "vehicle_manager": {"id": car.host_id, "name": host_name, "email": host_email},
                 "manager": {"id": car.host_id, "name": host_name, "email": host_email},
-                "category": car.category,
+                "category": category.slug if category else None,
+                "category_id": car.category_id,
+                "category_name": category.name if category else None,
+                "vehicle_type": vehicle_type.slug if vehicle_type else None,
+                "vehicle_type_id": car.vehicle_type_id,
+                "vehicle_type_name": vehicle_type.name if vehicle_type else None,
                 "price_per_day": money(car.price_per_day),
                 "trips": car.total_trips,
                 "rating": money(car.average_rating),
@@ -849,7 +872,7 @@ async def list_cars(
                 "listed_date": _dt(car.created_at),
                 "description": car.description,
             }
-            for car, host_name, host_email in rows
+            for car, host_name, host_email, category, vehicle_type in rows
         ],
         "total": total,
         "page": page,

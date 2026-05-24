@@ -16,6 +16,7 @@ from app.models.host import HostProfile
 from app.models.payment import Payment, UserWallet, WalletTransaction
 from app.models.support import SupportTicket
 from app.models.user import User, UserKYC
+from app.models.vehicle_category import VehicleCategory, VehicleType
 from app.mongodb import connect_mongo, disconnect_mongo, get_mongo_db
 from app.utils.auth import get_password_hash
 
@@ -76,6 +77,30 @@ def registration_number(city: str, year: int, index: int) -> str:
     }.get(city, "KA")
     series = "AB" if state in {"TN", "MH", "DL"} else "MN"
     return f"{state}{str(year)[-2:]}{series}{1000 + index:04d}"
+
+
+DEFAULT_CATEGORIES = [
+    ("Hatchback", "hatchback", "Car", 10),
+    ("Sedan", "sedan", "CarFront", 20),
+    ("SUV", "suv", "Truck", 30),
+    ("MUV", "muv", "Bus", 40),
+    ("Luxury", "luxury", "BadgeIndianRupee", 50),
+    ("Electric", "electric", "Zap", 60),
+    ("Convertible", "convertible", "Sun", 70),
+    ("Minivan", "minivan", "Van", 80),
+]
+
+
+async def ensure_vehicle_taxonomy(db: AsyncSession) -> tuple[dict[str, VehicleCategory], VehicleType | None]:
+    for name, slug, icon_name, display_order in DEFAULT_CATEGORIES:
+        if await db.scalar(select(VehicleCategory).where(VehicleCategory.slug == slug)) is None:
+            db.add(VehicleCategory(name=name, slug=slug, icon_name=icon_name, display_order=display_order, is_active=True))
+    if await db.scalar(select(VehicleType).where(VehicleType.slug == "car")) is None:
+        db.add(VehicleType(name="Car", slug="car", description="Passenger cars and private-use vehicles.", is_active=True))
+    await db.flush()
+    categories = (await db.execute(select(VehicleCategory))).scalars().all()
+    car_type = await db.scalar(select(VehicleType).where(VehicleType.slug == "car"))
+    return {category.slug: category for category in categories}, car_type
 
 
 async def has_demo_data(db: AsyncSession) -> bool:
@@ -253,6 +278,7 @@ CAR_ROWS = [
 
 async def create_cars(db: AsyncSession, vehicle_managers: dict[str, User]) -> dict[str, Car]:
     cars: dict[str, Car] = {}
+    category_map, car_type = await ensure_vehicle_taxonomy(db)
     host_listing_counts: dict[str, int] = {vehicle_manager.id: 0 for vehicle_manager in vehicle_managers.values()}
     for idx, row in enumerate(CAR_ROWS, start=1):
         (
@@ -289,7 +315,8 @@ async def create_cars(db: AsyncSession, vehicle_managers: dict[str, User]) -> di
             transmission=transmission,
             fuel_type=fuel_type,
             seats=seats,
-            category=category,
+            category_id=category_map.get(category).id if category_map.get(category) else None,
+            vehicle_type_id=car_type.id if car_type else None,
             description=f"{title} in {area}, {city}. Clean, regularly serviced, and ready for self-drive trips.",
             registration_number=registration_number(city, year, idx),
             location_city=city,

@@ -18,6 +18,7 @@ function cloneDefaultFilters() {
     ...DEFAULT_FILTERS,
     price: [...DEFAULT_FILTERS.price],
     categories: [],
+    vehicleTypes: [],
     fuelTypes: [],
     seats: [],
     features: [],
@@ -27,7 +28,12 @@ function cloneDefaultFilters() {
 export default function SearchPage() {
   const location = useLocation()
   const [params] = useSearchParams()
-  const [filters, setFilters] = useState(cloneDefaultFilters)
+  const [filters, setFilters] = useState(() => {
+    const initial = cloneDefaultFilters()
+    initial.categories = (params.get('category_id') || params.get('category') || '').split(',').filter(Boolean)
+    initial.vehicleTypes = (params.get('vehicle_type_id') || '').split(',').filter(Boolean)
+    return initial
+  })
   const [cars, setCars] = useState([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -44,7 +50,7 @@ export default function SearchPage() {
   const activeCount = useMemo(() => {
     let count = 0
     if (filters.price[0] > 0 || filters.price[1] < 10000) count += 1
-    count += filters.categories.length + filters.fuelTypes.length + filters.seats.length + filters.features.length
+    count += filters.categories.length + (filters.vehicleTypes || []).length + filters.fuelTypes.length + filters.seats.length + filters.features.length
     if (filters.transmission) count += 1
     if (filters.rating) count += 1
     return count
@@ -72,8 +78,10 @@ export default function SearchPage() {
     query.set('sort_by', filters.sortBy)
     query.set('min_price', filters.price[0])
     query.set('max_price', filters.price[1])
-    if (filters.categories.length) query.set('category', filters.categories.join(','))
-    else query.delete('category')
+    if (filters.categories.length) query.set('category_id', filters.categories.join(','))
+    else query.delete('category_id')
+    if ((filters.vehicleTypes || []).length) query.set('vehicle_type_id', filters.vehicleTypes.join(','))
+    else query.delete('vehicle_type_id')
     if (filters.transmission) query.set('transmission', filters.transmission)
     else query.delete('transmission')
     if (filters.fuelTypes.length) query.set('fuel_type', filters.fuelTypes.join(','))

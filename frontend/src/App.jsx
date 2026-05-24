@@ -43,6 +43,7 @@ const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'))
 const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'))
 const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage'))
 const AdminCarsPage = lazy(() => import('./pages/admin/AdminCarsPage'))
+const AdminCategoriesPage = lazy(() => import('./pages/admin/AdminCategoriesPage'))
 const AdminKYCPage = lazy(() => import('./pages/admin/AdminKYCPage'))
 const AdminSupportPage = lazy(() => import('./pages/admin/AdminSupportPage'))
 const AdminCouponsPage = lazy(() => import('./pages/admin/AdminCouponsPage'))
@@ -148,6 +149,7 @@ export default function App() {
                 <Route index element={<AdminDashboardPage />} />
                 <Route path="users" element={<AdminUsersPage />} />
                 <Route path="cars" element={<AdminCarsPage />} />
+                <Route path="categories" element={<AdminCategoriesPage />} />
                 <Route path="kyc" element={<AdminKYCPage />} />
                 <Route path="bookings" element={<AdminBookingsPage />} />
                 <Route path="payments" element={<AdminPaymentsPage />} />

@@ -18,6 +18,7 @@ from app.models.booking import Booking
 from app.models.car import Car, CarAvailabilityBlock, CarImage, CarPricingRule
 from app.models.host import HostProfile
 from app.models.user import User
+from app.models.vehicle_category import VehicleCategory, VehicleType
 from app.mongo_models.analytics import log_activity, log_car_view, log_search
 from app.mongo_models.notification import create_notification
 from app.mongo_models.review import get_car_reviews
@@ -26,6 +27,7 @@ from app.utils.auth import require_vehicle_manager, require_kyc_user, verify_tok
 
 
 router = APIRouter(prefix="/cars", tags=["cars"])
+vehicles_router = APIRouter(prefix="/vehicles", tags=["vehicles"])
 
 BOOKING_BLOCKING_STATUSES = ("confirmed", "active", "pending")
 FEATURE_MAP = {
@@ -43,7 +45,8 @@ CAR_UPDATE_FIELDS = {
     "car_model",
     "year",
     "color",
-    "category",
+    "category_id",
+    "vehicle_type_id",
     "transmission",
     "fuel_type",
     "seats",
@@ -82,7 +85,9 @@ class CarCreate(BaseModel):
     transmission: str
     fuel_type: str
     seats: int = Field(ge=2, le=12)
-    category: str
+    category_id: str | None = None
+    category: str | None = None
+    vehicle_type_id: str | None = None
     description: str | None = Field(default=None, max_length=1000)
     registration_number: str
     location_city: str
@@ -127,7 +132,9 @@ class CarUpdate(BaseModel):
     transmission: str | None = None
     fuel_type: str | None = None
     seats: int | None = Field(default=None, ge=2, le=12)
+    category_id: str | None = None
     category: str | None = None
+    vehicle_type_id: str | None = None
     description: str | None = Field(default=None, max_length=1000)
     registration_number: str | None = None
     location_city: str | None = None
@@ -208,7 +215,18 @@ def _csv_values(value: str | None) -> list[str]:
     return [item.strip() for item in (value or "").split(",") if item.strip()]
 
 
-def _car_payload(car: Car, host_name: str | None = None, primary_image_url: str | None = None, distance_km=None) -> dict:
+def _car_payload(
+    car: Car,
+    host_name: str | None = None,
+    primary_image_url: str | None = None,
+    distance_km=None,
+    category: VehicleCategory | None = None,
+    vehicle_type: VehicleType | None = None,
+) -> dict:
+    category_slug = category.slug if category else None
+    category_name = category.name if category else None
+    type_slug = vehicle_type.slug if vehicle_type else None
+    type_name = vehicle_type.name if vehicle_type else None
     return {
         "id": car.id,
         "title": car.title,
@@ -216,7 +234,12 @@ def _car_payload(car: Car, host_name: str | None = None, primary_image_url: str 
         "car_model": car.car_model,
         "year": car.year,
         "color": car.color,
-        "category": car.category,
+        "category": category_slug,
+        "category_id": car.category_id,
+        "category_name": category_name,
+        "vehicle_type": type_slug,
+        "vehicle_type_id": car.vehicle_type_id,
+        "vehicle_type_name": type_name,
         "transmission": car.transmission,
         "fuel_type": car.fuel_type,
         "seats": car.seats,
@@ -290,6 +313,26 @@ async def _get_owned_car(car_id: str, host_id: str, db: AsyncSession) -> Car:
     return car
 
 
+async def _resolve_category_id(db: AsyncSession, category_id: str | None, legacy_category: str | None = None) -> str | None:
+    value = category_id or legacy_category
+    if not value:
+        return None
+    category = await db.scalar(select(VehicleCategory).where((VehicleCategory.id == value) | (VehicleCategory.slug == value), VehicleCategory.is_active.is_(True)))
+    if category is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Vehicle category not found or inactive")
+    return category.id
+
+
+async def _resolve_vehicle_type_id(db: AsyncSession, vehicle_type_id: str | None) -> str | None:
+    if not vehicle_type_id:
+        default_type = await db.scalar(select(VehicleType).where(VehicleType.slug == "car", VehicleType.is_active.is_(True)))
+        return default_type.id if default_type else None
+    vehicle_type = await db.scalar(select(VehicleType).where((VehicleType.id == vehicle_type_id) | (VehicleType.slug == vehicle_type_id), VehicleType.is_active.is_(True)))
+    if vehicle_type is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Vehicle type not found or inactive")
+    return vehicle_type.id
+
+
 def _overlap_conditions(start_dt: datetime, end_dt: datetime):
     return (
         Booking.pickup_datetime < end_dt,
@@ -320,11 +363,17 @@ async def _list_rows(db: AsyncSession, conditions: list, sort_by: str, page: int
         .limit(1)
         .scalar_subquery()
     )
-    columns = [Car, User.full_name, primary_image.label("primary_image_url")]
+    columns = [Car, User.full_name, primary_image.label("primary_image_url"), VehicleCategory, VehicleType]
     if distance_expr is not None:
         columns.append(distance_expr.label("distance_km"))
 
-    query = select(*columns).join(User, User.id == Car.managerId).where(*conditions)
+    query = (
+        select(*columns)
+        .join(User, User.id == Car.managerId)
+        .outerjoin(VehicleCategory, VehicleCategory.id == Car.category_id)
+        .outerjoin(VehicleType, VehicleType.id == Car.vehicle_type_id)
+        .where(*conditions)
+    )
     if sort_by == "price_asc":
         query = query.order_by(Car.price_per_day.asc())
     elif sort_by == "price_desc":
@@ -344,11 +393,15 @@ async def _list_rows(db: AsyncSession, conditions: list, sort_by: str, page: int
     return result.all()
 
 
+@vehicles_router.get("/")
 @router.get("/")
 async def search_cars(
     request: Request,
     city: str | None = None,
     category: str | None = None,
+    category_id: str | None = None,
+    vehicle_type_id: str | None = None,
+    q: str | None = None,
     transmission: str | None = None,
     fuel_type: str | None = None,
     seats: int | None = None,
@@ -384,10 +437,26 @@ async def search_cars(
         conditions.append(~block_overlap)
     if city:
         conditions.append(func.lower(Car.location_city) == city.lower())
-    category_values = _csv_values(category)
+    category_values = _csv_values(category_id)
+    if not category_values and category:
+        legacy_values = _csv_values(category)
+        if legacy_values:
+            category_rows = (await db.execute(select(VehicleCategory.id).where(VehicleCategory.slug.in_(legacy_values)))).scalars().all()
+            category_values = list(category_rows)
+    type_values = _csv_values(vehicle_type_id)
     fuel_values = _csv_values(fuel_type)
     if category_values:
-        conditions.append(Car.category.in_(category_values))
+        conditions.append(Car.category_id.in_(category_values))
+    if type_values:
+        conditions.append(Car.vehicle_type_id.in_(type_values))
+    if q:
+        needle = f"%{q.strip()}%"
+        conditions.append(
+            (Car.title.ilike(needle))
+            | (Car.make.ilike(needle))
+            | (Car.car_model.ilike(needle))
+            | (Car.description.ilike(needle))
+        )
     if transmission:
         conditions.append(Car.transmission == transmission)
     if fuel_values:
@@ -418,11 +487,14 @@ async def search_cars(
 
     total = await db.scalar(select(func.count()).select_from(Car).where(*conditions)) or 0
     rows = await _list_rows(db, conditions, sort_by, page, limit, distance_expr)
-    cars = [_car_payload(row[0], row[1], row[2], row[3] if distance_expr is not None else None) for row in rows]
+    cars = [_car_payload(row[0], row[1], row[2], row[5] if distance_expr is not None else None, row[3], row[4]) for row in rows]
     pages = math.ceil(total / limit) if total else 0
 
     filters_dict = {
         "category": category,
+        "category_id": category_id,
+        "vehicle_type_id": vehicle_type_id,
+        "q": q,
         "transmission": transmission,
         "fuel_type": fuel_type,
         "seats": seats,
@@ -446,7 +518,7 @@ async def search_cars(
 @router.get("/featured")
 async def featured_cars(db: AsyncSession = Depends(get_db)):
     rows = await _list_rows(db, [Car.is_featured.is_(True), Car.is_approved.is_(True), Car.is_available.is_(True)], "rating", 1, 6)
-    return {"cars": [_car_payload(row[0], row[1], row[2]) for row in rows]}
+    return {"cars": [_car_payload(row[0], row[1], row[2], category=row[3], vehicle_type=row[4]) for row in rows]}
 
 
 @router.get("/city/{city}")
@@ -458,7 +530,7 @@ async def city_cars(city: str, db: AsyncSession = Depends(get_db)):
         1,
         20,
     )
-    return {"cars": [_car_payload(row[0], row[1], row[2]) for row in rows]}
+    return {"cars": [_car_payload(row[0], row[1], row[2], category=row[3], vehicle_type=row[4]) for row in rows]}
 
 
 @router.get("/host/my-cars")
@@ -473,7 +545,9 @@ async def host_my_cars(current_user: User = Depends(require_vehicle_manager), db
         total_bookings = await db.scalar(select(func.count()).select_from(Booking).where(Booking.car_id == car.id)) or 0
         total_earnings = await db.scalar(select(func.coalesce(func.sum(Booking.host_earnings), 0)).where(Booking.car_id == car.id)) or 0
         pending_bookings = await db.scalar(select(func.count()).select_from(Booking).where(Booking.car_id == car.id, Booking.status == "pending")) or 0
-        item = _car_payload(car, current_user.full_name, image)
+        category = await db.scalar(select(VehicleCategory).where(VehicleCategory.id == car.category_id)) if car.category_id else None
+        vehicle_type = await db.scalar(select(VehicleType).where(VehicleType.id == car.vehicle_type_id)) if car.vehicle_type_id else None
+        item = _car_payload(car, current_user.full_name, image, category=category, vehicle_type=vehicle_type)
         item.update(
             {
                 "total_bookings": total_bookings,
@@ -505,6 +579,9 @@ async def create_car(payload: CarCreate, current_user: User = Depends(require_ky
 
     data = payload.model_dump()
     title = data.pop("title") or f"{payload.year} {payload.make} {payload.car_model}"
+    legacy_category = data.pop("category", None)
+    data["category_id"] = await _resolve_category_id(db, data.get("category_id"), legacy_category)
+    data["vehicle_type_id"] = await _resolve_vehicle_type_id(db, data.get("vehicle_type_id"))
     car = Car(managerId=current_user.id, title=title, is_approved=False, is_available=True, **data)
     db.add(car)
     await db.flush()
@@ -527,11 +604,18 @@ async def create_car(payload: CarCreate, current_user: User = Depends(require_ky
 
 @router.get("/{car_id}")
 async def get_car_detail(car_id: str, request: Request, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Car, User, HostProfile).join(User, User.id == Car.managerId).outerjoin(HostProfile, HostProfile.user_id == Car.managerId).where(Car.id == car_id))
+    result = await db.execute(
+        select(Car, User, HostProfile, VehicleCategory, VehicleType)
+        .join(User, User.id == Car.managerId)
+        .outerjoin(HostProfile, HostProfile.user_id == Car.managerId)
+        .outerjoin(VehicleCategory, VehicleCategory.id == Car.category_id)
+        .outerjoin(VehicleType, VehicleType.id == Car.vehicle_type_id)
+        .where(Car.id == car_id)
+    )
     row = result.one_or_none()
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Car not found")
-    car, host, host_profile = row
+    car, host, host_profile, category, vehicle_type = row
 
     images = (await db.execute(select(CarImage).where(CarImage.car_id == car_id).order_by(CarImage.order_index.asc()))).scalars().all()
     rules = (await db.execute(select(CarPricingRule).where(CarPricingRule.car_id == car_id))).scalars().all()
@@ -546,7 +630,7 @@ async def get_car_detail(car_id: str, request: Request, db: AsyncSession = Depen
     await log_car_view(car_id, await _optional_user_id(request), car.location_city)
     await get_redis().incr(f"car_views:{car_id}")
 
-    payload = _car_payload(car, host.full_name, images[0].image_url if images else None)
+    payload = _car_payload(car, host.full_name, images[0].image_url if images else None, category=category, vehicle_type=vehicle_type)
     payload.update(
         {
             "description": car.description,
@@ -585,6 +669,10 @@ async def get_car_detail(car_id: str, request: Request, db: AsyncSession = Depen
 async def update_car(car_id: str, payload: CarUpdate, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     car = await _get_owned_car(car_id, current_user.id, db)
     changes = payload.model_dump(exclude_unset=True)
+    if "category" in changes or "category_id" in changes:
+        changes["category_id"] = await _resolve_category_id(db, changes.get("category_id"), changes.pop("category", None))
+    if "vehicle_type_id" in changes:
+        changes["vehicle_type_id"] = await _resolve_vehicle_type_id(db, changes.get("vehicle_type_id"))
     price_changed = any(field in changes for field in ("price_per_hour", "price_per_day"))
     for field, value in changes.items():
         if field in CAR_UPDATE_FIELDS:

@@ -67,7 +67,7 @@ export default function CarDetailPage() {
       setReviews(response.data)
       setReviewPage(1)
     })
-    api.get('/cars/', { params: { city: car.location_city, category: car.category, exclude: car.id, limit: 4 } }).then((response) => setSimilar(response.data.cars || []))
+    api.get('/cars/', { params: { city: car.location_city, category_id: car.category_id, exclude: car.id, limit: 4 } }).then((response) => setSimilar(response.data.cars || []))
   }, [car, reviewFilter])
 
   if (loading) {
@@ -206,7 +206,7 @@ function CarHeader({ car }) {
         <div>
           <h1 className="text-3xl font-black text-zinc-950">{car.title}</h1>
           <div className="mt-3 flex flex-wrap gap-2">
-            {[car.category, car.transmission, car.fuel_type].map((item) => <span key={item} className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-black uppercase text-zinc-700">{item}</span>)}
+            {[car.category_name || car.category, car.vehicle_type_name || car.vehicle_type, car.transmission, car.fuel_type].filter(Boolean).map((item) => <span key={item} className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-black uppercase text-zinc-700">{item}</span>)}
           </div>
           <p className="mt-3 flex flex-wrap items-center gap-2 text-sm font-bold text-zinc-600">
             <Star className="fill-amber-400 text-amber-400" size={16} /> {Number(car.average_rating || 0).toFixed(1)} · {car.total_trips} trips · {car.location_city}

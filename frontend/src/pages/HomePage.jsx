@@ -10,6 +10,7 @@ import 'swiper/css'
 import api from '../services/api'
 import Navbar from '../components/layout/Navbar'
 import CarCard from '../components/car/CarCard'
+import { useVehicleCategories } from '../hooks/useVehicleCategories'
 
 const cities = ['Bengaluru', 'Mumbai', 'Delhi', 'Pune', 'Chennai', 'Goa', 'Hyderabad', 'Jaipur']
 const cityImages = {
@@ -33,6 +34,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true)
   const [days, setDays] = useState(15)
   const [category, setCategory] = useState('sedan')
+  const { categories } = useVehicleCategories()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -71,7 +73,7 @@ export default function HomePage() {
       </section>
       <StatsStrip />
       <section id="how" className="bg-white px-4 py-20"><div className="mx-auto max-w-7xl"><SectionTitle eyebrow="How it works" title="Simple for every kind of driver" /><div className="mx-auto mt-8 flex w-fit rounded-full bg-zinc-100 p-1">{[['guest', 'For Guests'], ['host', 'For Hosts']].map(([key, label]) => <button key={key} onClick={() => setTab(key)} className={`rounded-full px-5 py-2 text-sm font-black ${tab === key ? 'bg-[#E31837] text-white' : 'text-zinc-700'}`}>{label}</button>)}</div><div className="mt-10 grid gap-5 md:grid-cols-3">{(tab === 'guest' ? guestSteps : hostSteps).map((step, index) => <StepCard key={step.title} index={index + 1} {...step} />)}</div></div></section>
-      <section className="px-4 py-20"><div className="mx-auto max-w-7xl"><SectionTitle title="Find your perfect ride" /><div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{categories.map((cat) => <Link key={cat.key} to={`/search?category=${cat.key}`} className="group rounded-lg border border-zinc-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"><Car className="text-[#E31837]" size={34} /><h3 className="mt-5 font-display text-xl font-black">{cat.label}</h3><span className="mt-4 inline-flex border-b-2 border-transparent pb-1 text-sm font-black text-[#E31837] transition group-hover:border-[#E31837]">Browse <ArrowRight size={15} className="ml-1" /></span></Link>)}</div></div></section>
+      <section className="px-4 py-20"><div className="mx-auto max-w-7xl"><SectionTitle title="Find your perfect ride" /><div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{categories.map((cat) => <Link key={cat.id} to={`/search?category_id=${cat.id}`} className="group rounded-lg border border-zinc-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"><Car className="text-[#E31837]" size={34} /><h3 className="mt-5 font-display text-xl font-black">{cat.name}</h3><p className="mt-2 text-sm font-bold text-zinc-500">{cat.vehicle_count || 0} vehicles</p><span className="mt-4 inline-flex border-b-2 border-transparent pb-1 text-sm font-black text-[#E31837] transition group-hover:border-[#E31837]">Browse <ArrowRight size={15} className="ml-1" /></span></Link>)}</div></div></section>
       <section className="bg-white px-4 py-20"><div className="mx-auto max-w-7xl"><SectionTitle title="Top picks near you" subtitle="Hand-picked, highly-rated cars by verified hosts" /><div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{loading ? Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-80 animate-pulse rounded-lg bg-zinc-100" />) : featured.slice(0, 6).map((car) => <CarCard key={car.id} car={car} />)}</div><Link to={`/search?city=${city}`} className="mt-8 inline-flex font-black text-[#E31837]">View all cars in your city <ArrowRight className="ml-1" size={18} /></Link></div></section>
       <section className="px-4 py-20"><div className="mx-auto max-w-7xl"><SectionTitle title="Explore India, your way" /><div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{cities.map((item, index) => <Link key={item} to={`/cities/${item.toLowerCase()}`} className="group relative h-56 overflow-hidden rounded-lg bg-zinc-900 shadow-sm"><img src={cityImages[item]} alt={`${item} city destination`} loading="lazy" decoding="async" width="600" height="400" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /><div className="absolute inset-0 bg-black/45 transition group-hover:bg-black/25" /><div className="absolute inset-x-0 bottom-0 p-5 text-white"><h3 className="font-display text-2xl font-black">{item}</h3><p className="mt-1 font-bold">{180 + index * 37} cars</p></div></Link>)}</div></div></section>
       <section className="bg-zinc-100 px-4 py-20"><div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1fr_1fr] lg:items-center"><div><SectionTitle align="left" title="How much can you earn?" subtitle="Estimate monthly take-home earnings from sharing your car." /><Link to="/contact" className="mt-8 inline-flex rounded-md bg-[#E31837] px-5 py-3 font-black text-white">Become a Manager Free <ArrowRight className="ml-2" size={18} /></Link></div><div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm"><label className="font-black">Days per month I can share my car: {days}</label><input type="range" min="5" max="25" value={days} onChange={(event) => setDays(Number(event.target.value))} className="mt-4 w-full accent-[#E31837]" /><label className="mt-5 block font-black">My car category:<select value={category} onChange={(event) => setCategory(event.target.value)} className="input mt-2">{Object.keys(rates).map((item) => <option key={item} value={item}>{item[0].toUpperCase() + item.slice(1)}</option>)}</select></label><div className="mt-6 rounded-lg bg-[#111827] p-5 text-white"><p className="text-sm font-bold text-white/70">Estimated monthly earnings</p><p className="font-display mt-1 text-4xl font-black">₹{estimated.toLocaleString('en-IN')}</p><p className="mt-2 text-sm font-bold text-white/70">Host 10M+ guests have already earned with SigFleet</p></div></div></div></section>
@@ -132,7 +134,6 @@ const hostSteps = [
   { title: 'Get Bookings', text: 'Guests find your car, book, and pay. You approve each trip.' },
   { title: 'Earn Weekly', text: 'Earn ₹15,000–₹40,000/month. Instant payouts after each trip.' },
 ]
-const categories = ['Hatchback', 'Sedan', 'SUV', 'Luxury', 'Electric', 'MUV', 'Convertible', 'Minivan'].map((label) => ({ label, key: label.toLowerCase() }))
 const trust = [
   { icon: ShieldCheck, title: 'KYC Verified Guests', text: 'Every guest is identity-verified before booking.' },
   { icon: ShieldCheck, title: 'Comprehensive Insurance', text: 'Choose from Basic, Standard, or Platinum coverage.' },

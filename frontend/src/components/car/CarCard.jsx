@@ -53,7 +53,7 @@ function CarCard({ car, viewMode = 'grid', onRemoved }) {
         <Link to={`/cars/${car.id}`} className="grid gap-4 p-3 sm:grid-cols-[200px_1fr_auto]">
           <div className="relative h-48 overflow-hidden rounded-md bg-zinc-100 sm:h-full">
             <img src={image} alt={`${car.title} rental car in ${car.location_city}`} loading="lazy" decoding="async" width="400" height="260" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
-            <CategoryBadge category={car.category} />
+            <CategoryBadge category={car.category} label={car.category_name} />
           </div>
           <div className="min-w-0">
             <div className="flex items-start justify-between gap-3">
@@ -91,7 +91,7 @@ function CarCard({ car, viewMode = 'grid', onRemoved }) {
         <div className="relative aspect-video overflow-hidden bg-zinc-100">
           <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-zinc-100 via-zinc-200 to-zinc-100" />
           <img src={image} alt={`${car.title} rental car in ${car.location_city}`} loading="lazy" decoding="async" width="480" height="270" className="relative h-full w-full object-cover transition duration-500 group-hover:scale-105" />
-          <CategoryBadge category={car.category} />
+          <CategoryBadge category={car.category} label={car.category_name} />
           <button onClick={toggleWishlist} className={`absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full bg-white/95 shadow ${saved ? 'text-sigfleet' : 'text-zinc-600'}`} aria-label="Toggle wishlist">
             <Heart size={19} fill={saved ? 'currentColor' : 'none'} />
           </button>
@@ -124,10 +124,10 @@ export default memo(CarCard, (prev, next) => (
   && Boolean(prev.car.is_saved) === Boolean(next.car.is_saved)
 ))
 
-function CategoryBadge({ category }) {
+function CategoryBadge({ category, label }) {
   return (
     <span className={`absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-black ${CATEGORY_STYLES[category] || 'bg-zinc-900 text-white'}`}>
-      {titleCase(category)}
+      {label || titleCase(category || 'Vehicle')}
     </span>
   )
 }

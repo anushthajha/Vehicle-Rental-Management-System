@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from sqlalchemy import DECIMAL, Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.models.base import TimestampMixin, generate_uuid
@@ -41,10 +41,10 @@ class Car(TimestampMixin, Base):
         nullable=False,
     )
     seats: Mapped[int] = mapped_column(Integer, nullable=False)
-    category: Mapped[str] = mapped_column(
-        Enum("hatchback", "sedan", "suv", "muv", "luxury", "electric", "convertible", "minivan", name="car_category"),
-        nullable=False,
-    )
+    category_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("vehicle_categories.id"), index=True, nullable=True)
+    vehicle_type_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("vehicle_types.id"), index=True, nullable=True)
+    category = relationship("VehicleCategory", back_populates="vehicles")
+    vehicle_type = relationship("VehicleType", back_populates="vehicles")
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     registration_number: Mapped[str] = mapped_column(String(20), unique=True, index=True, nullable=False)
     location_city: Mapped[str] = mapped_column(String(100), index=True, nullable=False)

@@ -88,6 +88,7 @@ export const SORT_OPTIONS = [
 export const DEFAULT_FILTERS = {
   price: [0, 10000],
   categories: [],
+  vehicleTypes: [],
   transmission: '',
   fuelTypes: [],
   seats: [],

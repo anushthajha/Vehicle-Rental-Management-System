@@ -1,7 +1,8 @@
 import React, { memo } from 'react'
 import * as Slider from '@radix-ui/react-slider'
 import { Check, SlidersHorizontal, X } from 'lucide-react'
-import { CATEGORIES, FEATURE_OPTIONS, FUEL_TYPES, formatMoney, SEAT_OPTIONS, SORT_OPTIONS } from '../../utils/searchData'
+import { FEATURE_OPTIONS, FUEL_TYPES, SEAT_OPTIONS, SORT_OPTIONS } from '../../utils/searchData'
+import { useVehicleCategories } from '../../hooks/useVehicleCategories'
 
 function toggleValue(values, value) {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value]
@@ -16,7 +17,9 @@ function countBy(cars, key) {
 }
 
 function FilterSidebar({ filters, setFilters, cars = [], histogram = [], onClear, showSort = false, onApply, activeCount = 0 }) {
-  const categoryCounts = countBy(cars, 'category')
+  const { categories, vehicleTypes } = useVehicleCategories()
+  const categoryCounts = countBy(cars, 'category_id')
+  const typeCounts = countBy(cars, 'vehicle_type_id')
   const fuelCounts = countBy(cars, 'fuel_type')
 
   function patch(changes) {
@@ -75,22 +78,32 @@ function FilterSidebar({ filters, setFilters, cars = [], histogram = [], onClear
 
         <FilterSection title="Category">
           <div className="grid grid-cols-2 gap-2">
-            {CATEGORIES.map((item) => {
-              const active = filters.categories.includes(item.key)
+            {categories.map((item) => {
+              const active = filters.categories.includes(item.id)
               return (
                 <button
-                  key={item.key}
+                  key={item.id}
                   type="button"
-                  onClick={() => patch({ categories: toggleValue(filters.categories, item.key) })}
+                  onClick={() => patch({ categories: toggleValue(filters.categories, item.id) })}
                   className={`rounded-md border p-3 text-left transition ${active ? 'border-sigfleet bg-red-50' : 'border-zinc-200 bg-white hover:border-zinc-300'}`}
                 >
-                  <span className="text-xl">{item.icon}</span>
-                  <span className="mt-1 block text-sm font-black text-zinc-900">{item.label}</span>
-                  <span className="mt-1 inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-bold text-zinc-600">{categoryCounts[item.key] || 0}</span>
+                  <span className="text-xl">{item.icon_name ? '◼' : '•'}</span>
+                  <span className="mt-1 block text-sm font-black text-zinc-900">{item.name}</span>
+                  <span className="mt-1 inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-bold text-zinc-600">{categoryCounts[item.id] || item.vehicle_count || 0}</span>
                 </button>
               )
             })}
           </div>
+        </FilterSection>
+
+        <FilterSection title="Vehicle Type">
+          <CheckboxList
+            values={vehicleTypes.map((item) => item.id)}
+            selected={filters.vehicleTypes || []}
+            labels={(value) => vehicleTypes.find((item) => item.id === value)?.name || value}
+            counts={typeCounts}
+            onToggle={(value) => patch({ vehicleTypes: toggleValue(filters.vehicleTypes || [], value) })}
+          />
         </FilterSection>
 
         <FilterSection title="Transmission">

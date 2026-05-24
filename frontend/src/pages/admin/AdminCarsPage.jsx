@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { Check, Star, X } from 'lucide-react'
 import { formatDate, formatMoney, getAdmin, patchAdmin } from './adminApi'
+import { useVehicleCategories } from '../../hooks/useVehicleCategories'
 
 const tabs = ['pending', 'approved', 'rejected', 'all']
 
@@ -9,10 +10,11 @@ export default function AdminCarsPage() {
   const [tab, setTab] = useState('pending')
   const [cars, setCars] = useState([])
   const [filters, setFilters] = useState({ city: '', category: '', sort: 'newest' })
+  const { categories } = useVehicleCategories()
   const [activeCar, setActiveCar] = useState(null)
   const [rejecting, setRejecting] = useState(null)
 
-  const load = () => getAdmin('/cars', { status: tab, ...filters, city: filters.city || undefined, category: filters.category || undefined, limit: 50 }).then((data) => setCars(data.items || []))
+  const load = () => getAdmin('/cars', { status: tab, ...filters, city: filters.city || undefined, category_id: filters.category || undefined, limit: 50 }).then((data) => setCars(data.items || []))
   useEffect(load, [tab, filters])
 
   const approve = async (car) => {
@@ -34,7 +36,7 @@ export default function AdminCarsPage() {
       </div>
       <div className="flex flex-wrap gap-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
         <input className="input w-56" placeholder="City" value={filters.city} onChange={(event) => setFilters((value) => ({ ...value, city: event.target.value }))} />
-        <select className="input w-52" value={filters.category} onChange={(event) => setFilters((value) => ({ ...value, category: event.target.value }))}><option value="">All categories</option><option value="hatchback">Hatchback</option><option value="sedan">Sedan</option><option value="suv">SUV</option><option value="luxury">Luxury</option><option value="electric">Electric</option></select>
+        <select className="input w-52" value={filters.category} onChange={(event) => setFilters((value) => ({ ...value, category: event.target.value }))}><option value="">All categories</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>
         <select className="input w-44" value={filters.sort} onChange={(event) => setFilters((value) => ({ ...value, sort: event.target.value }))}><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="price">Price</option><option value="rating">Rating</option></select>
       </div>
       <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
@@ -42,7 +44,7 @@ export default function AdminCarsPage() {
           <thead className="bg-zinc-50 text-xs uppercase text-zinc-500"><tr><th className="p-4">Car</th><th className="p-4">Manager</th><th className="p-4">Category</th><th className="p-4">Price/day</th><th className="p-4">Trips</th><th className="p-4">Status</th><th className="p-4">Listed</th><th className="p-4">Actions</th></tr></thead>
           <tbody>{cars.map((car) => <tr key={car.id} className="border-t border-zinc-100">
             <td className="p-4"><div className="flex items-center gap-3"><img alt="" src={car.image || '/vite.svg'} className="h-14 w-20 rounded-md object-cover" /><div><p className="font-black">{car.title}</p><p className="text-xs font-bold text-zinc-500">{car.city}</p></div></div></td>
-            <td className="p-4 font-bold">{car.manager.name}</td><td className="p-4 capitalize">{car.category}</td><td className="p-4 font-black">{formatMoney(car.price_per_day)}</td><td className="p-4">{car.trips}</td><td className="p-4"><Badge value={car.status} /></td><td className="p-4">{formatDate(car.listed_date)}</td>
+            <td className="p-4 font-bold">{car.manager.name}</td><td className="p-4 capitalize">{car.category_name || car.category}</td><td className="p-4 font-black">{formatMoney(car.price_per_day)}</td><td className="p-4">{car.trips}</td><td className="p-4"><Badge value={car.status} /></td><td className="p-4">{formatDate(car.listed_date)}</td>
             <td className="p-4"><div className="flex gap-2">{car.status === 'pending' && <><button title="Approve" onClick={() => approve(car)} className="rounded-md bg-emerald-600 p-2 text-white"><Check size={16} /></button><button title="Reject" onClick={() => setRejecting(car)} className="rounded-md bg-[#E31837] p-2 text-white"><X size={16} /></button></>}<button title="Feature" onClick={() => feature(car)} className={`rounded-md border p-2 ${car.is_featured ? 'border-amber-400 text-amber-500' : 'border-zinc-200'}`}><Star size={16} fill={car.is_featured ? 'currentColor' : 'none'} /></button><button onClick={() => setActiveCar(car)} className="rounded-md border border-zinc-200 px-3 py-2 text-xs font-black">Details</button></div></td>
           </tr>)}</tbody>
         </table>

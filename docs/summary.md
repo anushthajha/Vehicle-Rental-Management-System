@@ -1,5 +1,22 @@
 # SigFleet Phase Summary
 
+## Phase C - Dynamic Vehicle Categories and Types
+
+Implemented the PRD Admin-managed vehicle taxonomy.
+
+- Added `vehicle_categories` and `vehicle_types` MySQL models with dynamic slugs, active flags, category display order, icons, and vehicle relationships.
+- Replaced the hardcoded car category enum with nullable `category_id` and `vehicle_type_id` foreign keys, plus migration data for existing Hatchback/Sedan/SUV/etc. vehicles and default vehicle types.
+- Added public cached APIs for `/api/categories`, `/api/categories/{category_id}`, and `/api/vehicle-types`.
+- Added admin CRUD APIs for categories and vehicle types, category reorder support, deactivation guards, delete guards, and category reassignment on delete.
+- Updated vehicle search to support `category_id`, `vehicle_type_id`, and `q` text search, with `/api/vehicles` as a search alias alongside existing `/api/cars`.
+- Updated listing/search/detail/card/admin vehicle UIs to consume dynamic category/type labels and filters.
+- Added React Query hooks for vehicle categories and vehicle types.
+- Added `/admin/categories` with a two-panel category/type management UI, icon picker, active toggles, delete/reassign flow, and dnd-kit category reordering.
+
+Verification:
+- `python3 -m compileall backend/app` passes.
+- `npm run build` from `frontend/` passes with the existing large-chunk style warning.
+
 ## Phase B - Vehicle Manager Account Lifecycle
 
 Implemented the PRD Vehicle Manager lifecycle and manager dashboard surface.

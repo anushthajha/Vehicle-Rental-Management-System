@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.database import get_db
 from app.models.car import Car, CarImage
 from app.models.user import User
+from app.models.vehicle_category import VehicleCategory
 from app.models.wishlist import Wishlist
 from app.utils.auth import get_current_active_user
 
@@ -21,14 +22,16 @@ def _money(value) -> float:
     return float(value or 0)
 
 
-async def _wishlist_car_payload(car: Car, image_url: str | None) -> dict:
+async def _wishlist_car_payload(car: Car, image_url: str | None, category: VehicleCategory | None = None) -> dict:
     return {
         "id": car.id,
         "title": car.title,
         "make": car.make,
         "car_model": car.car_model,
         "year": car.year,
-        "category": car.category,
+        "category": category.slug if category else None,
+        "category_id": car.category_id,
+        "category_name": category.name if category else None,
         "transmission": car.transmission,
         "fuel_type": car.fuel_type,
         "seats": car.seats,
@@ -72,12 +75,13 @@ async def get_wishlist(
         .scalar_subquery()
     )
     result = await db.execute(
-        select(Car, primary_image.label("primary_image_url"))
+        select(Car, primary_image.label("primary_image_url"), VehicleCategory)
         .join(Wishlist, Wishlist.car_id == Car.id)
+        .outerjoin(VehicleCategory, VehicleCategory.id == Car.category_id)
         .where(Wishlist.user_id == current_user.id)
         .order_by(Wishlist.created_at.desc())
     )
-    return {"cars": [await _wishlist_car_payload(row[0], row[1]) for row in result.all()]}
+    return {"cars": [await _wishlist_car_payload(row[0], row[1], row[2]) for row in result.all()]}
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
