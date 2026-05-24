@@ -17,7 +17,7 @@ function titleCase(value) {
   return String(value || '').replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
-function VehicleCard({ car, viewMode = 'grid', onRemoved }) {
+function VehicleCard({ car, viewMode = 'grid', onRemoved, datesSelected = false }) {
   const { user } = useAuthStore()
   const [saved, setSaved] = useState(Boolean(car.is_saved || isLocallySaved(car.id)))
   const image = car.primary_image_url || car.images?.[0]?.image_url || FALLBACK_IMAGE
@@ -51,14 +51,17 @@ function VehicleCard({ car, viewMode = 'grid', onRemoved }) {
     return (
       <article className="group overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
         <Link to={`/vehicles/${car.id}`} className="grid gap-4 p-3 sm:grid-cols-[200px_1fr_auto]">
-          <div className="relative h-48 overflow-hidden rounded-md bg-zinc-100 sm:h-full">
-            <img src={image} alt={`${car.title} rental car in ${car.location_city}`} loading="lazy" decoding="async" width="400" height="260" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
-            <CategoryBadge category={car.category} label={car.category_name} />
-          </div>
+            <div className="relative h-48 overflow-hidden rounded-md bg-zinc-100 sm:h-full">
+              <img src={image} alt={`${car.title} rental car in ${car.location_city}`} loading="lazy" decoding="async" width="400" height="260" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+              <CategoryBadge category={car.category} label={car.category_name} />
+              <AvailabilityBadge available={car.is_available} />
+              {datesSelected && car.date_conflicts && <DateConflictOverlay />}
+            </div>
           <div className="min-w-0">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-xl font-black text-zinc-950">{car.title} <span className="text-zinc-500">{car.year}</span></h3>
+                <p className="mt-1 text-sm font-black text-zinc-700">{car.make} · {car.vehicle_type_name || titleCase(car.vehicle_type || car.category || 'Vehicle')}</p>
                 <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-zinc-500"><MapPin size={15} /> {car.location_area || 'Central'}, {car.location_city}</p>
               </div>
               <button onClick={toggleWishlist} className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border bg-white ${saved ? 'border-red-200 text-sigfleet' : 'border-zinc-200 text-zinc-500'}`} aria-label="Toggle wishlist">
@@ -92,6 +95,8 @@ function VehicleCard({ car, viewMode = 'grid', onRemoved }) {
           <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-zinc-100 via-zinc-200 to-zinc-100" />
           <img src={image} alt={`${car.title} rental car in ${car.location_city}`} loading="lazy" decoding="async" width="480" height="270" className="relative h-full w-full object-cover transition duration-500 group-hover:scale-105" />
           <CategoryBadge category={car.category} label={car.category_name} />
+          <AvailabilityBadge available={car.is_available} />
+          {datesSelected && car.date_conflicts && <DateConflictOverlay />}
           <button onClick={toggleWishlist} className={`absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full bg-white/95 shadow ${saved ? 'text-sigfleet' : 'text-zinc-600'}`} aria-label="Toggle wishlist">
             <Heart size={19} fill={saved ? 'currentColor' : 'none'} />
           </button>
@@ -104,6 +109,7 @@ function VehicleCard({ car, viewMode = 'grid', onRemoved }) {
             <span className="flex items-center gap-1">{car.fuel_type === 'electric' ? <Zap size={15} /> : <Fuel size={15} />} {titleCase(car.fuel_type)}</span>
           </div>
           <h3 className="mt-3 text-lg font-black text-zinc-950">{car.title} <span className="text-zinc-500">{car.year}</span></h3>
+          <p className="mt-1 text-sm font-black text-zinc-700">{car.make} · {car.vehicle_type_name || titleCase(car.vehicle_type || car.category || 'Vehicle')}</p>
           <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-zinc-500"><MapPin size={15} /> {car.location_area || 'Central'}, {car.location_city}</p>
           <RatingLine car={car} />
           <div className="mt-4 flex items-center justify-between gap-3">
@@ -122,6 +128,9 @@ export default memo(VehicleCard, (prev, next) => (
   prev.car.id === next.car.id
   && prev.viewMode === next.viewMode
   && Boolean(prev.car.is_saved) === Boolean(next.car.is_saved)
+  && Boolean(prev.car.is_available) === Boolean(next.car.is_available)
+  && Boolean(prev.datesSelected) === Boolean(next.datesSelected)
+  && Boolean(prev.car.date_conflicts) === Boolean(next.car.date_conflicts)
 ))
 
 function CategoryBadge({ category, label }) {
@@ -145,5 +154,22 @@ function RatingLine({ car }) {
       )}
       {(car.features || []).includes('music') && <Music size={15} className="ml-1 text-zinc-400" />}
     </p>
+  )
+}
+
+function AvailabilityBadge({ available }) {
+  return (
+    <span className={`absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black shadow ${available ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+      <span className={`h-2 w-2 rounded-full ${available ? 'bg-emerald-500' : 'bg-red-500'}`} />
+      {available ? 'Available Now' : 'Not Available'}
+    </span>
+  )
+}
+
+function DateConflictOverlay() {
+  return (
+    <div className="absolute inset-0 grid place-items-center bg-black/55 text-center">
+      <span className="rounded-md bg-white px-4 py-2 text-sm font-black text-red-700">Not available for selected dates</span>
+    </div>
   )
 }

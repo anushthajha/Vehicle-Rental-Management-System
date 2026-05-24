@@ -5,7 +5,7 @@ import { AdminRoute, CustomerRoute, GuestRoute, PrivateRoute, VehicleManagerRout
 import { AuthProvider } from './context/AuthContext'
 
 const HomePage = lazy(() => import('./pages/HomePage'))
-const SearchPage = lazy(() => import('./pages/SearchPage'))
+const VehicleListingPage = lazy(() => import('./pages/VehicleListingPage'))
 const CarDetailPage = lazy(() => import('./pages/CarDetailPage'))
 const CityPage = lazy(() => import('./pages/CityPage'))
 const WishlistPage = lazy(() => import('./pages/WishlistPage'))
@@ -91,11 +91,11 @@ export default function App() {
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/" element={<HomePage />} />
-            <Route path="/vehicles" element={<SearchPage />} />
+            <Route path="/vehicles" element={<VehicleListingPage />} />
             <Route path="/search" element={<Navigate to="/vehicles" replace />} />
             <Route path="/vehicles/:carId" element={<CarDetailPage />} />
-            <Route path="/categories/:categorySlug" element={<SearchPage />} />
-            <Route path="/vehicle-types/:typeSlug" element={<SearchPage />} />
+            <Route path="/categories/:categorySlug" element={<VehicleListingPage />} />
+            <Route path="/vehicle-types/:typeSlug" element={<VehicleListingPage />} />
             <Route path="/cities/:city" element={<CityPage />} />
             <Route path="/wishlist" element={<WishlistPage />} />
             <Route element={<GuestRoute />}>

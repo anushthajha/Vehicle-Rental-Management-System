@@ -45,7 +45,7 @@ export default function Navbar() {
     ? [['Dashboard', '/admin/dashboard'], ['Users', '/admin/users'], ['Vehicles', '/admin/vehicles'], ['Bookings', '/admin/bookings'], ['Analytics', '/admin/analytics']]
     : role === 'vehicle_manager'
       ? [['My Vehicles', '/manager/vehicles'], ['Bookings', '/manager/bookings'], ['Availability', '/manager/vehicles']]
-      : [['Browse Vehicles', '/search'], ['How it Works', '/how-it-works'], ['Become a Manager', '/contact']]
+      : [['Browse Vehicles', '/vehicles'], ['How it Works', '/how-it-works'], ['Become a Manager', '/contact']]
 
   const dashboardPath = roleDashboards[role] || '/'
 

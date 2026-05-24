@@ -86,14 +86,19 @@ export const SORT_OPTIONS = [
 ]
 
 export const DEFAULT_FILTERS = {
+  q: '',
+  availability: true,
   price: [0, 10000],
+  priceTouched: false,
   categories: [],
   vehicleTypes: [],
+  brands: [],
   transmission: '',
   fuelTypes: [],
   seats: [],
   features: [],
   rating: '',
+  distance: 25,
   sortBy: 'recommended',
 }
 

@@ -35,7 +35,7 @@ export default function BookingSuccessPage() {
         <p className="mt-5 text-sm font-bold text-zinc-500">A confirmation email has been sent to {user?.email || 'your email'}.</p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Link to={summary.id ? `/dashboard/bookings/${summary.id}` : '/dashboard/bookings'} className="rounded-md bg-sigfleet px-4 py-3 font-black text-white">View Booking Details</Link>
-          <Link to="/search" className="rounded-md border border-zinc-300 px-4 py-3 font-black text-zinc-800">Explore More Cars</Link>
+          <Link to="/vehicles" className="rounded-md border border-zinc-300 px-4 py-3 font-black text-zinc-800">Explore More Cars</Link>
           <Link to="/" className="rounded-md border border-zinc-300 px-4 py-3 font-black text-zinc-800">Go Home</Link>
         </div>
       </section>

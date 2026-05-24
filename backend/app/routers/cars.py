@@ -1,4 +1,5 @@
 import calendar
+import json
 import math
 import os
 from datetime import date, datetime, time, timedelta
@@ -212,8 +213,22 @@ def _features(car: Car) -> list[str]:
     return features
 
 
+BRANDS_CACHE_KEY = "vehicles:brands:approved"
+BRANDS_CACHE_TTL_SECONDS = 300
+
+
 def _csv_values(value: str | None) -> list[str]:
     return [item.strip() for item in (value or "").split(",") if item.strip()]
+
+
+def _csv_int_values(value: str | None) -> list[int]:
+    values = []
+    for item in _csv_values(value):
+        try:
+            values.append(int(item))
+        except ValueError:
+            continue
+    return values
 
 
 def _car_payload(
@@ -400,6 +415,56 @@ async def _list_rows(db: AsyncSession, conditions: list, sort_by: str, page: int
     return result.all()
 
 
+async def _search_facets(db: AsyncSession, conditions: list) -> dict:
+    brand_rows = (
+        await db.execute(
+            select(Car.make, func.count(Car.id))
+            .where(*conditions)
+            .group_by(Car.make)
+            .order_by(Car.make.asc())
+        )
+    ).all()
+    price_row = (
+        await db.execute(
+            select(func.min(Car.price_per_day), func.max(Car.price_per_day))
+            .where(*conditions)
+        )
+    ).one()
+    return {
+        "brands_available": [brand for brand, _ in brand_rows if brand],
+        "filter_counts": {"brands": {brand: count for brand, count in brand_rows if brand}},
+        "price_range": {
+            "min": _money(price_row[0]) if price_row[0] is not None else 0,
+            "max": _money(price_row[1]) if price_row[1] is not None else 0,
+        },
+    }
+
+
+@vehicles_router.get("/brands")
+async def list_vehicle_brands(db: AsyncSession = Depends(get_db)):
+    redis = get_redis()
+    try:
+        cached = await redis.get(BRANDS_CACHE_KEY)
+        if cached:
+            return json.loads(cached)
+    except Exception:
+        pass
+
+    brands = (
+        await db.execute(
+            select(distinct(Car.make))
+            .where(Car.is_approved.is_(True), Car.make.is_not(None), Car.make != "")
+            .order_by(Car.make.asc())
+        )
+    ).scalars().all()
+    payload = {"brands": list(brands)}
+    try:
+        await redis.setex(BRANDS_CACHE_KEY, BRANDS_CACHE_TTL_SECONDS, json.dumps(payload))
+    except Exception:
+        pass
+    return payload
+
+
 @vehicles_router.get("/")
 @router.get("/")
 async def search_cars(
@@ -407,18 +472,24 @@ async def search_cars(
     city: str | None = None,
     category: str | None = None,
     category_id: str | None = None,
+    vehicle_type: str | None = None,
     vehicle_type_id: str | None = None,
+    brand: str | None = None,
     q: str | None = None,
     transmission: str | None = None,
     fuel_type: str | None = None,
-    seats: int | None = None,
+    availability: bool | None = None,
+    seats: str | None = None,
     min_price: float | None = None,
     max_price: float | None = None,
     start_date: datetime | None = None,
     end_date: datetime | None = None,
+    pickup_date: datetime | None = None,
+    return_date: datetime | None = None,
     lat: float | None = None,
     lng: float | None = None,
     radius_km: float = 10,
+    rating_min: float | None = Query(default=None, ge=0, le=5),
     min_rating: float | None = Query(default=None, ge=0, le=5),
     host_id: str | None = None,
     exclude: str | None = None,
@@ -428,15 +499,19 @@ async def search_cars(
     limit: int = Query(default=12, ge=1, le=50),
     db: AsyncSession = Depends(get_db),
 ):
-    conditions = [Car.is_approved.is_(True), Car.is_available.is_(True)]
-    if start_date and end_date:
-        booking_overlap = select(Booking.id).where(Booking.car_id == Car.id, *_overlap_conditions(start_date, end_date)).exists()
+    conditions = [Car.is_approved.is_(True)]
+    active_pickup = pickup_date or start_date
+    active_return = return_date or end_date
+    if availability is True:
+        conditions.append(Car.is_available.is_(True))
+    if active_pickup and active_return:
+        booking_overlap = select(Booking.id).where(Booking.car_id == Car.id, *_overlap_conditions(active_pickup, active_return)).exists()
         block_overlap = (
             select(CarAvailabilityBlock.id)
             .where(
                 CarAvailabilityBlock.car_id == Car.id,
-                CarAvailabilityBlock.blocked_from < end_date,
-                CarAvailabilityBlock.blocked_to > start_date,
+                CarAvailabilityBlock.blocked_from < active_return,
+                CarAvailabilityBlock.blocked_to > active_pickup,
             )
             .exists()
         )
@@ -450,12 +525,17 @@ async def search_cars(
         if legacy_values:
             category_rows = (await db.execute(select(VehicleCategory.id).where(VehicleCategory.slug.in_(legacy_values)))).scalars().all()
             category_values = list(category_rows)
-    type_values = _csv_values(vehicle_type_id)
+    type_values = _csv_values(vehicle_type or vehicle_type_id)
+    brand_values = [item.lower() for item in _csv_values(brand)]
+    transmission_values = _csv_values(transmission)
     fuel_values = _csv_values(fuel_type)
+    seat_values = _csv_int_values(seats)
     if category_values:
         conditions.append(Car.category_id.in_(category_values))
     if type_values:
         conditions.append(Car.vehicle_type_id.in_(type_values))
+    if brand_values:
+        conditions.append(func.lower(Car.make).in_(brand_values))
     if q:
         needle = f"%{q.strip()}%"
         conditions.append(
@@ -464,14 +544,22 @@ async def search_cars(
             | (Car.car_model.ilike(needle))
             | (Car.description.ilike(needle))
         )
-    if transmission:
-        conditions.append(Car.transmission == transmission)
+    if transmission_values:
+        conditions.append(Car.transmission.in_(transmission_values))
     if fuel_values:
         conditions.append(Car.fuel_type.in_(fuel_values))
-    if seats:
-        conditions.append(Car.seats >= seats)
-    if min_rating is not None:
-        conditions.append(Car.average_rating >= min_rating)
+    if seat_values:
+        exact_seats = [value for value in seat_values if value < 8]
+        seat_conditions = []
+        if exact_seats:
+            seat_conditions.append(Car.seats.in_(exact_seats))
+        if any(value >= 8 for value in seat_values):
+            seat_conditions.append(Car.seats >= 8)
+        if seat_conditions:
+            conditions.append(seat_conditions[0] if len(seat_conditions) == 1 else seat_conditions[0] | seat_conditions[1])
+    active_rating = rating_min if rating_min is not None else min_rating
+    if active_rating is not None:
+        conditions.append(Car.average_rating >= active_rating)
     if host_id:
         conditions.append(Car.managerId == host_id)
     if exclude:
@@ -493,33 +581,55 @@ async def search_cars(
         conditions.extend([Car.location_lat.is_not(None), Car.location_lng.is_not(None), distance_expr <= radius_km])
 
     total = await db.scalar(select(func.count()).select_from(Car).where(*conditions)) or 0
+    facets = await _search_facets(db, conditions)
     rows = await _list_rows(db, conditions, sort_by, page, limit, distance_expr)
     cars = [_car_payload(row[0], row[1], row[2], row[5] if distance_expr is not None else None, row[3], row[4]) for row in rows]
     pages = math.ceil(total / limit) if total else 0
 
     filters_dict = {
+        "city": city,
         "category": category,
         "category_id": category_id,
+        "vehicle_type": vehicle_type,
         "vehicle_type_id": vehicle_type_id,
+        "brand": brand_values,
         "q": q,
-        "transmission": transmission,
-        "fuel_type": fuel_type,
-        "seats": seats,
+        "transmission": transmission_values,
+        "fuel_type": fuel_values,
+        "availability": availability,
+        "seats": seat_values,
         "min_price": min_price,
         "max_price": max_price,
-        "start_date": _dt(start_date),
-        "end_date": _dt(end_date),
+        "pickup_date": _dt(active_pickup),
+        "return_date": _dt(active_return),
         "lat": lat,
         "lng": lng,
         "radius_km": radius_km,
-        "min_rating": min_rating,
+        "rating_min": active_rating,
         "host_id": host_id,
         "exclude": exclude,
         "features": requested_features,
         "sort_by": sort_by,
     }
+    applied_filters = {
+        key: value
+        for key, value in filters_dict.items()
+        if value not in (None, "", [], {})
+    }
     await log_search(await _optional_user_id(request), city or "", filters_dict, total)
-    return {"cars": cars, "total": total, "page": page, "pages": pages, "has_next": page < pages, "has_prev": page > 1}
+    return {
+        "vehicles": cars,
+        "cars": cars,
+        "total": total,
+        "page": page,
+        "pages": pages,
+        "has_next": page < pages,
+        "has_prev": page > 1,
+        "applied_filters": applied_filters,
+        "brands_available": facets["brands_available"],
+        "price_range": facets["price_range"],
+        "filter_counts": facets["filter_counts"],
+    }
 
 
 @router.get("/featured")

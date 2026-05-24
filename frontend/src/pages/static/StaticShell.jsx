@@ -28,7 +28,7 @@ export function FAQBlock({ items }) {
   return <Accordion.Root type="single" collapsible className="space-y-3">{items.map(([q, a]) => <Accordion.Item key={q} value={q} className="rounded-lg border border-zinc-200 bg-white px-5"><Accordion.Trigger className="flex w-full items-center justify-between py-4 text-left font-black">{q}<ChevronDown size={18} /></Accordion.Trigger><Accordion.Content className="pb-4 font-semibold text-zinc-600">{a}</Accordion.Content></Accordion.Item>)}</Accordion.Root>
 }
 
-export function CTA({ title = 'Ready to drive?', to = '/search', label = 'Explore cars' }) {
+export function CTA({ title = 'Ready to drive?', to = '/vehicles', label = 'Explore cars' }) {
   return <section className="px-4 py-16"><div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 rounded-lg bg-gradient-to-r from-[#E31837] to-[#FF6B35] p-8 text-white"><h2 className="font-display text-3xl font-black">{title}</h2><Link to={to} className="rounded-md bg-white px-5 py-3 font-black text-[#E31837]">{label}</Link></div></section>
 }
 

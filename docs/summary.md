@@ -1,5 +1,24 @@
 # SigFleet Phase Summary
 
+## Phase F - PRD Vehicle Search and Filter Overhaul
+
+Implemented the PRD search and filter requirements for public vehicle discovery.
+
+- Replaced the `/api/vehicles` search behavior with dynamic combinable filters for text search, vehicle type, brand, fuel type, availability, price range, city, category, transmission, seats, features, rating, proximity, date-based availability, sorting, and pagination.
+- Added date conflict exclusion via booking/block overlap checks using `pickup_date` and `return_date`, while preserving legacy `start_date`/`end_date` compatibility.
+- Added enriched search responses with `vehicles`, compatibility `cars`, `applied_filters`, `brands_available`, `price_range`, pagination metadata, and brand filter counts.
+- Added public cached `GET /api/vehicles/brands` with a 5-minute Redis TTL and approved-vehicle distinct brands sorted alphabetically.
+- Renamed the frontend search page to `VehicleListingPage`, moved the public route to `/vehicles`, and kept `/search` as a redirect.
+- Rebuilt the listing filters in PRD order with sidebar text search, availability toggle, dynamic vehicle types, searchable brand checkboxes, dynamic categories, adaptive price range, fuel, transmission, seats, features, rating, and distance controls.
+- Made listing filter state URL-driven through search params so shared URLs reproduce the same results.
+- Added top listing search bar support for vehicle/brand/model query, city, optional pickup/return dates, and bidirectional `q` syncing with the sidebar.
+- Added desktop numbered pagination, mobile load-more behavior, result range text, availability badges, and brand/type display on vehicle cards.
+
+Verification:
+- `python3 -m py_compile backend/app/routers/cars.py` passes.
+- `npm run build` from `frontend/` passes with the existing large-chunk warning.
+- Vite dev server serves `/vehicles?q=honda` at `http://127.0.0.1:5176/` with HTTP 200.
+
 ## Phase E - Availability Management Module
 
 Implemented the PRD Availability Management module end to end.
