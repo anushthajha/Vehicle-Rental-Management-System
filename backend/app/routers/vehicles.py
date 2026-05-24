@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
+from app.middleware.rate_limiter import rate_limit
 from app.models.booking import Booking
 from app.models.vehicle import Vehicle, VehicleAvailabilityBlock, VehicleImage, VehiclePricingRule
 from app.models.manager import ManagerProfile
@@ -25,6 +26,7 @@ from app.mongo_models.notification import create_notification
 from app.mongo_models.review import get_car_reviews
 from app.redis import get_redis
 from app.utils.auth import get_current_active_user, require_vehicle_manager, require_kyc_user, verify_token
+from app.utils.validators import validate_registration_number
 
 
 router = APIRouter(prefix="/vehicles", tags=["vehicles"])
@@ -116,7 +118,7 @@ class VehicleCreate(BaseModel):
     @field_validator("registration_number")
     @classmethod
     def normalize_registration(cls, value: str) -> str:
-        return value.replace(" ", "").upper()
+        return validate_registration_number(value)
 
     @field_validator("title")
     @classmethod
@@ -163,7 +165,7 @@ class VehicleUpdate(BaseModel):
     @field_validator("registration_number")
     @classmethod
     def normalize_registration(cls, value: str | None) -> str | None:
-        return value.replace(" ", "").upper() if value else value
+        return validate_registration_number(value) if value else value
 
 
 class ImageReorderItem(BaseModel):
@@ -497,6 +499,7 @@ async def search_cars(
     features: str | None = None,
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=12, ge=1, le=50),
+    _: None = Depends(rate_limit("vehicles_search", 60, 60, "user_or_ip")),
     db: AsyncSession = Depends(get_db),
 ):
     conditions = [Vehicle.is_approved.is_(True)]

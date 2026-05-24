@@ -77,12 +77,13 @@ export function AuthProvider({ children }) {
       async (error) => {
         const original = error.config
         const storedRefreshToken = useAuthStore.getState().refreshToken
-        if (error.response?.status === 401 && storedRefreshToken && !original?._retry && !original?.url?.includes('/auth/refresh')) {
+        if ((error.response?.status === 401 || error.status === 401) && storedRefreshToken && !original?._retry && !original?.url?.includes('/auth/refresh')) {
           original._retry = true
           try {
             const response = await api.post('/auth/refresh', { refresh_token: storedRefreshToken })
-            setTokens({ accessToken: response.data.access_token })
-            original.headers.Authorization = `Bearer ${response.data.access_token}`
+            const accessToken = response.access_token || response.data?.access_token
+            setTokens({ accessToken })
+            original.headers.Authorization = `Bearer ${accessToken}`
             return api(original)
           } catch {
             logout()
@@ -107,7 +108,7 @@ export function AuthProvider({ children }) {
       }
       try {
         const response = await api.get('/auth/me')
-        setUser(response.data)
+        setUser(response.data || response)
       } catch {
         logout()
       } finally {
@@ -124,7 +125,7 @@ export function AuthProvider({ children }) {
     const timeout = window.setTimeout(async () => {
       try {
         const response = await api.post('/auth/refresh', { refresh_token: refreshToken })
-        setTokens({ accessToken: response.data.access_token })
+        setTokens({ accessToken: response.access_token || response.data?.access_token })
       } catch {
         logout()
       }

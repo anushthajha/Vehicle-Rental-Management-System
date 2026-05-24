@@ -1,5 +1,21 @@
 # SigFleet Phase Summary
 
+## Phase I - Middleware, Error Handling, Rate Limiting, and Validation
+
+Implemented the PRD middleware requirement across backend and frontend API handling.
+
+- Added `backend/app/middleware/` with optional JWT auth middleware, global error response handlers, and Redis-backed rate limiting dependencies.
+- Registered `OptionalAuthMiddleware` in `main.py` so public routes can read `request.state.user` from valid JWT claims without forcing authentication.
+- Added consistent JSON error responses for HTTP, validation, value, database, and unhandled exceptions with request IDs and 5xx logging metadata.
+- Applied route-level rate limits for login, register, forgot password, resend verification, vehicle search, and booking creation.
+- Added reusable validators for Indian phone numbers, registration numbers, IFSC codes, Aadhaar numbers, and booking date ranges.
+- Wired validators into existing router-local Pydantic models and form handlers for auth, profile, vehicle, booking, KYC, support, admin manager creation, and manager bank details.
+- Updated Axios error handling to consume the new error response format while preserving existing `.data` consumers, and added React Query retry/error defaults.
+
+Verification:
+- `python3 -m compileall backend/app` passes.
+- `npm run build` from `frontend/` passes with the existing large-chunk warning.
+
 ## Phase H - PRD Terminology Audit
 
 Completed a global PRD terminology alignment across backend, frontend, README, and routing surfaces.

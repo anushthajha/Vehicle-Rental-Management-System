@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,14 +17,12 @@ from app.mongo_models.notification import create_notification
 from app.services.booking_flow import add_wallet_transaction, get_or_create_wallet, money
 from app.services.super_manager import check_and_update_super_manager
 from app.utils.auth import require_vehicle_manager
+from app.utils.validators import validate_ifsc
 
 
 router = APIRouter(prefix="/manager", tags=["manager earnings"])
 
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-IFSC_RE = re.compile(r"^[A-Za-z]{4}0[A-Za-z0-9]{6}$")
-
-
 class PayoutRequest(BaseModel):
     amount: float = Field(ge=500)
 
@@ -34,6 +32,11 @@ class BankDetailsRequest(BaseModel):
     account_number: str = Field(min_length=6, max_length=50)
     ifsc: str = Field(min_length=11, max_length=11)
     account_holder: str = Field(min_length=2, max_length=200)
+
+    @field_validator("ifsc")
+    @classmethod
+    def ifsc_is_valid(cls, value: str) -> str:
+        return validate_ifsc(value)
 
 
 class ManagerProfileUpdateRequest(BaseModel):
@@ -298,8 +301,6 @@ async def payout_history(current_user: User = Depends(require_vehicle_manager), 
 
 @router.post("/profile/bank-details")
 async def update_bank_details(payload: BankDetailsRequest, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
-    if not IFSC_RE.match(payload.ifsc):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="IFSC must be 11 characters in standard alphanumeric format")
     profile = await _get_or_create_profile(db, current_user.id)
     profile.payout_bank_name = payload.bank_name.strip()
     profile.payout_account_number = re.sub(r"\s+", "", payload.account_number)

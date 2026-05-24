@@ -16,6 +16,7 @@ from app.mongo_models.analytics import log_activity
 from app.mongo_models.notification import create_notification
 from app.tasks.email_tasks import send_kyc_approved_email, send_kyc_rejected_email, send_kyc_submission_confirmation
 from app.utils.auth import get_current_active_user, require_admin
+from app.utils.validators import validate_aadhar
 
 
 router = APIRouter(prefix="/kyc", tags=["kyc"])
@@ -101,9 +102,7 @@ async def _upsert_kyc(
     aadhar_front: UploadFile,
     aadhar_back: UploadFile,
 ) -> UserKYC:
-    digits = re.sub(r"\D", "", aadhar_number)
-    if len(digits) != 12:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Aadhaar number must be 12 digits")
+    digits = validate_aadhar(aadhar_number)
     if len(dl_number.strip()) < 6:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Driver's license number looks too short")
 

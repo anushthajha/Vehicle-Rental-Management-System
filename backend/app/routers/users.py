@@ -1,4 +1,3 @@
-import re
 from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
@@ -22,11 +21,11 @@ from app.mongo_models.notification import get_unread_count
 from app.mongo_models.review import get_user_reviews
 from app.services.booking_flow import money
 from app.utils.auth import get_current_active_user
+from app.utils.validators import validate_phone
 
 
 router = APIRouter(prefix="/users", tags=["users"])
 
-PHONE_RE = re.compile(r"^[6-9]\d{9}$")
 AVATAR_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_AVATAR_BYTES = 2 * 1024 * 1024
 
@@ -40,9 +39,7 @@ class ProfileUpdateRequest(BaseModel):
     def valid_phone(cls, value: str | None) -> str | None:
         if value is None or value == "":
             return None
-        if not PHONE_RE.match(value):
-            raise ValueError("Phone must be a valid 10-digit Indian mobile number")
-        return value
+        return validate_phone(value)
 
 
 def _dt(value: datetime | None) -> str | None:

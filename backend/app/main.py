@@ -6,6 +6,8 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import init_db
+from app.middleware.auth_middleware import OptionalAuthMiddleware
+from app.middleware.error_handler import register_error_handlers
 from app.mongodb import connect_mongo, disconnect_mongo
 from app.redis import close_redis
 from app.routers import (
@@ -52,6 +54,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(OptionalAuthMiddleware)
+register_error_handlers(app)
 
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 

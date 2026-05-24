@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import and_, case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,6 +28,7 @@ from app.tasks.email_tasks import (
     send_manager_welcome_email,
 )
 from app.utils.auth import get_password_hash, require_admin, validate_password_strength
+from app.utils.validators import validate_phone
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -80,6 +81,11 @@ class VehicleManagerCreateRequest(BaseModel):
     password: str = Field(min_length=8, max_length=128)
     send_welcome_email: bool = False
     department: str | None = Field(default=None, max_length=100)
+
+    @field_validator("phone")
+    @classmethod
+    def phone_is_valid(cls, value: str | None) -> str | None:
+        return validate_phone(value) if value else value
 
 
 class PromoteManagerRequest(BaseModel):

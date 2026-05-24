@@ -3,7 +3,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.security import OAuth2PasswordBearer
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +14,7 @@ from app.models.user import User
 from app.mongo_models.notification import create_notification
 from app.mongo_models.support_message import add_support_message, get_ticket_messages
 from app.utils.auth import get_current_active_user, verify_token
+from app.utils.validators import validate_phone
 
 
 router = APIRouter(prefix="/support", tags=["support"])
@@ -31,6 +32,11 @@ class TicketCreateRequest(BaseModel):
     name: str | None = Field(default=None, max_length=200)
     phone: str | None = Field(default=None, max_length=20)
 
+    @field_validator("phone")
+    @classmethod
+    def phone_is_valid(cls, value: str | None) -> str | None:
+        return validate_phone(value) if value else value
+
 
 class ContactRequest(BaseModel):
     name: str = Field(min_length=2, max_length=200)
@@ -38,6 +44,11 @@ class ContactRequest(BaseModel):
     phone: str | None = Field(default=None, max_length=20)
     category: str = Field(pattern="^(booking|payment|car_issue|account|other)$")
     message: str = Field(min_length=20, max_length=4000)
+
+    @field_validator("phone")
+    @classmethod
+    def phone_is_valid(cls, value: str | None) -> str | None:
+        return validate_phone(value) if value else value
 
 
 class MessageRequest(BaseModel):

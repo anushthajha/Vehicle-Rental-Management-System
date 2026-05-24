@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.middleware.rate_limiter import rate_limit
 from app.models.payment import UserWallet
 from app.models.user import EmailVerification, PasswordReset, User, UserKYC
 from app.mongo_models.analytics import log_activity
@@ -25,6 +26,7 @@ from app.utils.auth import (
     verify_password,
     verify_token,
 )
+from app.utils.validators import validate_phone
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -57,12 +59,7 @@ class RegisterRequest(BaseModel):
     def phone_is_indian_mobile(cls, value: str | None) -> str | None:
         if value is None:
             return None
-        normalized = value.strip().replace(" ", "").replace("-", "")
-        if normalized.startswith("+91"):
-            normalized = normalized[3:]
-        if not normalized.isdigit() or len(normalized) != 10:
-            raise ValueError("Phone must be a 10 digit Indian mobile number")
-        return normalized
+        return validate_phone(value)
 
 
 class LoginRequest(BaseModel):
@@ -164,7 +161,7 @@ async def _find_user_by_email(db: AsyncSession, email: str) -> User | None:
     return result.scalar_one_or_none()
 
 
-@router.post("/register", status_code=status.HTTP_201_CREATED)
+@router.post("/register", status_code=status.HTTP_201_CREATED, dependencies=[Depends(rate_limit("auth_register", 3, 60, "ip"))])
 async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db)):
     existing = await _find_user_by_email(db, payload.email)
     if existing:
@@ -220,7 +217,7 @@ async def verify_email(token: str = Query(...), db: AsyncSession = Depends(get_d
     return {"message": "Email verified successfully. You can now log in."}
 
 
-@router.post("/resend-verification")
+@router.post("/resend-verification", dependencies=[Depends(rate_limit("auth_resend_verification", 1, 60, "email"))])
 async def resend_verification(payload: EmailRequest, db: AsyncSession = Depends(get_db)):
     email = payload.email.lower()
     redis = get_redis()
@@ -244,7 +241,7 @@ async def resend_verification(payload: EmailRequest, db: AsyncSession = Depends(
     return {"message": "If unverified, a new link has been sent."}
 
 
-@router.post("/login")
+@router.post("/login", dependencies=[Depends(rate_limit("auth_login", 5, 60, "ip"))])
 async def login(payload: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
     user = await _find_user_by_email(db, payload.email)
     if user is None or not verify_password(payload.password, user.hashed_password):
@@ -296,13 +293,9 @@ async def logout(token: str = Depends(oauth2_scheme)):
     return {"message": "Logged out successfully."}
 
 
-@router.post("/forgot-password")
+@router.post("/forgot-password", dependencies=[Depends(rate_limit("auth_forgot_password", 2, 300, "email"))])
 async def forgot_password(payload: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
     email = payload.email.lower()
-    created = await get_redis().set(f"forgot:{email}", "1", ex=300, nx=True)
-    if not created:
-        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Please wait before requesting another reset")
-
     user = await _find_user_by_email(db, email)
     if user:
         token = str(uuid4())

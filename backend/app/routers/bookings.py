@@ -5,11 +5,12 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.middleware.rate_limiter import rate_limit
 from app.models.booking import Booking, BookingExtension
 from app.models.vehicle import Vehicle, VehicleImage, VehiclePricingRule
 from app.models.coupon import Coupon, CouponUsage
@@ -31,6 +32,7 @@ from app.services.super_manager import check_and_update_super_manager
 from app.tasks.email_tasks import send_booking_cancelled_email, send_booking_request_to_manager_email
 from app.tasks.maintenance_tasks import send_review_request_task
 from app.utils.auth import get_current_active_user, require_customer, require_vehicle_manager, require_kyc_user
+from app.utils.validators import validate_booking_dates
 
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
@@ -54,6 +56,11 @@ class BookingPreviewRequest(BaseModel):
                 raise ValueError("ISO8601 datetime with time is required")
             datetime.fromisoformat(normalized)
         return value
+
+    @model_validator(mode="after")
+    def dates_are_valid(self):
+        validate_booking_dates(self.pickup_datetime, self.return_datetime)
+        return self
 
 
 class BookingCreateRequest(BookingPreviewRequest):
@@ -261,7 +268,12 @@ async def preview_booking(payload: BookingPreviewRequest, db: AsyncSession = Dep
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
-async def create_booking(payload: BookingCreateRequest, current_user: User = Depends(require_kyc_user), db: AsyncSession = Depends(get_db)):
+async def create_booking(
+    payload: BookingCreateRequest,
+    _: None = Depends(rate_limit("bookings_create", 5, 60, "user_or_ip")),
+    current_user: User = Depends(require_kyc_user),
+    db: AsyncSession = Depends(get_db),
+):
     if current_user.role not in {"customer", "admin"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Customer access required.")
     car = await _load_car(db, payload.vehicle_id)
