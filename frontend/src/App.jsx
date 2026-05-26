@@ -55,6 +55,7 @@ const AdminAnalyticsPage = lazy(() => import('./pages/admin/AdminAnalyticsPage')
 const AdminBookingsPage = lazy(() => import('./pages/admin/AdminDataPages').then((module) => ({ default: module.AdminBookingsPage })))
 const AdminPaymentsPage = lazy(() => import('./pages/admin/AdminDataPages').then((module) => ({ default: module.AdminPaymentsPage })))
 const AdminPayoutsPage = lazy(() => import('./pages/admin/AdminDataPages').then((module) => ({ default: module.AdminPayoutsPage })))
+const AdminSettingsPage = lazy(() => import('./pages/admin/AdminDataPages').then((module) => ({ default: module.AdminSettingsPage })))
 const HowItWorksPage = lazy(() => import('./pages/HowItWorksPage'))
 const SafetyPage = lazy(() => import('./pages/SafetyPage'))
 const InsurancePage = lazy(() => import('./pages/InsurancePage'))
@@ -67,16 +68,10 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 const UnauthorizedPage = lazy(() => import('./pages/UnauthorizedPage'))
 
 function PageLoader() {
-  return <main className="grid min-h-screen place-items-center bg-[#F9FAFB] dark:bg-gray-900"><div className="h-11 w-11 animate-spin rounded-full border-4 border-zinc-200 border-t-[#E31837]" /></main>
+  return <main className="grid min-h-screen place-items-center bg-[#F9FAFB]"><div className="h-11 w-11 animate-spin rounded-full border-4 border-zinc-200 border-t-[#E31837]" /></main>
 }
 
 export default function App() {
-  useEffect(() => {
-    const stored = localStorage.getItem('sigfleet-theme') || localStorage.getItem('sigfleet-theme')
-    const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches
-    document.documentElement.classList.toggle('dark', stored ? stored === 'dark' : prefersDark)
-  }, [])
-
   return (
     <BrowserRouter>
       <AuthProvider>
@@ -173,13 +168,13 @@ export default function App() {
                 <Route path="coupons" element={<AdminCouponsPage />} />
                 <Route path="analytics" element={<AdminAnalyticsPage />} />
                 <Route path="payouts" element={<AdminPayoutsPage />} />
+                <Route path="settings" element={<AdminSettingsPage />} />
               </Route>
             </Route>
             <Route path="/how-it-works" element={<HowItWorksPage />} />
             <Route path="/safety" element={<SafetyPage />} />
             <Route path="/insurance" element={<InsurancePage />} />
             <Route path="/become-a-manager" element={<Navigate to="/contact" replace />} />
-            <Route path="/become-a-manager" element={<ContactPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />

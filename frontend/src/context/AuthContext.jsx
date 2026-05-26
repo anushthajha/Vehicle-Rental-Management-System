@@ -33,6 +33,7 @@ export const useAuthStore = create((set, get) => ({
       })
     } catch {
       localStorage.removeItem(STORAGE_KEY)
+      set({ isLoading: false })
     }
   },
   logout: () => {

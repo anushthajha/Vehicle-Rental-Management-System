@@ -4,7 +4,7 @@ import { Copy, CreditCard, LifeBuoy, Phone } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import api from '../../services/api'
 import { bookingDuration, formatDateTime, moneyLabel } from '../../utils/bookingUtils'
-import { CustomerTopNav } from './DashboardPage'
+import DashboardShell from './DashboardShell'
 
 export default function TrackRentalPage() {
   const { bookingId } = useParams()
@@ -19,9 +19,8 @@ export default function TrackRentalPage() {
   const steps = useMemo(() => buildSteps(booking), [booking])
 
   return (
-    <main className="min-h-screen bg-[#F7F7F8] text-zinc-950">
-      <CustomerTopNav />
-      <div className="mx-auto max-w-6xl px-4 py-8">
+    <DashboardShell title="Track Rental" eyebrow="Live Status">
+      <div>
         {!booking ? <div className="rounded-lg border border-dashed border-zinc-300 bg-white p-10 text-center font-black text-zinc-500">No tracked rental found.</div> : (
           <div className="space-y-6">
             <section className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
@@ -35,7 +34,7 @@ export default function TrackRentalPage() {
           </div>
         )}
       </div>
-    </main>
+    </DashboardShell>
   )
 }
 

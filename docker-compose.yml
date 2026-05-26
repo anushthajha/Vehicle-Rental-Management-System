@@ -89,7 +89,9 @@ services:
   nginx:
     build: ./nginx
     ports:
-      - "80:80"
+      - "3001:80"
+    volumes:
+      - ./nginx/html:/usr/share/nginx/html
     depends_on:
       - backend
     restart: unless-stopped

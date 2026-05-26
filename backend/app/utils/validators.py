@@ -38,6 +38,12 @@ def validate_aadhar(aadhar: str) -> str:
 
 
 def validate_booking_dates(pickup: datetime, return_dt: datetime) -> None:
+    if pickup.tzinfo is not None:
+        from datetime import timezone
+        pickup = pickup.astimezone(timezone.utc).replace(tzinfo=None)
+    if return_dt.tzinfo is not None:
+        from datetime import timezone
+        return_dt = return_dt.astimezone(timezone.utc).replace(tzinfo=None)
     if return_dt <= pickup:
         raise ValueError("Return date must be after pickup date")
     if pickup < datetime.utcnow() + timedelta(hours=1):

@@ -259,7 +259,7 @@ async def login(payload: LoginRequest, request: Request, db: AsyncSession = Depe
     user.last_login = datetime.utcnow()
     await db.commit()
 
-    client_ip = request.client.manager if request.client else ""
+    client_ip = request.client.host if request.client else ""
     await create_session(user.id, request.headers.get("user-agent", ""), client_ip)
     return {
         "access_token": access_token,

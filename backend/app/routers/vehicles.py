@@ -725,6 +725,16 @@ async def create_car(payload: VehicleCreate, current_user: User = Depends(requir
     return {"vehicle_id": car.id, "message": "Listing submitted for review. You'll be notified within 24 hours."}
 
 
+@vehicles_router.get("/count")
+@router.get("/count")
+async def get_city_vehicle_count(city: str | None = None, db: AsyncSession = Depends(get_db)):
+    conditions = [Vehicle.is_approved.is_(True), Vehicle.is_available.is_(True)]
+    if city:
+        conditions.append(func.lower(Vehicle.location_city) == city.lower())
+    count = await db.scalar(select(func.count()).select_from(Vehicle).where(*conditions)) or 0
+    return {"city": city, "count": count}
+
+
 @vehicles_router.get("/{vehicle_id}")
 @router.get("/{vehicle_id}")
 async def get_car_detail(vehicle_id: str, request: Request, db: AsyncSession = Depends(get_db)):

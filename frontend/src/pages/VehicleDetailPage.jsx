@@ -1,3 +1,5 @@
+// FIX: handleRentNowTrigger was calling navigate() and reading location without importing or initializing them in the parent component, causing a crash. Added useNavigate, useLocation, and useAuthStore loading guards.
+
 import React, { useEffect, useMemo, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import DatePicker from 'react-datepicker'
@@ -7,12 +9,13 @@ import { MapContainer, Marker, Circle, TileLayer } from 'react-leaflet'
 import { AlertTriangle, Check, Copy, Heart, Loader2, MapPin, ShieldCheck, Star, X } from 'lucide-react'
 import { Helmet } from 'react-helmet-async'
 import toast from 'react-hot-toast'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useNavigate, useLocation } from 'react-router-dom'
 import api from '../services/api'
 import VehicleCard from '../components/vehicle/VehicleCard'
 import { useAuthStore } from '../context/AuthContext'
 import { addHours, dateRangeLabel, formatDuration, formatMoney } from '../utils/searchData'
 import { isLocallySaved, removeLocalWishlistCar, saveLocalWishlistCar } from '../utils/wishlist'
+import DashboardShell from './user/DashboardShell'
 
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=1600&q=80'
 const INSURANCE = [
@@ -23,7 +26,9 @@ const INSURANCE = [
 
 export default function VehicleDetailPage() {
   const { carId } = useParams()
-  const { user } = useAuthStore()
+  const { user, isLoading } = useAuthStore()
+  const navigate = useNavigate()
+  const location = useLocation()
   const [car, setCar] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -35,6 +40,14 @@ export default function VehicleDetailPage() {
   const [reviewFilter, setReviewFilter] = useState('')
   const [reviewPage, setReviewPage] = useState(1)
   const [similar, setSimilar] = useState([])
+  const isRestrictedRole = user && (user.role === 'vehicle_manager' || user.role === 'admin')
+  const handleRentNowTrigger = () => {
+    if (!isLoading && !user) {
+      navigate('/auth/login', { state: { from: location.pathname + location.search } })
+      return
+    }
+    setBookingOpen(true)
+  }
 
   useEffect(() => {
     async function loadDetail() {
@@ -87,14 +100,8 @@ export default function VehicleDetailPage() {
     setReviewPage(nextPage)
   }
 
-  return (
-    <main id="main-content" className="min-h-screen bg-zinc-50 pb-28 dark:bg-gray-900 lg:pb-0">
-      <Helmet>
-        <title>{`${car.title} ${car.year || ''} — ₹${formatMoney(car.price_per_day)}/day | SigFleet`}</title>
-        <meta name="description" content={`Book ${car.title} in ${car.location_city} from ₹${formatMoney(car.price_per_day)} per day.`} />
-        <meta property="og:image" content={primaryImage} />
-        <meta property="og:title" content={`${car.title} — ₹${formatMoney(car.price_per_day)}/day`} />
-      </Helmet>
+  const detailMarkup = (
+    <>
       {sticky && (
         <div className="fixed inset-x-0 top-0 z-40 border-b border-zinc-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur">
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
@@ -102,7 +109,7 @@ export default function VehicleDetailPage() {
               <p className="truncate font-black text-zinc-950">{car.title}</p>
               <p className="text-sm font-bold text-zinc-500">₹{formatMoney(car.price_per_day)}/day</p>
             </div>
-            <button onClick={() => setBookingOpen(true)} className="rounded-md bg-sigfleet px-4 py-2 font-black text-white">Rent Now</button>
+            {!isRestrictedRole && <button onClick={handleRentNowTrigger} className="rounded-md bg-sigfleet px-4 py-2 font-black text-white">Rent Now</button>}
           </div>
         </div>
       )}
@@ -134,7 +141,11 @@ export default function VehicleDetailPage() {
             <p className="text-xl font-black text-zinc-950">₹{formatMoney(car.price_per_day)}<span className="text-sm font-bold text-zinc-500">/day</span></p>
             <p className="text-xs font-bold text-zinc-500">Free cancellation before pickup</p>
           </div>
-          <button onClick={() => setBookingOpen(true)} className="rounded-md bg-sigfleet px-5 py-3 font-black text-white">Rent Now</button>
+          {isRestrictedRole ? (
+            <div className="rounded-md bg-red-50 px-3 py-2 text-xs font-bold text-red-700">Only customers can rent vehicles.</div>
+          ) : (
+            <button onClick={handleRentNowTrigger} className="rounded-md bg-sigfleet px-5 py-3 font-black text-white">Rent Now</button>
+          )}
         </div>
       </div>
 
@@ -159,6 +170,32 @@ export default function VehicleDetailPage() {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+    </>
+  )
+
+  if (user?.role === 'customer') {
+    return (
+      <DashboardShell title={car.title} eyebrow="Vehicle Details">
+        <Helmet>
+          <title>{`${car.title} ${car.year || ''} — ₹${formatMoney(car.price_per_day)}/day | SigFleet`}</title>
+          <meta name="description" content={`Book ${car.title} in ${car.location_city} from ₹${formatMoney(car.price_per_day)} per day.`} />
+          <meta property="og:image" content={primaryImage} />
+          <meta property="og:title" content={`${car.title} — ₹${formatMoney(car.price_per_day)}/day`} />
+        </Helmet>
+        {detailMarkup}
+      </DashboardShell>
+    )
+  }
+
+  return (
+    <main id="main-content" className="min-h-screen bg-zinc-50 pb-28 lg:pb-0">
+      <Helmet>
+        <title>{`${car.title} ${car.year || ''} — ₹${formatMoney(car.price_per_day)}/day | SigFleet`}</title>
+        <meta name="description" content={`Book ${car.title} in ${car.location_city} from ₹${formatMoney(car.price_per_day)} per day.`} />
+        <meta property="og:image" content={primaryImage} />
+        <meta property="og:title" content={`${car.title} — ₹${formatMoney(car.price_per_day)}/day`} />
+      </Helmet>
+      {detailMarkup}
     </main>
   )
 }
@@ -184,15 +221,17 @@ function HeroGallery({ images, activeImage, setActiveImage, onOpen }) {
 function CarHeader({ car }) {
   const [saved, setSaved] = useState(isLocallySaved(car.id))
   const { user } = useAuthStore()
+  const navigate = useNavigate()
 
   async function toggle() {
+    if (!user) {
+      navigate('/auth/login', { state: { from: window.location.pathname + window.location.search } })
+      return
+    }
     const next = !saved
     setSaved(next)
-    if (user) {
-      if (next) await api.post('/wishlist/', { vehicle_id: car.id })
-      else await api.delete(`/wishlist/${car.id}`)
-    } else if (next) saveLocalWishlistCar(car)
-    else removeLocalWishlistCar(car.id)
+    if (next) await api.post('/wishlist/', { vehicle_id: car.id })
+    else await api.delete(`/wishlist/${car.id}`)
   }
 
   async function share() {
@@ -231,6 +270,17 @@ function BookingWidget({ car, user, borderless = false }) {
   const [unavailableDates, setUnavailableDates] = useState([])
   const [availability, setAvailability] = useState({ available: true, reason: 'Available', price_breakdown: {} })
   const price = availability.price_breakdown || {}
+  const navigate = useNavigate()
+  const isRestrictedRole = user && (user.role === 'vehicle_manager' || user.role === 'admin')
+
+  const handleRentClick = () => {
+    if (!user) {
+      const returnUrl = `${window.location.pathname}?pickup=${encodeURIComponent(pickup.toISOString())}&return=${encodeURIComponent(returnAt.toISOString())}&insurance=${insurance}`
+      navigate('/auth/login', { state: { from: returnUrl } })
+      return
+    }
+    navigate(`/booking/confirm/${car.id}?pickup=${encodeURIComponent(pickup.toISOString())}&return=${encodeURIComponent(returnAt.toISOString())}&insurance=${insurance}`)
+  }
 
   useEffect(() => {
     if (!coupon.trim()) {
@@ -309,14 +359,21 @@ function BookingWidget({ car, user, borderless = false }) {
         </div>
       )}
 
-      {!user && <p className="mt-4 rounded-md bg-amber-50 p-3 text-sm font-bold text-amber-800">Log in to continue with this booking.</p>}
-      {user && !user.is_kyc_verified && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">KYC approval is required before booking.</p>}
-      <Link
-        to={`/booking/confirm/${car.id}?pickup=${encodeURIComponent(pickup.toISOString())}&return=${encodeURIComponent(returnAt.toISOString())}&insurance=${insurance}`}
-        className={`mt-4 block w-full rounded-md px-5 py-3 text-center font-black text-white ${availability.available ? 'bg-sigfleet' : 'pointer-events-none bg-zinc-300'}`}
-      >
-        Rent Now
-      </Link>
+      {isRestrictedRole ? (
+        <div className="mt-4 rounded-md bg-red-50 p-3 text-sm font-bold text-red-700 text-center">Only customers can rent vehicles.</div>
+      ) : (
+        <>
+          {!user && <p className="mt-4 rounded-md bg-amber-50 p-3 text-sm font-bold text-amber-800">Log in to continue with this booking.</p>}
+          {user && !user.is_kyc_verified && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">KYC approval is required before booking.</p>}
+          <button
+            disabled={!availability.available}
+            onClick={handleRentClick}
+            className={`mt-4 block w-full rounded-md px-5 py-3 text-center font-black text-white ${availability.available ? 'bg-sigfleet' : 'pointer-events-none bg-zinc-300'}`}
+          >
+            Rent Now
+          </button>
+        </>
+      )}
     </aside>
   )
 }

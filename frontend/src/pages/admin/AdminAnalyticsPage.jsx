@@ -39,13 +39,38 @@ export default function AdminAnalyticsPage() {
   const [data, setData] = useState({ revenue: [], cities: [], topCars: [], categories: [], funnel: [], users: [] })
   useEffect(() => {
     Promise.all([
-      getAdmin('/analytics/revenue', { year: new Date().getFullYear() }),
-      getAdmin('/analytics/cities'),
-      getAdmin('/analytics/top-vehicles', { limit: 10 }),
-      getAdmin('/analytics/category-distribution'),
-      getAdmin('/analytics/booking-funnel'),
-      getAdmin('/analytics/new-users'),
-    ]).then(([revenue, cities, topCars, categories, funnel, users]) => setData({ revenue, cities, topCars, categories, funnel, users }))
+      getAdmin('/analytics/revenue', { year: new Date().getFullYear() }).catch((err) => {
+        console.error("Revenue trend loading failed", err);
+        return [];
+      }),
+      getAdmin('/analytics/cities').catch((err) => {
+        console.error("Top cities loading failed", err);
+        return [];
+      }),
+      getAdmin('/analytics/top-vehicles', { limit: 10 }).catch((err) => {
+        console.error("Top vehicles loading failed", err);
+        return [];
+      }),
+      getAdmin('/analytics/category-distribution').catch((err) => {
+        console.error("Categories loading failed", err);
+        return [];
+      }),
+      getAdmin('/analytics/booking-funnel').catch((err) => {
+        console.error("Booking funnel loading failed", err);
+        return [];
+      }),
+      getAdmin('/analytics/new-users').catch((err) => {
+        console.error("New users trend loading failed", err);
+        return [];
+      }),
+    ]).then(([revenue, cities, topCars, categories, funnel, users]) => setData({
+      revenue: revenue || [],
+      cities: cities || [],
+      topCars: topCars || [],
+      categories: categories || [],
+      funnel: funnel || [],
+      users: users || [],
+    }))
   }, [preset])
 
   return <div className="space-y-5">

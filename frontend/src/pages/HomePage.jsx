@@ -1,3 +1,5 @@
+// FIX: Rental CTAs on landing page had no auth/role checks, and the explore city counts were hardcoded using a mocked offset index. Added redirect/toast guards and dynamically rendered counts.
+
 import React, { useEffect, useMemo, useState } from 'react'
 import * as Accordion from '@radix-ui/react-accordion'
 import { motion, useInView } from 'framer-motion'
@@ -7,10 +9,13 @@ import { ArrowRight, CalendarDays, Car as Vehicle, ChevronDown, MapPin, Search, 
 import { Autoplay } from 'swiper/modules'
 import { Swiper, SwiperSlide } from 'swiper/react'
 import 'swiper/css'
+import toast from 'react-hot-toast'
 import api from '../services/api'
 import Navbar from '../components/layout/Navbar'
 import VehicleCard from '../components/vehicle/VehicleCard'
 import { useVehicleCategories } from '../hooks/useVehicleCategories'
+import { useAuthStore } from '../context/AuthContext'
+
 
 const cities = ['Bengaluru', 'Mumbai', 'Delhi', 'Pune', 'Chennai', 'Goa', 'Hyderabad', 'Jaipur']
 const cityImages = {
@@ -26,6 +31,20 @@ const cityImages = {
 const rates = { hatchback: 550, sedan: 750, suv: 1050, luxury: 2500, electric: 850 }
 
 export default function HomePage() {
+  const { user } = useAuthStore()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (user) {
+      const paths = {
+        customer: '/customer/dashboard',
+        vehicle_manager: '/manager/dashboard',
+        admin: '/admin/dashboard',
+      }
+      navigate(paths[user.role] || '/', { replace: true })
+    }
+  }, [user, navigate])
+
   const [city, setCity] = useState('Bengaluru')
   const [pickup, setPickup] = useState('')
   const [dropoff, setDropoff] = useState('')
@@ -35,17 +54,87 @@ export default function HomePage() {
   const [days, setDays] = useState(15)
   const [category, setCategory] = useState('sedan')
   const { categories } = useVehicleCategories()
-  const navigate = useNavigate()
 
   useEffect(() => {
     api.get('/vehicles/featured', { params: { limit: 6 } }).then((response) => setFeatured(response.data.vehicles || response.data || [])).catch(() => setFeatured([])).finally(() => setLoading(false))
   }, [])
 
+  const [counts, setCounts] = useState({})
+
+  useEffect(() => {
+    const fetchCounts = async () => {
+      const results = {}
+      await Promise.all(
+        cities.map(async (item) => {
+          try {
+            const response = await api.get('/vehicles/count', { params: { city: item } })
+            results[item] = response.data.count
+          } catch (err) {
+            console.error(`Failed to fetch count for ${item}:`, err)
+            results[item] = '—'
+          }
+        })
+      )
+      setCounts(results)
+    }
+    fetchCounts()
+  }, [])
+
   const estimated = Math.round(days * rates[category] * 0.85)
-  const search = () => navigate(`/vehicles?city=${encodeURIComponent(city)}${pickup ? `&pickup_date=${encodeURIComponent(new Date(pickup).toISOString())}` : ''}${dropoff ? `&return_date=${encodeURIComponent(new Date(dropoff).toISOString())}` : ''}`)
+  const search = () => {
+    const targetUrl = `/vehicles?city=${encodeURIComponent(city)}${pickup ? `&pickup_date=${encodeURIComponent(new Date(pickup).toISOString())}` : ''}${dropoff ? `&return_date=${encodeURIComponent(new Date(dropoff).toISOString())}` : ''}`
+    if (!user) {
+      navigate('/auth/login', { state: { from: targetUrl } })
+      return
+    }
+    if (user.role === 'customer') {
+      navigate(targetUrl)
+      return
+    }
+    toast.error("Only customers can rent vehicles.")
+  }
+
+  const handleCategoryClick = (catId) => {
+    const targetUrl = `/vehicles?category_id=${catId}`
+    if (!user) {
+      navigate('/auth/login', { state: { from: targetUrl } })
+      return
+    }
+    if (user.role === 'customer') {
+      navigate(targetUrl)
+      return
+    }
+    toast.error("Only customers can rent vehicles.")
+  }
+
+  const handleViewAllClick = () => {
+    const targetUrl = `/vehicles?city=${city}`
+    if (!user) {
+      navigate('/auth/login', { state: { from: targetUrl } })
+      return
+    }
+    if (user.role === 'customer') {
+      navigate(targetUrl)
+      return
+    }
+    toast.error("Only customers can rent vehicles.")
+  }
+
+  const handleCityClick = (cityName) => {
+    const targetUrl = `/vehicles?city=${encodeURIComponent(cityName)}`
+    if (!user) {
+      navigate('/auth/login', { state: { from: targetUrl } })
+      return
+    }
+    if (user.role === 'customer') {
+      navigate(targetUrl)
+      return
+    }
+    toast.error("Only customers can rent vehicles.")
+  }
 
   return (
-    <main id="main-content" className="bg-[#F9FAFB] text-[#111827] dark:bg-gray-900 dark:text-gray-100">
+    <main id="main-content" className="bg-[#F9FAFB] text-[#111827]">
       <Helmet>
         <title>SigFleet — Self-Drive Vehicle Rentals</title>
         <meta name="description" content="Rent self-drive vehicles across 100+ Indian cities. Verified managers, comprehensive insurance, instant booking." />
@@ -60,12 +149,12 @@ export default function HomePage() {
             <h1 className="font-display mt-4 text-5xl font-black leading-tight md:text-7xl">Drive on your own terms</h1>
             <p className="mt-5 max-w-2xl text-lg font-semibold text-white/85 md:text-2xl">Choose from 25,000+ verified vehicles across 100+ cities. No driver, no hassle.</p>
           </motion.div>
-          <motion.div initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.15 }} className="mt-10 max-w-3xl rounded-lg border border-white/25 bg-white/15 p-4 shadow-2xl backdrop-blur-xl">
-            <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
-              <label className="rounded-md bg-white/95 p-3 text-[#111827]"><span className="text-xs font-black uppercase text-zinc-500">City</span><div className="mt-1 flex items-center gap-2"><MapPin size={17} className="text-[#E31837]" /><select value={city} onChange={(event) => setCity(event.target.value)} className="w-full bg-transparent font-black outline-none">{cities.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={16} /></div></label>
-              <label className="rounded-md bg-white/95 p-3 text-[#111827]"><span className="text-xs font-black uppercase text-zinc-500">Pickup</span><div className="mt-1 flex items-center gap-2"><CalendarDays size={17} className="text-[#E31837]" /><input type="datetime-local" value={pickup} onChange={(event) => setPickup(event.target.value)} className="w-full bg-transparent text-sm font-black outline-none" /></div></label>
-              <label className="rounded-md bg-white/95 p-3 text-[#111827]"><span className="text-xs font-black uppercase text-zinc-500">Return</span><div className="mt-1 flex items-center gap-2"><CalendarDays size={17} className="text-[#E31837]" /><input type="datetime-local" value={dropoff} onChange={(event) => setDropoff(event.target.value)} className="w-full bg-transparent text-sm font-black outline-none" /></div></label>
-              <button onClick={search} className="shine-hover relative overflow-hidden rounded-md bg-[#E31837] px-6 py-4 font-black text-white"><span className="relative flex items-center justify-center gap-2">Search <ArrowRight size={18} /></span></button>
+          <motion.div initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.15 }} className="mt-10 w-full max-w-5xl rounded-lg border border-white/25 bg-white/15 p-4 shadow-2xl backdrop-blur-xl">
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.2fr_1.2fr_1.2fr_0.8fr] items-stretch">
+              <label className="rounded-md bg-white/95 p-3 text-[#111827] flex flex-col justify-center min-h-[64px]"><span className="text-[10px] font-black uppercase text-zinc-500">City</span><div className="mt-1 flex items-center gap-2"><MapPin size={17} className="text-[#E31837]" /><select value={city} onChange={(event) => setCity(event.target.value)} className="w-full bg-transparent font-black outline-none">{cities.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={16} /></div></label>
+              <label className="rounded-md bg-white/95 p-3 text-[#111827] flex flex-col justify-center min-h-[64px]"><span className="text-[10px] font-black uppercase text-zinc-500">Pickup Date & Time</span><div className="mt-1 flex items-center gap-2"><CalendarDays size={17} className="text-[#E31837]" /><input type="datetime-local" value={pickup} onChange={(event) => setPickup(event.target.value)} className="w-full bg-transparent text-sm font-black outline-none" /></div></label>
+              <label className="rounded-md bg-white/95 p-3 text-[#111827] flex flex-col justify-center min-h-[64px]"><span className="text-[10px] font-black uppercase text-zinc-500">Return Date & Time</span><div className="mt-1 flex items-center gap-2"><CalendarDays size={17} className="text-[#E31837]" /><input type="datetime-local" value={dropoff} onChange={(event) => setDropoff(event.target.value)} className="w-full bg-transparent text-sm font-black outline-none" /></div></label>
+              <button onClick={search} className="shine-hover relative overflow-hidden rounded-md bg-[#E31837] px-6 py-3 font-black text-white h-full flex items-center justify-center min-h-[64px] hover:bg-red-700 transition duration-200"><span className="relative flex items-center justify-center gap-2">Search Vehicles <ArrowRight size={18} /></span></button>
             </div>
             <div className="mt-4 flex flex-wrap gap-2">{cities.map((item) => <button key={item} onClick={() => setCity(item)} className={`rounded-full px-3 py-1.5 text-xs font-black ${city === item ? 'bg-[#E31837] text-white' : 'bg-white/20 text-white hover:bg-white/30'}`}>{item}</button>)}</div>
           </motion.div>
@@ -73,14 +162,13 @@ export default function HomePage() {
       </section>
       <StatsStrip />
       <section id="how" className="bg-white px-4 py-20"><div className="mx-auto max-w-7xl"><SectionTitle eyebrow="How it works" title="Simple for every kind of driver" /><div className="mx-auto mt-8 flex w-fit rounded-full bg-zinc-100 p-1">{[['customer', 'For Customers'], ['manager', 'For Managers']].map(([key, label]) => <button key={key} onClick={() => setTab(key)} className={`rounded-full px-5 py-2 text-sm font-black ${tab === key ? 'bg-[#E31837] text-white' : 'text-zinc-700'}`}>{label}</button>)}</div><div className="mt-10 grid gap-5 md:grid-cols-3">{(tab === 'customer' ? customerSteps : managerSteps).map((step, index) => <StepCard key={step.title} index={index + 1} {...step} />)}</div></div></section>
-      <section className="px-4 py-20"><div className="mx-auto max-w-7xl"><SectionTitle title="Find your perfect ride" /><div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{categories.map((cat) => <Link key={cat.id} to={`/vehicles?category_id=${cat.id}`} className="group rounded-lg border border-zinc-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"><Vehicle className="text-[#E31837]" size={34} /><h3 className="mt-5 font-display text-xl font-black">{cat.name}</h3><p className="mt-2 text-sm font-bold text-zinc-500">{cat.vehicle_count || 0} vehicles</p><span className="mt-4 inline-flex border-b-2 border-transparent pb-1 text-sm font-black text-[#E31837] transition group-hover:border-[#E31837]">Browse <ArrowRight size={15} className="ml-1" /></span></Link>)}</div></div></section>
-      <section className="bg-white px-4 py-20"><div className="mx-auto max-w-7xl"><SectionTitle title="Top picks near you" subtitle="Hand-picked, highly-rated vehicles by verified managers" /><div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{loading ? Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-80 animate-pulse rounded-lg bg-zinc-100" />) : featured.slice(0, 6).map((car) => <VehicleCard key={car.id} car={car} />)}</div><Link to={`/vehicles?city=${city}`} className="mt-8 inline-flex font-black text-[#E31837]">View all vehicles in your city <ArrowRight className="ml-1" size={18} /></Link></div></section>
-      <section className="px-4 py-20"><div className="mx-auto max-w-7xl"><SectionTitle title="Explore India, your way" /><div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{cities.map((item, index) => <Link key={item} to={`/cities/${item.toLowerCase()}`} className="group relative h-56 overflow-hidden rounded-lg bg-zinc-900 shadow-sm"><img src={cityImages[item]} alt={`${item} city destination`} loading="lazy" decoding="async" width="600" height="400" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /><div className="absolute inset-0 bg-black/45 transition group-hover:bg-black/25" /><div className="absolute inset-x-0 bottom-0 p-5 text-white"><h3 className="font-display text-2xl font-black">{item}</h3><p className="mt-1 font-bold">{180 + index * 37} vehicles</p></div></Link>)}</div></div></section>
+      <section className="px-4 py-20"><div className="mx-auto max-w-7xl"><SectionTitle title="Find your perfect ride" /><div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{categories.map((cat) => <button type="button" key={cat.id} onClick={() => handleCategoryClick(cat.id)} className="w-full text-left group rounded-lg border border-zinc-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"><Vehicle className="text-[#E31837]" size={34} /><h3 className="mt-5 font-display text-xl font-black">{cat.name}</h3><p className="mt-2 text-sm font-bold text-zinc-500">{cat.vehicle_count || 0} vehicles</p><span className="mt-4 inline-flex border-b-2 border-transparent pb-1 text-sm font-black text-[#E31837] transition group-hover:border-[#E31837]">Browse <ArrowRight size={15} className="ml-1" /></span></button>)}</div></div></section>
+      <section className="bg-white px-4 py-20"><div className="mx-auto max-w-7xl"><SectionTitle title="Top picks near you" subtitle="Hand-picked, highly-rated vehicles by verified managers" /><div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{loading ? Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-80 animate-pulse rounded-lg bg-zinc-100" />) : featured.slice(0, 6).map((car) => <VehicleCard key={car.id} car={car} />)}</div><button onClick={handleViewAllClick} className="mt-8 inline-flex font-black text-[#E31837] hover:underline">View all vehicles in your city <ArrowRight className="ml-1" size={18} /></button></div></section>
+      <section className="px-4 py-20"><div className="mx-auto max-w-7xl"><SectionTitle title="Explore India, your way" /><div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{cities.map((item, index) => <button key={item} onClick={() => handleCityClick(item)} className="w-full text-left group relative h-56 overflow-hidden rounded-lg bg-zinc-900 shadow-sm"><img src={cityImages[item]} alt={`${item} city destination`} loading="lazy" decoding="async" width="600" height="400" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /><div className="absolute inset-0 bg-black/45 transition group-hover:bg-black/25" /><div className="absolute inset-x-0 bottom-0 p-5 text-white"><h3 className="font-display text-2xl font-black">{item}</h3><p className="mt-1 font-bold">{counts[item] !== undefined ? counts[item] : '—'} vehicles</p></div></button>)}</div></div></section>
       <section className="bg-zinc-100 px-4 py-20"><div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1fr_1fr] lg:items-center"><div><SectionTitle align="left" title="How much can you earn?" subtitle="Estimate monthly take-home earnings from sharing your car." /><Link to="/contact" className="mt-8 inline-flex rounded-md bg-[#E31837] px-5 py-3 font-black text-white">Become a Manager Free <ArrowRight className="ml-2" size={18} /></Link></div><div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm"><label className="font-black">Days per month I can share my car: {days}</label><input type="range" min="5" max="25" value={days} onChange={(event) => setDays(Number(event.target.value))} className="mt-4 w-full accent-[#E31837]" /><label className="mt-5 block font-black">My car category:<select value={category} onChange={(event) => setCategory(event.target.value)} className="input mt-2">{Object.keys(rates).map((item) => <option key={item} value={item}>{item[0].toUpperCase() + item.slice(1)}</option>)}</select></label><div className="mt-6 rounded-lg bg-[#111827] p-5 text-white"><p className="text-sm font-bold text-white/70">Estimated monthly earnings</p><p className="font-display mt-1 text-4xl font-black">₹{estimated.toLocaleString('en-IN')}</p><p className="mt-2 text-sm font-bold text-white/70">Manager 10M+ customers have already earned with SigFleet</p></div></div></div></section>
       <section className="bg-white px-4 py-20"><div className="mx-auto max-w-7xl"><div className="grid gap-4 md:grid-cols-4">{trust.map((item) => { const Icon = item.icon; return <div key={item.title} className="rounded-lg border border-zinc-200 p-5"><Icon className="text-[#E31837]" /><h3 className="mt-4 font-black">{item.title}</h3><p className="mt-2 text-sm font-semibold text-zinc-600">{item.text}</p></div> })}</div></div></section>
       <Testimonials />
       <FAQ />
-      <section className="px-4 pb-20"><div className="mx-auto grid max-w-7xl gap-5 overflow-hidden rounded-lg bg-gradient-to-r from-[#E31837] to-[#FF6B35] p-8 text-white md:grid-cols-[1fr_auto] md:items-center"><div><h2 className="font-display text-3xl font-black">Drive smarter with the SigFleet app</h2><p className="mt-2 font-semibold text-white/85">Book, unlock, extend, and get support from your pocket.</p></div><div className="flex flex-wrap gap-3"><StoreBadge label="App Store" /><StoreBadge label="Google Play" /></div></div></section>
     </main>
   )
 }

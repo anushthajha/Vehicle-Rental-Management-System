@@ -7,6 +7,8 @@ import api from '../../services/api'
 import { useAuthStore } from '../../context/AuthContext'
 import { bookingDuration, formatDateTime, moneyLabel, statusClass } from '../../utils/bookingUtils'
 
+import DashboardShell from './DashboardShell'
+
 const nav = [
   ['Overview', '/customer/dashboard'],
   ['My Bookings', '/customer/bookings'],
@@ -45,49 +47,46 @@ export default function DashboardPage() {
   const completed = Number(profile?.total_trips_as_customer || bookings.filter((booking) => booking.status === 'completed').length)
 
   return (
-    <main className="min-h-screen bg-[#F7F7F8] text-zinc-950">
+    <DashboardShell title="Dashboard" eyebrow="Customer">
       <Helmet><title>Customer Dashboard | SigFleet</title><meta name="robots" content="noindex" /></Helmet>
-      <CustomerTopNav />
-      <div className="mx-auto max-w-7xl px-4 py-6 pb-24 lg:py-8">
-        {loading ? <div className="grid h-96 place-items-center"><div className="h-10 w-10 animate-spin rounded-full border-4 border-zinc-200 border-t-[#E31837]" /></div> : (
-          <div className="space-y-6">
-            <section className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h1 className="text-3xl font-black">Hello, {firstName}! 👋</h1>
-                  <p className="mt-1 font-semibold text-zinc-500">Your rentals, wallet, and verification in one place.</p>
-                </div>
-                <KycStatus status={profile?.kyc_status} />
+      {loading ? <div className="grid h-96 place-items-center"><div className="h-10 w-10 animate-spin rounded-full border-4 border-zinc-200 border-t-[#E31837]" /></div> : (
+        <div className="space-y-6">
+          <section className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-black">Hello, {firstName}! 👋</h1>
+                <p className="mt-1 font-semibold text-zinc-500">Your rentals, wallet, and verification in one place.</p>
               </div>
-            </section>
+              <KycStatus status={profile?.kyc_status} />
+            </div>
+          </section>
 
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <Stat icon={Vehicle} label="Active Rentals" value={active.length} />
-              <Stat icon={CalendarDays} label="Upcoming Rentals" value={upcoming.length} />
-              <Stat icon={ShieldCheck} label="Completed Trips" value={completed} />
-              <Stat icon={Wallet} label="Wallet Balance" value={moneyLabel(profile?.wallet_balance || 0)} to="/customer/wallet" action="Add Money" />
-            </section>
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <Stat icon={Vehicle} label="Active Rentals" value={active.length} />
+            <Stat icon={CalendarDays} label="Upcoming Rentals" value={upcoming.length} />
+            <Stat icon={ShieldCheck} label="Completed Trips" value={completed} />
+            <Stat icon={Wallet} label="Wallet Balance" value={moneyLabel(profile?.wallet_balance || 0)} to="/customer/wallet" action="Add Money" />
+          </section>
 
-            <DashboardSection title="Active Rentals">
-              {active.length ? active.map((booking) => <ActiveRental key={booking.id} booking={booking} />) : <EmptyRental />}
-            </DashboardSection>
+          <DashboardSection title="Active Rentals">
+            {active.length ? active.map((booking) => <ActiveRental key={booking.id} booking={booking} />) : <EmptyRental />}
+          </DashboardSection>
 
-            <DashboardSection title="Upcoming Rentals">
-              {upcoming.length ? upcoming.map((booking) => <UpcomingRental key={booking.id} booking={booking} />) : <p className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-8 text-center font-black text-zinc-500">No upcoming bookings.</p>}
-            </DashboardSection>
+          <DashboardSection title="Upcoming Rentals">
+            {upcoming.length ? upcoming.map((booking) => <UpcomingRental key={booking.id} booking={booking} />) : <p className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-8 text-center font-black text-zinc-500">No upcoming bookings.</p>}
+          </DashboardSection>
 
-            <DashboardSection title="Recent Activity">
-              <div className="grid gap-3">
-                {notifications.length ? notifications.map((item) => <ActivityItem key={item._id || item.id} item={item} />) : bookings.slice(0, 5).map((booking) => <ActivityItem key={booking.id} item={{ title: `${booking.booking_ref || 'Booking'} ${booking.status}`, created_at: booking.updated_at || booking.created_at }} />)}
-              </div>
-            </DashboardSection>
-          </div>
-        )}
-      </div>
-      <CustomerBottomNav />
-    </main>
+          <DashboardSection title="Recent Activity">
+            <div className="grid gap-3">
+              {notifications.length ? notifications.map((item) => <ActivityItem key={item._id || item.id} item={item} />) : bookings.slice(0, 5).map((booking) => <ActivityItem key={booking.id} item={{ title: `${booking.booking_ref || 'Booking'} ${booking.status}`, created_at: booking.updated_at || booking.created_at }} />)}
+            </div>
+          </DashboardSection>
+        </div>
+      )}
+    </DashboardShell>
   )
 }
+
 
 export function CustomerTopNav() {
   return (

@@ -11,7 +11,10 @@ from app import models
 
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.MYSQL_URL)
+config.set_main_option(
+    "sqlalchemy.url",
+    settings.MYSQL_URL.replace("%", "%%")
+)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

@@ -2,11 +2,12 @@ import asyncio
 import os
 import random
 import string
+import sys
 from datetime import datetime, timedelta
 from decimal import Decimal
 from secrets import token_hex
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import AsyncSessionLocal, engine
@@ -373,14 +374,44 @@ async def create_cars(db: AsyncSession, vehicle_managers: dict[str, User]) -> di
         vehicles[title] = car
         manager_listing_counts[car.manager_id] += 1
 
+        # Real high quality matching unsplash image for this car model
+        unsplash_mapping = {
+            "Swift": "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&h=500&q=80",
+            "Creta": "https://images.unsplash.com/photo-1583121274602-3e2820c69888?auto=format&fit=crop&w=800&h=500&q=80",
+            "Nexon EV": "https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&w=800&h=500&q=80",
+            "City": "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=800&h=500&q=80",
+            "Thar": "https://images.unsplash.com/photo-1609521263047-f8f205293f24?auto=format&fit=crop&w=800&h=500&q=80",
+            "Innova Crysta": "https://images.unsplash.com/photo-1581235720704-06d3acfcb36f?auto=format&fit=crop&w=800&h=500&q=80",
+            "Seltos": "https://images.unsplash.com/photo-1619767886558-efdc259cde1a?auto=format&fit=crop&w=800&h=500&q=80",
+            "3 Series": "https://images.unsplash.com/photo-1555215695-3004980ad54e?auto=format&fit=crop&w=800&h=500&q=80",
+            "Baleno": "https://images.unsplash.com/photo-1617469767053-d3b508a0d84d?auto=format&fit=crop&w=800&h=500&q=80",
+            "Venue": "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&h=500&q=80",
+            "Harrier": "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&w=800&h=500&q=80",
+            "Hector": "https://images.unsplash.com/photo-1511919884226-fd3cad34687c?auto=format&fit=crop&w=800&h=500&q=80",
+            "GLA": "https://images.unsplash.com/photo-1617814076367-b759c7d7e738?auto=format&fit=crop&w=800&h=500&q=80",
+            "Dzire": "https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?auto=format&fit=crop&w=800&h=500&q=80",
+            "i20": "https://images.unsplash.com/photo-1603584173870-7f23fdae1b7a?auto=format&fit=crop&w=800&h=500&q=80",
+            "Fortuner": "https://images.unsplash.com/photo-1606016159991-dfe4f2746ad5?auto=format&fit=crop&w=800&h=500&q=80",
+            "XUV700": "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=800&h=500&q=80",
+            "Kwid": "https://images.unsplash.com/photo-1609521263047-f8f205293f24?auto=format&fit=crop&w=800&h=500&q=80",
+            "Carens": "https://images.unsplash.com/photo-1581235720704-06d3acfcb36f?auto=format&fit=crop&w=800&h=500&q=80",
+            "A4": "https://images.unsplash.com/photo-1606016159991-dfe4f2746ad5?auto=format&fit=crop&w=800&h=500&q=80",
+            "Altroz": "https://images.unsplash.com/photo-1632245889027-e406faaa79ca?auto=format&fit=crop&w=800&h=500&q=80",
+            "Tucson": "https://images.unsplash.com/photo-1619767886558-efdc259cde1a?auto=format&fit=crop&w=800&h=500&q=80",
+            "Grand Vitara": "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=800&h=500&q=80",
+            "Amaze": "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&w=800&h=500&q=80",
+            "Compass": "https://images.unsplash.com/photo-1609521263047-f8f205293f24?auto=format&fit=crop&w=800&h=500&q=80"
+        }
+        primary_url = unsplash_mapping.get(model, "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&h=500&q=80")
+        
         image_count = 4 + (idx % 3)
         images = []
         for order in range(image_count):
-            seed = f"{make.replace(' ', '')}{idx}" if order == 0 else f"{make.replace(' ', '')}{model.replace(' ', '')}{idx}{order}"
+            img_url = primary_url if order == 0 else f"{primary_url}&sig={order}"
             images.append(
                 VehicleImage(
                     vehicle_id=car.id,
-                    image_url=f"https://picsum.photos/seed/{seed}/800/500",
+                    image_url=img_url,
                     is_primary=order == 0,
                     order_index=order,
                 )
@@ -920,8 +951,40 @@ async def seed() -> None:
     await connect_mongo()
     try:
         async with AsyncSessionLocal() as db:
-            if await has_demo_data(db):
-                print("Demo data already exists; skipping seed.")
+            force = len(sys.argv) > 1 and sys.argv[1] == "--force"
+            
+            if force:
+                print("Force flag detected. Cleaning SQL and MongoDB databases...")
+                # Delete SQL rows in order
+                await db.execute(delete(BookingExtension))
+                await db.execute(delete(Payment))
+                await db.execute(delete(CouponUsage))
+                await db.execute(delete(Booking))
+                await db.execute(delete(VehiclePricingRule))
+                await db.execute(delete(VehicleImage))
+                await db.execute(delete(Vehicle))
+                await db.execute(delete(Coupon))
+                await db.execute(delete(ManagerProfile))
+                await db.execute(delete(WalletTransaction))
+                await db.execute(delete(UserWallet))
+                await db.execute(delete(UserKYC))
+                await db.execute(delete(SupportTicket))
+                await db.execute(delete(User))
+                await db.execute(delete(VehicleCategory))
+                await db.execute(delete(VehicleType))
+                await db.commit()
+
+                # Clean MongoDB collections
+                mongo = get_mongo_db()
+                await mongo.reviews.delete_many({})
+                await mongo.notifications.delete_many({})
+                await mongo.support_messages.delete_many({})
+                await mongo.search_logs.delete_many({})
+                await mongo.car_view_events.delete_many({})
+                await mongo.activity_feed.delete_many({})
+                print("Clean completed.")
+            elif await has_demo_data(db):
+                print("Demo data already exists; skipping seed. Use --force to reset.")
                 return
 
             admin = await create_admin(db)
@@ -934,7 +997,8 @@ async def seed() -> None:
             await db.commit()
 
             mongo = get_mongo_db()
-            if await mongo.activity_feed.find_one({"action": "phase_g_demo_seed"}):
+            # If not force and already has seed marker, skip mongo seed
+            if not force and await mongo.activity_feed.find_one({"action": "phase_g_demo_seed"}):
                 print("MongoDB demo seed marker already exists; skipping MongoDB seed.")
                 return
 

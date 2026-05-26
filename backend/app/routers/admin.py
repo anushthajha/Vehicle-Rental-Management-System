@@ -1421,3 +1421,84 @@ async def complete_payout(payout_id: str, admin: User = Depends(require_admin), 
 @router.patch("/payouts/{payout_id}/fail")
 async def fail_payout(payout_id: str, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
     return await _payout_action(payout_id, "fail", admin, db)
+
+
+# FIX: Added custom PUT status, PUT role, and DELETE endpoints to support natively clickable action buttons in Customers and Vehicle Managers tables with full data cascading delete integrity.
+
+class UpdateUserStatusRequest(BaseModel):
+    is_active: bool
+
+@router.put("/users/{user_id}/status")
+async def update_user_status(user_id: str, payload: UpdateUserStatusRequest, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    user = await db.scalar(select(User).where(User.id == user_id))
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    user.is_active = payload.is_active
+    if not payload.is_active:
+        from app.models.booking import Booking
+        pending = (await db.execute(select(Booking).where(Booking.customer_id == user.id, Booking.status == "pending"))).scalars().all()
+        for booking in pending:
+            booking.status = "cancelled"
+            booking.cancelled_by = admin.id
+            booking.cancelled_at = datetime.utcnow()
+            booking.cancellation_reason = "Cancelled after account suspension"
+    await db.commit()
+    await log_activity(admin.id, "user_status_updated", "user", user.id, {"is_active": payload.is_active})
+    return {"message": f"User status updated to {'active' if payload.is_active else 'inactive'}"}
+
+class UpdateUserRoleRequest(BaseModel):
+    role: str = Field(pattern="^(customer|vehicle_manager|admin)$")
+
+@router.put("/users/{user_id}/role")
+async def update_user_role(user_id: str, payload: UpdateUserRoleRequest, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    user = await db.scalar(select(User).where(User.id == user_id))
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
+    if user.role == "vehicle_manager" and payload.role == "customer":
+        from app.models.booking import Booking
+        from app.models.vehicle import Vehicle
+        blockers = (
+            await db.execute(
+                select(Booking, Vehicle.title)
+                .join(Vehicle, Vehicle.id == Booking.vehicle_id)
+                .where(Booking.manager_id == user.id, Booking.status.in_(("confirmed", "active")))
+                .order_by(Booking.pickup_datetime.asc())
+            )
+        ).all()
+        if blockers:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Manager has active or confirmed bookings and cannot be demoted.")
+        user.role = "customer"
+        user.is_vehicle_manager = False
+        profile = await db.scalar(select(ManagerProfile).where(ManagerProfile.user_id == user.id))
+        if profile:
+            profile.is_active = False
+    else:
+        user.role = payload.role
+        user.is_vehicle_manager = payload.role == "vehicle_manager"
+        
+    await db.commit()
+    await log_activity(admin.id, "user_role_updated", "user", user.id, {"role": payload.role})
+    return {"message": f"User role updated to {payload.role}"}
+
+@router.delete("/users/{user_id}")
+async def delete_user(user_id: str, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    user = await db.scalar(select(User).where(User.id == user_id))
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    from app.models.booking import Booking
+    bookings_count = await db.scalar(select(func.count()).select_from(Booking).where((Booking.customer_id == user_id) | (Booking.manager_id == user_id)))
+    if bookings_count and bookings_count > 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User has bookings and cannot be deleted. Please suspend the account instead.")
+    
+    from app.models.user import UserKYC
+    from app.models.payment import UserWallet
+    from app.models.manager import ManagerProfile
+    from sqlalchemy import delete
+    await db.execute(delete(UserKYC).where(UserKYC.user_id == user_id))
+    await db.execute(delete(UserWallet).where(UserWallet.user_id == user_id))
+    await db.execute(delete(ManagerProfile).where(ManagerProfile.user_id == user_id))
+    await db.delete(user)
+    await db.commit()
+    await log_activity(admin.id, "user_deleted", "user", user_id, {"email": user.email})
+    return {"message": "User deleted successfully"}

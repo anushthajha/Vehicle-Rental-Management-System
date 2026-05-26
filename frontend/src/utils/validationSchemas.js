@@ -66,7 +66,7 @@ export const reviewSchema = z.object({
 
 export const kycSchema = z.object({
   dl_number: z.string().trim().min(8, 'Driving license must be at least 8 characters'),
-  aadhar_number: z.string().replace(/\D/g, '').pipe(z.string().length(12, 'Aadhaar must be exactly 12 digits')),
+  aadhar_number: z.string().transform((value) => value.replace(/\D/g, '')).pipe(z.string().length(12, 'Aadhaar must be exactly 12 digits')),
   dl_front_image: z.any().refine(Boolean, 'Driving license front is required'),
   dl_back_image: z.any().refine(Boolean, 'Driving license back is required'),
   aadhar_front_image: z.any().refine(Boolean, 'Aadhaar front is required'),

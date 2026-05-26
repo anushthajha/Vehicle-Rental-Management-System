@@ -10,6 +10,8 @@ import VehicleCard from '../components/vehicle/VehicleCard'
 import FilterSidebar from '../components/search/FilterSidebar'
 import SearchBar from '../components/search/SearchBar'
 import { dateRangeLabel, DEFAULT_FILTERS, formatMoney, SORT_OPTIONS } from '../utils/searchData'
+import { useAuthStore } from '../context/AuthContext'
+import DashboardShell from './user/DashboardShell'
 
 const DEFAULT_CENTER = [12.9716, 77.5946]
 
@@ -45,6 +47,7 @@ function putList(query, key, values) {
 }
 
 export default function VehicleListingPage() {
+  const { user } = useAuthStore()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const filters = useMemo(() => filtersFromParams(searchParams), [searchParams])
@@ -188,12 +191,8 @@ export default function VehicleListingPage() {
   const firstShown = total ? ((page - 1) * 12) + 1 : 0
   const lastShown = Math.min(page * 12, total)
 
-  return (
-    <main id="main-content" className="min-h-screen bg-zinc-50 dark:bg-gray-900">
-      <Helmet>
-        <title>{`Vehicles — ${city} | SigFleet`}</title>
-        <meta name="description" content={`Find self-drive rental vehicles in ${city} with exact search filters, availability, and pagination.`} />
-      </Helmet>
+  const pageContent = (
+    <>
       <div className="sticky top-0 z-30 border-b border-zinc-200 bg-zinc-50/95 p-3 backdrop-blur">
         <div className="mx-auto max-w-[1500px]">
           <SearchBar compact />
@@ -270,13 +269,35 @@ export default function VehicleListingPage() {
         </Dialog.Trigger>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
-          <Dialog.Content className="fixed inset-x-0 bottom-0 z-50 max-h-[90vh] overflow-hidden rounded-t-2xl bg-white shadow-2xl dark:bg-gray-900">
+          <Dialog.Content className="fixed inset-x-0 bottom-0 z-50 max-h-[90vh] overflow-hidden rounded-t-2xl bg-white shadow-2xl">
             <Dialog.Title className="sr-only">Filters</Dialog.Title>
             <button onClick={() => setFilterOpen(false)} className="absolute right-3 top-3 z-20 grid h-9 w-9 place-items-center rounded-full bg-zinc-100"><X size={18} /></button>
             <FilterSidebar filters={filters} setFilters={updateFilters} vehicles={vehicles} histogram={histogram} onClear={clearFilters} activeCount={activeCount} total={total} brandsAvailable={brandsAvailable} brandCounts={brandCounts} priceRange={priceRange} showSort onApply={() => setFilterOpen(false)} />
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+    </>
+  )
+
+  if (user?.role === 'customer') {
+    return (
+      <DashboardShell title={`Vehicles in ${city}`} eyebrow="Search">
+        <Helmet>
+          <title>{`Vehicles — ${city} | SigFleet`}</title>
+          <meta name="description" content={`Find self-drive rental vehicles in ${city} with exact search filters, availability, and pagination.`} />
+        </Helmet>
+        {pageContent}
+      </DashboardShell>
+    )
+  }
+
+  return (
+    <main id="main-content" className="min-h-screen bg-zinc-50">
+      <Helmet>
+        <title>{`Vehicles — ${city} | SigFleet`}</title>
+        <meta name="description" content={`Find self-drive rental vehicles in ${city} with exact search filters, availability, and pagination.`} />
+      </Helmet>
+      {pageContent}
     </main>
   )
 }

@@ -1,3 +1,5 @@
+// FIX: Redirect URL state was previously parsed without support for full paths containing query parameters (e.g. selected dates). Updated the logic to check if state.from is a string and navigate directly to it.
+
 import React, { useState } from 'react'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { Helmet } from 'react-helmet-async'
@@ -7,6 +9,7 @@ import AuthLayout from './AuthLayout'
 import api from '../../services/api'
 import { redirectPathForRole, useAuthStore } from '../../context/AuthContext'
 import { collectZodErrors, loginSchema } from '../../utils/validationSchemas'
+
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -39,7 +42,10 @@ export default function LoginPage() {
       setTokens({ accessToken: response.data.access_token, refreshToken: response.data.refresh_token })
       setUser(response.data.user)
       toast.success('Logged in successfully')
-      const next = location.state?.from?.pathname || searchParams.get('next') || redirectPathForRole(response.data.user?.role)
+      const fromPath = typeof location.state?.from === 'string'
+        ? location.state.from
+        : location.state?.from?.pathname
+      const next = fromPath || searchParams.get('next') || redirectPathForRole(response.data.user?.role)
       navigate(next, { replace: true })
     } catch (err) {
       const detail = err.response?.data?.detail

@@ -60,17 +60,38 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     Promise.all([
-      getAdmin('/stats/overview'),
-      getAdmin('/analytics/daily-bookings'),
-      getAdmin('/analytics/revenue', { year: new Date().getFullYear() }),
-      getAdmin('/analytics/new-users'),
-      getAdmin('/analytics/activity-feed', { limit: 10 }),
+      getAdmin('/stats/overview').catch((err) => {
+        console.error("Overview stats failed", err);
+        return {
+          users: { total: 0, new_this_week: 0 },
+          vehicles: { total: 0, approved: 0 },
+          revenue: { this_month: 0, this_week: 0, total: 0 },
+          bookings: { active_now: 0, this_month: 0, status_distribution: {} },
+          pending: { kyc_count: 0, support_tickets_count: 0, car_approval_count: 0, payout_requests_count: 0 }
+        };
+      }),
+      getAdmin('/analytics/daily-bookings').catch((err) => {
+        console.error("Daily bookings failed", err);
+        return [];
+      }),
+      getAdmin('/analytics/revenue', { year: new Date().getFullYear() }).catch((err) => {
+        console.error("Revenue analytics failed", err);
+        return [];
+      }),
+      getAdmin('/analytics/new-users').catch((err) => {
+        console.error("New users analytics failed", err);
+        return [];
+      }),
+      getAdmin('/analytics/activity-feed', { limit: 10 }).catch((err) => {
+        console.error("Activity feed failed", err);
+        return { items: [] };
+      }),
     ]).then(([overview, dailyRows, revenueRows, userRows, feedRows]) => {
       setData(overview)
-      setDaily(dailyRows)
-      setRevenue(revenueRows)
-      setUsers(userRows)
-      setFeed(feedRows.items || [])
+      setDaily(dailyRows || [])
+      setRevenue(revenueRows || [])
+      setUsers(userRows || [])
+      setFeed(feedRows?.items || [])
     })
   }, [])
 

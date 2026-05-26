@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     MYSQL_URL: str
     MONGODB_URL: str
-    MONGODB_DB_NAME: str = "sigfleet_docs"
+    MONGODB_DB_NAME: str = "zoomcar_docs"
 
     REDIS_URL: str
 

@@ -1,40 +1,65 @@
-import React from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { BarChart3, CalendarDays, Car as Vehicle, ClipboardList, Gauge, LogOut, Plus, UserRound, Wallet } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
-import ManagerSidebar from '../../components/layout/ManagerSidebar'
-
-const links = [
-  { to: '/manager/dashboard', label: 'Dashboard', icon: Gauge },
-  { to: '/manager/vehicles', label: 'My Vehicles', icon: Vehicle },
-  { to: '/manager/bookings', label: 'Booking Requests', icon: ClipboardList },
-  { to: '/manager/availability', label: 'Availability Overview', icon: CalendarDays },
-  { to: '/manager/statistics', label: 'Rental Statistics', icon: BarChart3 },
-  { to: '/manager/profile', label: 'My Profile', icon: UserRound },
-  { to: '/manager/payouts', label: 'Earnings & Payouts', icon: Wallet },
-]
+import React, { useState } from 'react'
+import * as Dialog from '@radix-ui/react-dialog'
+import { Menu, X } from 'lucide-react'
+import { Outlet } from 'react-router-dom'
+import Sidebar from '../../components/layout/Sidebar'
+import NotificationBell from '../../components/layout/NotificationBell'
 
 export default function ManagerLayout() {
-  const { logout } = useAuth()
-  const navigate = useNavigate()
-  async function handleLogout() {
-    await logout()
-    navigate('/auth/login', { replace: true })
-  }
+  const [mobileOpen, setMobileOpen] = useState(false)
+
   return (
-    <main className="min-h-screen bg-zinc-50 text-zinc-950">
-      <ManagerSidebar />
-      <section className="lg:pl-64">
-        <div className="border-b border-zinc-200 bg-[#1E3A5F] px-4 py-3 lg:hidden">
-          <div className="flex gap-2 overflow-x-auto">
-            {links.map((item) => <NavLink key={item.to} to={item.to} className={({ isActive }) => `shrink-0 rounded-md px-3 py-2 text-sm font-black ${isActive ? 'bg-[#E31837] text-white' : 'bg-white/10 text-white'}`}>{item.label}</NavLink>)}
+    <main className="min-h-screen bg-zinc-50 text-zinc-950 flex">
+      {/* Premium Desktop Sidebar */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-zinc-800/20 bg-zinc-950 lg:flex lg:flex-col">
+        <Sidebar />
+      </aside>
+
+      {/* Main Content Area */}
+      <section className="flex-1 min-w-0 lg:pl-64 flex flex-col min-h-screen">
+        {/* Top Header */}
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-zinc-200 bg-white px-4 lg:px-8 shadow-sm">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="grid h-10 w-10 place-items-center rounded-md border border-zinc-200 text-zinc-700 hover:bg-zinc-50 lg:hidden"
+              aria-label="Open navigation menu"
+            >
+              <Menu size={20} />
+            </button>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-wider text-[#E31837]">Manager Console</p>
+              <h1 className="text-lg font-black text-zinc-900 leading-tight">Operations Panel</h1>
+            </div>
           </div>
-        </div>
-        <header className="hidden h-16 items-center justify-end border-b border-zinc-200 bg-white px-6 lg:flex">
-          <button type="button" onClick={handleLogout} className="inline-flex items-center gap-2 rounded-md border border-zinc-200 px-4 py-2 text-sm font-black text-zinc-700 hover:border-[#1E3A5F]"><LogOut size={18} /> Logout</button>
+          <div className="flex items-center gap-3">
+            <NotificationBell />
+          </div>
         </header>
-        <Outlet />
+
+        {/* Page Content Slot */}
+        <div className="flex-1 p-4 lg:p-8 overflow-y-auto">
+          <Outlet />
+        </div>
       </section>
+
+      {/* Mobile Drawer */}
+      <Dialog.Root open={mobileOpen} onOpenChange={setMobileOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/45 backdrop-blur-sm lg:hidden" />
+          <Dialog.Content className="fixed inset-y-0 left-0 z-50 w-72 bg-zinc-950 text-white lg:hidden shadow-2xl transition duration-300">
+            <Dialog.Title className="sr-only">Manager Navigation Menu</Dialog.Title>
+            <button
+              onClick={() => setMobileOpen(false)}
+              className="absolute right-4 top-3 z-50 grid h-10 w-10 place-items-center rounded-full bg-zinc-900 text-zinc-400 hover:text-white"
+              aria-label="Close navigation menu"
+            >
+              <X size={20} />
+            </button>
+            <Sidebar onCloseMobile={() => setMobileOpen(false)} />
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </main>
   )
 }

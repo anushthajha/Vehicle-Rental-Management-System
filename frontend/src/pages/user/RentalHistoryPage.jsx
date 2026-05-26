@@ -4,7 +4,7 @@ import { Copy } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import api from '../../services/api'
 import { bookingDuration, formatDateTime, moneyLabel, statusClass } from '../../utils/bookingUtils'
-import { CustomerTopNav } from './DashboardPage'
+import DashboardShell from './DashboardShell'
 
 const statuses = ['', 'pending', 'approved', 'active', 'completed', 'cancelled']
 
@@ -37,9 +37,8 @@ export default function RentalHistoryPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F7F7F8] text-zinc-950">
-      <CustomerTopNav />
-      <div className="mx-auto max-w-7xl px-4 py-8">
+    <DashboardShell title="My Rental History" eyebrow="History">
+
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div><h1 className="text-3xl font-black">My Rental History</h1><p className="mt-1 font-semibold text-zinc-500">All your past and present vehicle rentals</p></div>
         </div>
@@ -55,8 +54,7 @@ export default function RentalHistoryPage() {
           {!visible.length && <div className="rounded-lg border border-dashed border-zinc-300 bg-white p-10 text-center font-black text-zinc-500">No rentals match these filters.</div>}
         </section>
         <div className="mt-6 flex flex-wrap justify-center gap-2">{Array.from({ length: pages }).map((_, index) => <button key={index} onClick={() => setPage(index + 1)} className={`h-10 w-10 rounded-md font-black ${page === index + 1 ? 'bg-[#E31837] text-white' : 'bg-white text-zinc-700'}`}>{index + 1}</button>)}</div>
-      </div>
-    </main>
+    </DashboardShell>
   )
 }
 

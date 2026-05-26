@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -85,20 +85,42 @@ async def update_manager_profile(payload: ManagerProfileUpdate, current_user: Us
 
 
 @router.get("/stats")
-async def manager_stats(current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
+async def manager_stats(
+    range: str = Query(default="30d"),
+    current_user: User = Depends(require_vehicle_manager),
+    db: AsyncSession = Depends(get_db),
+):
     now = datetime.utcnow()
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    # Calculate start date based on range parameter
+    days_map = {"7d": 7, "30d": 30, "3m": 90, "6m": 180, "1y": 365}
+    days = days_map.get(range, 30)
+    start_date = now - timedelta(days=days)
+    
+    # Inventory is always current
     total_vehicles = await db.scalar(select(func.count()).select_from(Vehicle).where(Vehicle.manager_id == current_user.id)) or 0
     active_vehicles = await db.scalar(
         select(func.count()).select_from(Vehicle).where(Vehicle.manager_id == current_user.id, Vehicle.is_available.is_(True), Vehicle.is_approved.is_(True))
     ) or 0
-    total_bookings = await db.scalar(select(func.count()).select_from(Booking).where(Booking.manager_id == current_user.id)) or 0
-    pending_requests = await db.scalar(select(func.count()).select_from(Booking).where(Booking.manager_id == current_user.id, Booking.status == "pending")) or 0
-    active_rentals = await db.scalar(select(func.count()).select_from(Booking).where(Booking.manager_id == current_user.id, Booking.status == "active")) or 0
-    completed_rentals = await db.scalar(select(func.count()).select_from(Booking).where(Booking.manager_id == current_user.id, Booking.status == "completed")) or 0
+    
+    # Period stats based on start_date
+    total_bookings = await db.scalar(
+        select(func.count()).select_from(Booking).where(Booking.manager_id == current_user.id, Booking.created_at >= start_date)
+    ) or 0
+    pending_requests = await db.scalar(
+        select(func.count()).select_from(Booking).where(Booking.manager_id == current_user.id, Booking.status == "pending", Booking.created_at >= start_date)
+    ) or 0
+    active_rentals = await db.scalar(
+        select(func.count()).select_from(Booking).where(Booking.manager_id == current_user.id, Booking.status == "active", Booking.created_at >= start_date)
+    ) or 0
+    completed_rentals = await db.scalar(
+        select(func.count()).select_from(Booking).where(Booking.manager_id == current_user.id, Booking.status == "completed", Booking.created_at >= start_date)
+    ) or 0
     total_revenue = await db.scalar(
-        select(func.coalesce(func.sum(Booking.manager_earnings), 0)).where(Booking.manager_id == current_user.id, Booking.status == "completed")
+        select(func.coalesce(func.sum(Booking.manager_earnings), 0)).where(Booking.manager_id == current_user.id, Booking.status == "completed", Booking.created_at >= start_date)
     ) or Decimal("0")
+    
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     this_month_revenue = await db.scalar(
         select(func.coalesce(func.sum(Booking.manager_earnings), 0)).where(
             Booking.manager_id == current_user.id,
@@ -106,11 +128,18 @@ async def manager_stats(current_user: User = Depends(require_vehicle_manager), d
             Booking.actual_return_time >= month_start,
         )
     ) or Decimal("0")
-    approved = await db.scalar(select(func.count()).select_from(Booking).where(Booking.manager_id == current_user.id, Booking.status.in_(("confirmed", "active", "completed")))) or 0
-    rejected = await db.scalar(select(func.count()).select_from(Booking).where(Booking.manager_id == current_user.id, Booking.status == "rejected")) or 0
+    
+    approved = await db.scalar(
+        select(func.count()).select_from(Booking).where(Booking.manager_id == current_user.id, Booking.status.in_(("confirmed", "active", "completed")), Booking.created_at >= start_date)
+    ) or 0
+    rejected = await db.scalar(
+        select(func.count()).select_from(Booking).where(Booking.manager_id == current_user.id, Booking.status == "rejected", Booking.created_at >= start_date)
+    ) or 0
     decided = approved + rejected
     acceptance_rate = round((approved / decided) * 100, 2) if decided else 0
+    
     avg_vehicle_rating = await db.scalar(select(func.coalesce(func.avg(Vehicle.average_rating), 0)).where(Vehicle.manager_id == current_user.id)) or 0
+    
     recent_rows = (
         await db.execute(
             select(Booking, Vehicle.title, VehicleImage.image_url, User.full_name)
@@ -122,6 +151,7 @@ async def manager_stats(current_user: User = Depends(require_vehicle_manager), d
             .limit(5)
         )
     ).all()
+    num_months = 12 if range == "1y" else 6
     monthly_rows = (
         await db.execute(
             select(
@@ -130,7 +160,7 @@ async def manager_stats(current_user: User = Depends(require_vehicle_manager), d
                 func.sum(case((Booking.status == "rejected", 1), else_=0)),
                 func.coalesce(func.sum(case((Booking.status == "completed", Booking.manager_earnings), else_=0)), 0),
             )
-            .where(Booking.manager_id == current_user.id, Booking.created_at >= now - timedelta(days=185))
+            .where(Booking.manager_id == current_user.id, Booking.created_at >= now - timedelta(days=30 * num_months))
             .group_by(func.month(Booking.created_at))
         )
     ).all()
@@ -148,7 +178,7 @@ async def manager_stats(current_user: User = Depends(require_vehicle_manager), d
         "avg_vehicle_rating": money(avg_vehicle_rating),
         "monthly_bookings": [
             {"month": (now.replace(day=1) - timedelta(days=30 * i)).strftime("%b"), "approved": int(monthly.get((now.replace(day=1) - timedelta(days=30 * i)).month, [0, 0, 0, 0])[1] or 0), "rejected": int(monthly.get((now.replace(day=1) - timedelta(days=30 * i)).month, [0, 0, 0, 0])[2] or 0), "revenue": money(monthly.get((now.replace(day=1) - timedelta(days=30 * i)).month, [0, 0, 0, 0])[3])}
-            for i in reversed(range(6))
+            for i in reversed(range(num_months))
         ],
         "recent_bookings": [
             {

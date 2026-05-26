@@ -54,7 +54,15 @@ class BookingPreviewRequest(BaseModel):
             normalized = value.replace("Z", "+00:00")
             if "T" not in normalized and " " not in normalized:
                 raise ValueError("ISO8601 datetime with time is required")
-            datetime.fromisoformat(normalized)
+            dt = datetime.fromisoformat(normalized)
+            if dt.tzinfo is not None:
+                from datetime import timezone
+                dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+            return dt
+        elif isinstance(value, datetime):
+            if value.tzinfo is not None:
+                from datetime import timezone
+                return value.astimezone(timezone.utc).replace(tzinfo=None)
         return value
 
     @model_validator(mode="after")
@@ -122,6 +130,12 @@ async def _primary_image(db: AsyncSession, vehicle_id: str) -> str | None:
 
 
 async def _validate_dates(car: Vehicle, pickup: datetime, return_at: datetime) -> None:
+    if pickup.tzinfo is not None:
+        from datetime import timezone
+        pickup = pickup.astimezone(timezone.utc).replace(tzinfo=None)
+    if return_at.tzinfo is not None:
+        from datetime import timezone
+        return_at = return_at.astimezone(timezone.utc).replace(tzinfo=None)
     if return_at <= pickup:
         raise _validation_error("return_date", "Return date must be after pickup date", "INVALID_RANGE")
     if pickup < datetime.utcnow() + timedelta(hours=1):
@@ -274,8 +288,8 @@ async def create_booking(
     current_user: User = Depends(require_kyc_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if current_user.role not in {"customer", "admin"}:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Customer access required.")
+    if current_user.role in {"vehicle_manager", "admin"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only customers can make bookings.")
     car = await _load_car(db, payload.vehicle_id)
     await _validate_dates(car, payload.pickup_datetime, payload.return_datetime)
     await _ensure_available(db, car, payload.pickup_datetime, payload.return_datetime, current_user.id)

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
+import { Search } from 'lucide-react'
 import { formatDate, formatMoney, getAdmin, patchAdmin, postAdmin } from './adminApi'
 
 function StatusBadge({ value }) {
@@ -17,9 +18,100 @@ export function AdminBookingsPage() {
 export function AdminPaymentsPage() {
   const [rows, setRows] = useState([])
   const [refund, setRefund] = useState(null)
-  const load = () => getAdmin('/payments', { limit: 50 }).then((data) => setRows(data.items || []))
-  useEffect(load, [])
-  return <DataShell title="Payments" subtitle="Payment status, simulated transaction records, and manual wallet refunds."><table className="w-full min-w-[850px] text-left text-sm"><thead className="bg-zinc-50 text-xs uppercase text-zinc-500"><tr><th className="p-4">Booking</th><th className="p-4">User</th><th className="p-4">Amount</th><th className="p-4">Method</th><th className="p-4">Created</th><th className="p-4">Status</th><th className="p-4">Actions</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id} className="border-t border-zinc-100"><td className="p-4 font-black">{row.booking_ref}</td><td className="p-4">{row.user_name}</td><td className="p-4 font-black">{formatMoney(row.amount)}</td><td className="p-4 capitalize">{row.method}</td><td className="p-4">{formatDate(row.created_at)}</td><td className="p-4"><StatusBadge value={row.status} /></td><td className="p-4"><button onClick={() => setRefund(row)} className="rounded-md border border-zinc-200 px-3 py-2 text-xs font-black">Manual Refund</button></td></tr>)}</tbody></table>{refund && <RefundModal payment={refund} onClose={() => setRefund(null)} onDone={load} />}</DataShell>
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+
+  const load = () => {
+    const params = { limit: 50 }
+    if (statusFilter) params.status = statusFilter
+    getAdmin('/payments', params)
+      .then((data) => setRows(data.items || []))
+      .catch(() => setRows([]))
+  }
+
+  useEffect(load, [statusFilter])
+
+  const filteredRows = rows.filter((row) => {
+    const searchLower = search.toLowerCase()
+    return (
+      row.booking_ref?.toLowerCase().includes(searchLower) ||
+      row.user_name?.toLowerCase().includes(searchLower)
+    )
+  })
+
+  return (
+    <DataShell title="Payments" subtitle="Payment status, simulated transaction records, and manual wallet refunds.">
+      <div className="flex flex-wrap gap-3 p-4 border-b border-zinc-200 bg-white">
+        <div className="relative min-w-72 flex-1">
+          <Search className="absolute left-3 top-3.5 text-zinc-400" size={18} />
+          <input
+            className="input pl-10"
+            placeholder="Search booking ref, user name..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </div>
+        <select
+          className="input w-48"
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value)}
+        >
+          <option value="">All statuses</option>
+          <option value="created">Created</option>
+          <option value="paid">Paid</option>
+          <option value="failed">Failed</option>
+          <option value="refunded">Refunded</option>
+        </select>
+        <button onClick={load} className="rounded-md bg-zinc-950 px-4 py-2 text-sm font-black text-white hover:bg-zinc-800 transition">
+          Refresh
+        </button>
+      </div>
+
+      <table className="w-full min-w-[850px] text-left text-sm">
+        <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
+          <tr>
+            <th className="p-4">Booking</th>
+            <th className="p-4">User</th>
+            <th className="p-4">Amount</th>
+            <th className="p-4">Method</th>
+            <th className="p-4">Created</th>
+            <th className="p-4">Status</th>
+            <th className="p-4">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredRows.map((row) => (
+            <tr key={row.id} className="border-t border-zinc-100">
+              <td className="p-4 font-black">{row.booking_ref}</td>
+              <td className="p-4">{row.user_name}</td>
+              <td className="p-4 font-black">{formatMoney(row.amount)}</td>
+              <td className="p-4 capitalize">{row.method}</td>
+              <td className="p-4">{formatDate(row.created_at)}</td>
+              <td className="p-4"><StatusBadge value={row.status} /></td>
+              <td className="p-4">
+                {row.status === 'paid' && (
+                  <button
+                    onClick={() => setRefund(row)}
+                    className="rounded-md border border-zinc-200 px-3 py-2 text-xs font-black hover:border-[#E31837] hover:text-[#E31837] transition"
+                  >
+                    Manual Refund
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+          {filteredRows.length === 0 && (
+            <tr>
+              <td colSpan={7} className="p-8 text-center text-sm font-bold text-zinc-500 bg-white">
+                No payments found matching the selected filters.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      {refund && <RefundModal payment={refund} onClose={() => setRefund(null)} onDone={load} />}
+    </DataShell>
+  )
 }
 
 export function AdminPayoutsPage() {

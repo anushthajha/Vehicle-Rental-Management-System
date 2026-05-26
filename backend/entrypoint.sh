@@ -13,7 +13,7 @@ import asyncio
 import motor.motor_asyncio
 
 async def main():
-    client = motor.motor_asyncio.AsyncIOMotorClient('${MONGODB_URL}', serverSelectionTimeoutMS=2000)
+    client = motor.motor_asyncio.AsyncIOMotorClient('${MONGODB_URL}', serverSelectionTimeoutMS=5000)
     await client.admin.command('ping')
     client.close()
 

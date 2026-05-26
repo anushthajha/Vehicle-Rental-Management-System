@@ -1,3 +1,5 @@
+// FIX: Referenced outer block-scoped variable breakdown before initialization due to lexical order in submit(). Refactored to reference preview?.price_breakdown directly.
+
 import React, { useEffect, useMemo, useState } from 'react'
 import DatePicker from 'react-datepicker'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -6,6 +8,7 @@ import api from '../../services/api'
 import { useAuthStore } from '../../context/AuthContext'
 import { addHours, formatDuration, formatMoney } from '../../utils/searchData'
 import { formatDateTime, priceLines } from '../../utils/bookingUtils'
+
 
 const INSURANCE = [
   { key: 'basic', name: 'Basic', rate: '5%', bullets: ['Minor damage support', 'Standard liability'] },
@@ -88,9 +91,29 @@ export default function BookingConfirmPage() {
         coupon_code: appliedCoupon || undefined,
         customer_notes: customerNotes,
       })
-      navigate(`/booking/pay/${response.data.booking_id}`, { state: response.data })
+      if (response.data.status === 'confirmed' || !response.data.requires_payment) {
+        sessionStorage.setItem(
+          'sigfleet_last_booking_success',
+          JSON.stringify({
+            id: response.data.booking_id,
+            booking_ref: response.data.booking_ref,
+            car: { title: response.data.vehicle_name, primary_image_url: response.data.car_primary_image },
+            pickup_datetime: pickup.toISOString(),
+            return_datetime: returnAt.toISOString(),
+            total_amount: response.data.price_breakdown?.total_amount || preview?.price_breakdown?.total_amount || 0
+          })
+        )
+        navigate(`/booking/success?ref=${response.data.booking_ref}`)
+      } else {
+        navigate(`/booking/pay/${response.data.booking_id}`, { state: response.data })
+      }
     } catch (err) {
-      setError(err.response?.data?.detail || 'Unable to create booking.')
+      const detail = err.response?.data?.detail
+      if (detail === 'KYC approval required') {
+        setError('Please complete KYC to book.')
+      } else {
+        setError(detail || 'Unable to create booking.')
+      }
     } finally {
       setSubmitting(false)
     }
@@ -149,7 +172,7 @@ export default function BookingConfirmPage() {
             <p className="text-sm font-bold text-zinc-500">Security deposit: ₹{formatMoney(breakdown.security_deposit || car.security_deposit || 500)} refundable</p>
           </div>
           <textarea className="input mt-5 min-h-24" value={customerNotes} onChange={(event) => setCustomerNotes(event.target.value)} placeholder="Any specific instructions for the manager?" />
-          {!kycOk && <div className="mt-4 flex gap-2 rounded-md bg-amber-50 p-3 text-sm font-bold text-amber-800"><AlertTriangle size={18} /> Complete KYC before booking.</div>}
+          {!kycOk && <div className="mt-4 flex gap-2 rounded-md bg-amber-50 p-3 text-sm font-bold text-amber-800"><AlertTriangle size={18} /> Please complete KYC to book.</div>}
           {!availability.available && <p className="mt-3 rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">{availability.reason}</p>}
           {error && <p className="mt-3 rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p>}
           <button disabled={!kycOk || submitting || !availability.available} onClick={submit} className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-sigfleet px-5 py-3 font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-300">

@@ -4,9 +4,12 @@ import { Link } from 'react-router-dom'
 import { Check, ChevronDown } from 'lucide-react'
 import Navbar from '../../components/layout/Navbar'
 
+import SigFleetLogo from '../../components/layout/SigFleetLogo'
+
 export function PublicShell({ children }) {
   return <main className="min-h-screen bg-[#F9FAFB] text-[#111827]"><Navbar />{children}<Footer /></main>
 }
+
 
 export function PageHero({ eyebrow, title, subtitle, image }) {
   return <section className="relative overflow-hidden bg-[#111827] px-4 pb-20 pt-32 text-white"><img src={image || 'https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?w=1600'} alt="" className="absolute inset-0 h-full w-full object-cover opacity-35" /><div className="absolute inset-0 bg-gradient-to-r from-black/80 to-black/30" /><div className="relative mx-auto max-w-7xl"><p className="text-sm font-black uppercase tracking-[0.2em] text-orange-200">{eyebrow}</p><h1 className="font-display mt-4 max-w-4xl text-4xl font-black md:text-6xl">{title}</h1>{subtitle && <p className="mt-5 max-w-2xl text-lg font-semibold text-white/80">{subtitle}</p>}</div></section>
@@ -33,8 +36,9 @@ export function CTA({ title = 'Ready to drive?', to = '/vehicles', label = 'Expl
 }
 
 function Footer() {
-  return <footer className="border-t border-zinc-200 bg-white px-4 py-10"><div className="mx-auto grid max-w-7xl gap-6 md:grid-cols-[1fr_auto]"><div><Link to="/" className="font-display text-2xl font-black"><span className="text-[#E31837]">Zoom</span>car</Link><p className="mt-2 max-w-xl text-sm font-semibold text-zinc-500">A full-stack clone for self-drive vehicle rentals, manager earnings, wallet payments, KYC, support, and admin operations.</p></div><div className="flex flex-wrap gap-4 text-sm font-black text-zinc-700"><Link to="/terms">Terms</Link><Link to="/privacy">Privacy</Link><Link to="/refund-policy">Refunds</Link><Link to="/contact">Contact</Link></div></div></footer>
+  return <footer className="border-t border-zinc-200 bg-white px-4 py-10"><div className="mx-auto grid max-w-7xl gap-6 md:grid-cols-[1fr_auto]"><div><Link to="/"><SigFleetLogo textClassName="text-zinc-950" /></Link><p className="mt-2 max-w-xl text-sm font-semibold text-zinc-500">A premium full-stack platform for self-drive vehicle rentals, manager earnings, wallet payments, KYC, support, and admin operations.</p></div><div className="flex flex-wrap gap-4 text-sm font-black text-zinc-700"><Link to="/terms">Terms</Link><Link to="/privacy">Privacy</Link><Link to="/refund-policy">Refunds</Link><Link to="/contact">Contact</Link></div></div></footer>
 }
+
 
 export const customerFlow = [
   { title: 'Search', text: 'Pick your city, trip dates, and preferred vehicle category.' },
