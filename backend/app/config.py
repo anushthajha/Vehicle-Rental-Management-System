@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     SMTP_USER: str
     SMTP_PASSWORD: str
     SMTP_FROM: str
+    SMTP_FROM_NAME: str = "SigFleet"
+    SMTP_USE_TLS: bool = True
 
     FRONTEND_URL: str = "http://localhost"
     BACKEND_URL: str = "http://localhost/api"
@@ -27,6 +29,10 @@ class Settings(BaseSettings):
 
     MAX_UPLOAD_SIZE_MB: int = 10
     PAYMENT_SIMULATE: bool = True
+    CHAUFFEUR_FEE_PER_DAY: int = 800
+    MINOR_DAMAGE_FEE: int = 2000
+    MAJOR_DAMAGE_FEE: int = 10000
+    TOTAL_LOSS_FEE: int = 50000
 
     model_config = SettingsConfigDict(
         env_file=".env",

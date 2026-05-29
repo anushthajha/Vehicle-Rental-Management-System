@@ -1,5 +1,5 @@
 import React, { memo, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Armchair, Fuel, Heart, MapPin, Music, Snowflake, Star, Zap } from 'lucide-react'
 import api from '../../services/api'
 import { useAuthStore } from '../../context/AuthContext'
@@ -19,6 +19,8 @@ function titleCase(value) {
 
 function VehicleCard({ car, viewMode = 'grid', onRemoved, datesSelected = false }) {
   const { user } = useAuthStore()
+  const navigate = useNavigate()
+  const location = useLocation()
   const [saved, setSaved] = useState(Boolean(car.is_saved || isLocallySaved(car.id)))
   const image = car.primary_image_url || car.images?.[0]?.image_url || FALLBACK_IMAGE
   const featureLabels = useMemo(() => (car.features || []).map(titleCase), [car.features])
@@ -47,6 +49,14 @@ function VehicleCard({ car, viewMode = 'grid', onRemoved, datesSelected = false 
     }
   }
 
+  function rentNow(event) {
+    event.preventDefault()
+    event.stopPropagation()
+    // Always go to vehicle detail page — the booking widget there handles the full flow.
+    // Never skip to /booking/confirm directly from the card.
+    navigate(`/vehicles/${car.id}`)
+  }
+
   if (viewMode === 'list') {
     return (
       <article className="group overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
@@ -60,7 +70,7 @@ function VehicleCard({ car, viewMode = 'grid', onRemoved, datesSelected = false 
           <div className="min-w-0">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-xl font-black text-zinc-950">{car.title} <span className="text-zinc-500">{car.year}</span></h3>
+                <h3 className="text-xl font-display font-bold text-zinc-950">{car.title} <span className="text-zinc-500">{car.year}</span></h3>
                 <p className="mt-1 text-sm font-black text-zinc-700">{car.make} · {car.vehicle_type_name || titleCase(car.vehicle_type || car.category || 'Vehicle')}</p>
                 <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-zinc-500"><MapPin size={15} /> {car.location_area || 'Central'}, {car.location_city}</p>
               </div>
@@ -81,7 +91,7 @@ function VehicleCard({ car, viewMode = 'grid', onRemoved, datesSelected = false 
               <p className="text-2xl font-black text-zinc-950">₹{formatMoney(car.price_per_day)}</p>
               <p className="text-xs font-bold text-zinc-500">per day</p>
             </div>
-            <span className="rounded-md border border-sigfleet px-5 py-2.5 text-sm font-black text-sigfleet transition group-hover:bg-sigfleet group-hover:text-white">Rent Now</span>
+            <button type="button" onClick={rentNow} className="rounded-md border border-sigfleet px-5 py-2.5 text-sm font-black text-sigfleet transition group-hover:bg-sigfleet group-hover:text-white">Rent Now</button>
           </div>
         </Link>
       </article>
@@ -108,7 +118,7 @@ function VehicleCard({ car, viewMode = 'grid', onRemoved, datesSelected = false 
             <span className="flex items-center gap-1"><Armchair size={15} /> {car.seats}</span>
             <span className="flex items-center gap-1">{car.fuel_type === 'electric' ? <Zap size={15} /> : <Fuel size={15} />} {titleCase(car.fuel_type)}</span>
           </div>
-          <h3 className="mt-3 text-lg font-black text-zinc-950">{car.title} <span className="text-zinc-500">{car.year}</span></h3>
+          <h3 className="mt-3 font-display text-lg font-bold text-zinc-950">{car.title} <span className="text-zinc-500">{car.year}</span></h3>
           <p className="mt-1 text-sm font-black text-zinc-700">{car.make} · {car.vehicle_type_name || titleCase(car.vehicle_type || car.category || 'Vehicle')}</p>
           <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-zinc-500"><MapPin size={15} /> {car.location_area || 'Central'}, {car.location_city}</p>
           <RatingLine car={car} />
@@ -116,7 +126,7 @@ function VehicleCard({ car, viewMode = 'grid', onRemoved, datesSelected = false 
             <div>
               <p className="text-2xl font-black text-zinc-950">₹{formatMoney(car.price_per_day)}<span className="text-sm font-bold text-zinc-500">/day</span></p>
             </div>
-            <span className="rounded-md border border-sigfleet px-4 py-2 text-sm font-black text-sigfleet transition group-hover:bg-sigfleet group-hover:text-white">Rent Now</span>
+            <button type="button" onClick={rentNow} className="rounded-md border border-sigfleet px-4 py-2 text-sm font-black text-sigfleet transition group-hover:bg-sigfleet group-hover:text-white">Rent Now</button>
           </div>
         </div>
       </Link>

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Bell, CalendarDays, Car as Vehicle, Clock3, Copy, LifeBuoy, Route, ShieldCheck, Wallet } from 'lucide-react'
+import { Bell, CalendarDays, Car as Vehicle, ChevronRight, Heart, Route, Wallet } from 'lucide-react'
 import { Helmet } from 'react-helmet-async'
 import { Link } from 'react-router-dom'
 import { differenceInCalendarDays, formatDistanceToNow, parseISO } from 'date-fns'
@@ -22,29 +22,50 @@ export default function DashboardPage() {
   const { user } = useAuthStore()
   const [profile, setProfile] = useState(null)
   const [bookings, setBookings] = useState([])
+  const [activeBookings, setActiveBookings] = useState([])
+  const [wishlistCount, setWishlistCount] = useState(0)
   const [notifications, setNotifications] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const [profileResponse, bookingsResponse, notificationsResponse] = await Promise.all([
-        api.get('/users/profile').catch(() => ({ data: {} })),
-        api.get('/bookings/', { params: { as_role: 'customer', limit: 20 } }).catch(() => ({ data: { bookings: [] } })),
-        api.get('/notifications', { params: { limit: 5 } }).catch(() => ({ data: { notifications: [] } })),
-      ])
-      setProfile(profileResponse.data)
-      setBookings(bookingsResponse.data.bookings || [])
-      setNotifications(notificationsResponse.data.notifications || [])
-      setLoading(false)
+      try {
+        const [profileResponse, bookingsResponse, activeResponse, wishlistResponse, notificationsResponse] = await Promise.all([
+          api.get('/users/profile').catch(() => ({ data: {} })),
+          // Fetch all non-cancelled bookings for the count and upcoming list
+          api.get('/bookings/', { params: { as_role: 'customer', limit: 50 } }).catch(() => ({ data: { bookings: [] } })),
+          // Fetch active bookings specifically — never miss them regardless of total count
+          api.get('/bookings/', { params: { as_role: 'customer', status: 'active', limit: 10 } }).catch(() => ({ data: { bookings: [] } })),
+          // Wishlist count
+          api.get('/wishlist/').catch(() => ({ data: { vehicles: [] } })),
+          api.get('/notifications', { params: { limit: 5 } }).catch(() => ({ data: { notifications: [] } })),
+        ])
+        setProfile(profileResponse.data ?? {})
+        setBookings(bookingsResponse.data?.bookings || [])
+        setActiveBookings(activeResponse.data?.bookings || [])
+        setWishlistCount((wishlistResponse.data?.vehicles || []).length)
+        setNotifications(notificationsResponse.data?.notifications || [])
+      } catch {
+        // silently fail — page shows empty state
+      } finally {
+        setLoading(false)
+      }
     }
     load()
   }, [])
 
   const firstName = useMemo(() => (profile?.user?.full_name || user?.full_name || 'there').split(' ')[0], [profile, user])
-  const active = bookings.filter((booking) => booking.status === 'active')
-  const upcoming = bookings.filter((booking) => ['pending', 'confirmed', 'approved'].includes(booking.status)).slice(0, 3)
-  const completed = Number(profile?.total_trips_as_customer || bookings.filter((booking) => booking.status === 'completed').length)
+  // Use dedicated active bookings fetch — accurate regardless of total booking count
+  const active = activeBookings
+  const activeBookingId = active[0]?.id
+  // Upcoming: confirmed/pending from the general list, excluding past dates
+  const now = new Date()
+  const upcoming = bookings
+    .filter((b) => ['pending', 'confirmed'].includes(b.status) && new Date(b.return_datetime) >= now)
+    .slice(0, 3)
+  // Total count: all non-expired bookings
+  const totalBookings = bookings.length
 
   return (
     <DashboardShell title="Dashboard" eyebrow="Customer">
@@ -62,10 +83,10 @@ export default function DashboardPage() {
           </section>
 
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <Stat icon={Vehicle} label="Active Rentals" value={active.length} />
-            <Stat icon={CalendarDays} label="Upcoming Rentals" value={upcoming.length} />
-            <Stat icon={ShieldCheck} label="Completed Trips" value={completed} />
+            <Stat icon={CalendarDays} label="My Bookings" value={totalBookings} to="/customer/bookings" />
+            <Stat icon={Vehicle} label="Active Trip" value={active.length} to={activeBookingId ? `/customer/track/${activeBookingId}` : '/customer/bookings'} />
             <Stat icon={Wallet} label="Wallet Balance" value={moneyLabel(profile?.wallet_balance || 0)} to="/customer/wallet" action="Add Money" />
+            <Stat icon={Heart} label="Wishlist" value={wishlistCount} to="/customer/wishlist" />
           </section>
 
           <DashboardSection title="Active Rentals">
@@ -112,7 +133,7 @@ function KycStatus({ status }) {
 }
 
 function Stat({ icon: Icon, label, value, to, action }) {
-  const body = <article className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm"><Icon className="text-[#E31837]" /><p className="mt-4 text-sm font-black text-zinc-500">{label}</p><p className="mt-1 text-3xl font-black">{value}</p>{action && <p className="mt-2 text-sm font-black text-[#E31837]">{action}</p>}</article>
+  const body = <article className="relative rounded-lg border border-zinc-200 bg-white p-5 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-lg"><Icon className="text-[#E31837]" /><p className="mt-4 text-sm font-black text-zinc-500">{label}</p><p className="mt-1 text-3xl font-black">{value}</p>{action && <p className="mt-2 text-sm font-black text-[#E31837]">{action}</p>}<ChevronRight className="absolute bottom-4 right-4 text-zinc-300" size={18} /></article>
   return to ? <Link to={to}>{body}</Link> : body
 }
 

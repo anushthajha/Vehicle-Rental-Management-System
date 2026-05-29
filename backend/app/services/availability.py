@@ -2,7 +2,7 @@ import calendar
 import math
 from datetime import date, datetime, time, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.booking import Booking
@@ -28,7 +28,8 @@ class AvailabilityService:
         if not vehicle.is_approved:
             return False, "Vehicle pending approval"
 
-        booking_query = select(Booking.id).where(
+        # Count how many units of this vehicle are already booked during the requested window
+        booking_query = select(func.count()).select_from(Booking).where(
             Booking.vehicle_id == vehicle_id,
             Booking.status.in_(BLOCKING_BOOKING_STATUSES),
             Booking.pickup_datetime < return_date,
@@ -36,8 +37,14 @@ class AvailabilityService:
         )
         if exclude_booking_id:
             booking_query = booking_query.where(Booking.id != exclude_booking_id)
-        if await db.scalar(booking_query.limit(1)):
-            return False, "Vehicle is booked during this period"
+
+        active_count = await db.scalar(booking_query) or 0
+        total_units = vehicle.total_units or 1
+
+        if active_count >= total_units:
+            if total_units == 1:
+                return False, "Vehicle is booked during this period"
+            return False, f"All {total_units} units are booked during this period"
 
         block = await db.scalar(
             select(VehicleAvailabilityBlock.id)

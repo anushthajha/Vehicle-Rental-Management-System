@@ -65,6 +65,7 @@ class Vehicle(TimestampMixin, Base):
     auto_accept_bookings: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     average_rating: Mapped[Decimal] = mapped_column(DECIMAL(3, 2), default=Decimal("0.00"), nullable=False)
     total_trips: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_units: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     total_earnings: Mapped[Decimal] = mapped_column(DECIMAL(12, 2), default=Decimal("0.00"), nullable=False)
 
 

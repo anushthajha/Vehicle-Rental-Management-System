@@ -14,7 +14,7 @@ export default function ManagerAvailabilityPage() {
   const days = useMemo(() => Array.from({ length: new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate() }, (_, index) => new Date(today.getFullYear(), today.getMonth(), index + 1)), [today.getFullYear(), today.getMonth()])
 
   useEffect(() => {
-    api.get('/vehicles/manager/vehicles').then((response) => setCars(response.data.vehicles || []))
+    api.get('/vehicles/manager/my-vehicles').then((response) => setCars(response.data.vehicles || []))
   }, [])
 
   useEffect(() => {

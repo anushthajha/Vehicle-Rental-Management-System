@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.booking import Booking
+from app.models.payment import Payment
 from app.models.vehicle import Vehicle, VehicleImage
 from app.models.manager import ManagerProfile
 from app.models.user import User
@@ -86,7 +87,7 @@ async def update_manager_profile(payload: ManagerProfileUpdate, current_user: Us
 
 @router.get("/stats")
 async def manager_stats(
-    range: str = Query(default="30d"),
+    range_preset: str = Query(default="30d", alias="range"),
     current_user: User = Depends(require_vehicle_manager),
     db: AsyncSession = Depends(get_db),
 ):
@@ -94,7 +95,7 @@ async def manager_stats(
     
     # Calculate start date based on range parameter
     days_map = {"7d": 7, "30d": 30, "3m": 90, "6m": 180, "1y": 365}
-    days = days_map.get(range, 30)
+    days = days_map.get(range_preset, 30)
     start_date = now - timedelta(days=days)
     
     # Inventory is always current
@@ -110,8 +111,10 @@ async def manager_stats(
     pending_requests = await db.scalar(
         select(func.count()).select_from(Booking).where(Booking.manager_id == current_user.id, Booking.status == "pending", Booking.created_at >= start_date)
     ) or 0
+    # active_rentals: count ALL active trips for this manager regardless of date range
+    # (a trip started before the range is still active now)
     active_rentals = await db.scalar(
-        select(func.count()).select_from(Booking).where(Booking.manager_id == current_user.id, Booking.status == "active", Booking.created_at >= start_date)
+        select(func.count()).select_from(Booking).where(Booking.manager_id == current_user.id, Booking.status == "active")
     ) or 0
     completed_rentals = await db.scalar(
         select(func.count()).select_from(Booking).where(Booking.manager_id == current_user.id, Booking.status == "completed", Booking.created_at >= start_date)
@@ -151,7 +154,7 @@ async def manager_stats(
             .limit(5)
         )
     ).all()
-    num_months = 12 if range == "1y" else 6
+    num_months = 12 if range_preset == "1y" else 6
     monthly_rows = (
         await db.execute(
             select(
@@ -196,3 +199,61 @@ async def manager_stats(
             for booking, title, image, customer_name in recent_rows
         ],
     }
+
+
+@router.get("/analytics/revenue")
+async def manager_revenue_analytics(
+    current_user: User = Depends(require_vehicle_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = (
+        await db.execute(
+            select(func.month(Payment.created_at), func.coalesce(func.sum(Payment.amount), 0))
+            .join(Booking, Booking.id == Payment.booking_id)
+            .where(Booking.manager_id == current_user.id, Payment.status == "paid")
+            .group_by(func.month(Payment.created_at))
+        )
+    ).all()
+    months = {month: value for month, value in rows}
+    labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    return [{"name": labels[index - 1], "value": money(months.get(index, 0))} for index in range(1, 13)]
+
+
+@router.get("/analytics/bookings")
+async def manager_booking_analytics(
+    current_user: User = Depends(require_vehicle_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = (
+        await db.execute(
+            select(func.month(Booking.created_at), func.count(Booking.id))
+            .where(Booking.manager_id == current_user.id)
+            .group_by(func.month(Booking.created_at))
+        )
+    ).all()
+    months = {month: value for month, value in rows}
+    labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    return [{"name": labels[index - 1], "value": int(months.get(index, 0) or 0)} for index in range(1, 13)]
+
+
+@router.get("/analytics/vehicles")
+async def manager_vehicle_analytics(
+    current_user: User = Depends(require_vehicle_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = (
+        await db.execute(
+            select(
+                Vehicle.id,
+                Vehicle.title,
+                func.count(Booking.id),
+                func.coalesce(func.sum(Payment.amount), 0),
+            )
+            .outerjoin(Booking, Booking.vehicle_id == Vehicle.id)
+            .outerjoin(Payment, (Payment.booking_id == Booking.id) & (Payment.status == "paid"))
+            .where(Vehicle.manager_id == current_user.id)
+            .group_by(Vehicle.id, Vehicle.title)
+            .order_by(func.coalesce(func.sum(Payment.amount), 0).desc())
+        )
+    ).all()
+    return [{"vehicle_id": vehicle_id, "name": title, "bookings": int(bookings or 0), "revenue": money(revenue)} for vehicle_id, title, bookings, revenue in rows]

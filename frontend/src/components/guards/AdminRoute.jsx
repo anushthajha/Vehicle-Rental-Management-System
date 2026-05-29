@@ -1,6 +1,2 @@
-import React from 'react'
-import { RoleOutlet } from './guardUtils'
-
-export default function AdminRoute() {
-  return <RoleOutlet allowedRoles={['admin']} requiredRole="Admin" />
-}
+// Re-exports from the consolidated RouteGuards.jsx
+export { AdminRoute as default } from '../RouteGuards'

@@ -14,11 +14,16 @@ export default function ManagerEarningsPage() {
 
   useEffect(() => {
     Promise.all([
-      getManager('/earnings/summary'),
-      getManager('/earnings/monthly', { year }),
-      getManager('/earnings/per-car'),
-      getManager('/earnings/transactions', { limit: 100 }),
-    ]).then(([s, m, c, t]) => { setSummary(s); setMonthly(m); setCars(c); setTransactions(t.items || []) })
+      getManager('/earnings/summary').catch(() => null),
+      getManager('/earnings/monthly', { year }).catch(() => []),
+      getManager('/earnings/per-car').catch(() => []),
+      getManager('/earnings/transactions', { limit: 100 }).catch(() => ({ items: [] })),
+    ]).then(([s, m, c, t]) => {
+      setSummary(s || { total_earned_all_time: 0, total_earned_this_month: 0, total_earned_last_month: 0, average_earnings_per_trip: 0, total_trips_completed: 0 })
+      setMonthly(m || [])
+      setCars(c || [])
+      setTransactions(t?.items || [])
+    })
   }, [year])
 
   const sortedCars = useMemo(() => vehicles.slice().sort((a, b) => Number(b[sort] || 0) - Number(a[sort] || 0)), [vehicles, sort])

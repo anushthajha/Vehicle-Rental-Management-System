@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from sqlalchemy import DECIMAL, DateTime, Enum, ForeignKey, Integer, String, Text, func
+from sqlalchemy import DECIMAL, Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -24,6 +24,7 @@ class Booking(TimestampMixin, Base):
     actual_pickup_time: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
     actual_return_time: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
     pickup_location: Mapped[str | None] = mapped_column(Text, nullable=True)
+    drop_location: Mapped[str | None] = mapped_column(Text, nullable=True)
     total_hours: Mapped[Decimal] = mapped_column(DECIMAL(8, 2), nullable=False)
     base_amount: Mapped[Decimal] = mapped_column(DECIMAL(10, 2), nullable=False)
     discount_amount: Mapped[Decimal] = mapped_column(DECIMAL(10, 2), default=Decimal("0.00"), nullable=False)
@@ -34,6 +35,8 @@ class Booking(TimestampMixin, Base):
         nullable=True,
     )
     security_deposit_amount: Mapped[Decimal] = mapped_column(DECIMAL(10, 2), default=Decimal("0.00"), nullable=False)
+    with_chauffeur: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    chauffeur_fee: Mapped[Decimal] = mapped_column(DECIMAL(10, 2), default=Decimal("0.00"), nullable=False)
     total_amount: Mapped[Decimal] = mapped_column(DECIMAL(10, 2), nullable=False)
     platform_fee: Mapped[Decimal] = mapped_column(DECIMAL(10, 2), default=Decimal("0.00"), nullable=False)
     manager_earnings: Mapped[Decimal] = mapped_column(DECIMAL(10, 2), default=Decimal("0.00"), nullable=False)

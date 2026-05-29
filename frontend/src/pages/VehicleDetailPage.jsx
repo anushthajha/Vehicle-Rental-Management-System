@@ -16,6 +16,7 @@ import { useAuthStore } from '../context/AuthContext'
 import { addHours, dateRangeLabel, formatDuration, formatMoney } from '../utils/searchData'
 import { isLocallySaved, removeLocalWishlistCar, saveLocalWishlistCar } from '../utils/wishlist'
 import DashboardShell from './user/DashboardShell'
+import Navbar from '../components/layout/Navbar'
 
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=1600&q=80'
 const INSURANCE = [
@@ -195,6 +196,27 @@ export default function VehicleDetailPage() {
         <meta property="og:image" content={primaryImage} />
         <meta property="og:title" content={`${car.title} — ₹${formatMoney(car.price_per_day)}/day`} />
       </Helmet>
+      {/* Solid white navbar — always visible on detail page */}
+      <header className="sticky top-0 z-50 border-b border-zinc-200 bg-white shadow-sm">
+        <nav className="mx-auto flex min-h-[64px] max-w-7xl items-center justify-between px-4">
+          <Link to="/" className="flex items-center">
+            <span className="text-2xl font-black text-zinc-900">Sig<span className="text-[#E31837]">Fleet</span></span>
+          </Link>
+          <div className="flex items-center gap-4">
+            <Link to="/vehicles" className="text-sm font-black text-zinc-800 hover:text-[#E31837]">Browse Vehicles</Link>
+            {!user ? (
+              <div className="flex items-center gap-2">
+                <Link to="/auth/login" state={{ from: location.pathname + location.search }} className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-black text-zinc-900 hover:bg-zinc-50">Login</Link>
+                <Link to="/auth/register" className="rounded-md bg-[#E31837] px-4 py-2 text-sm font-black text-white">Register</Link>
+              </div>
+            ) : (
+              <Link to={user.role === 'customer' ? '/customer/dashboard' : user.role === 'vehicle_manager' ? '/manager/dashboard' : '/admin/dashboard'} className="rounded-md bg-[#E31837] px-4 py-2 text-sm font-black text-white">
+                Dashboard
+              </Link>
+            )}
+          </div>
+        </nav>
+      </header>
       {detailMarkup}
     </main>
   )
@@ -264,8 +286,16 @@ function BookingWidget({ car, user, borderless = false }) {
   const [pickup, setPickup] = useState(addHours(new Date(), 24))
   const [returnAt, setReturnAt] = useState(addHours(new Date(), 52))
   const [insurance, setInsurance] = useState('standard')
+  const [withChauffeur, setWithChauffeur] = useState(false)
+  const [pickupLocation, setPickupLocation] = useState('')
+  const [dropLocation, setDropLocation] = useState('')
   const [coupon, setCoupon] = useState('')
-  const [couponState, setCouponState] = useState(null)
+  const [couponState, setCouponState] = useState(null) // null | 'valid' | 'invalid' | 'checking'
+  const [couponMsg, setCouponMsg] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState(null)
+  const [showCoupons, setShowCoupons] = useState(false)
+  const [availableCoupons, setAvailableCoupons] = useState([])
+  const [loadingCoupons, setLoadingCoupons] = useState(false)
   const [expanded, setExpanded] = useState(true)
   const [unavailableDates, setUnavailableDates] = useState([])
   const [availability, setAvailability] = useState({ available: true, reason: 'Available', price_breakdown: {} })
@@ -273,27 +303,118 @@ function BookingWidget({ car, user, borderless = false }) {
   const navigate = useNavigate()
   const isRestrictedRole = user && (user.role === 'vehicle_manager' || user.role === 'admin')
 
-  const handleRentClick = () => {
+  // Calculate days for chauffeur fee
+  const numDays = Math.max(1, Math.ceil((returnAt - pickup) / (1000 * 60 * 60 * 24)))
+  const chauffeurFee = withChauffeur ? 800 * numDays : 0
+
+  const [submitting, setSubmitting] = useState(false)
+  const [bookingError, setBookingError] = useState('')
+
+  const handleRentClick = async () => {
     if (!user) {
-      const returnUrl = `${window.location.pathname}?pickup=${encodeURIComponent(pickup.toISOString())}&return=${encodeURIComponent(returnAt.toISOString())}&insurance=${insurance}`
+      const returnUrl = `${window.location.pathname}`
       navigate('/auth/login', { state: { from: returnUrl } })
       return
     }
-    navigate(`/booking/confirm/${car.id}?pickup=${encodeURIComponent(pickup.toISOString())}&return=${encodeURIComponent(returnAt.toISOString())}&insurance=${insurance}`)
+    if (!availability.available) return
+
+    setSubmitting(true)
+    setBookingError('')
+
+    // Validate location fields
+    if (withChauffeur) {
+      if (!pickupLocation.trim()) {
+        setBookingError('Please enter your pickup address for chauffeur service.')
+        setSubmitting(false)
+        return
+      }
+      if (!dropLocation.trim()) {
+        setBookingError('Please enter your drop-off address for chauffeur service.')
+        setSubmitting(false)
+        return
+      }
+    }
+
+    try {
+      const response = await api.post('/bookings/', {
+        vehicle_id: car.id,
+        pickup_datetime: pickup.toISOString(),
+        return_datetime: returnAt.toISOString(),
+        insurance_plan: insurance,
+        with_chauffeur: withChauffeur,
+        coupon_code: appliedCoupon?.code || undefined,
+        pickup_location: pickupLocation.trim() || undefined,
+        drop_location: withChauffeur ? (dropLocation.trim() || undefined) : undefined,
+      })
+      const data = response.data
+      // Auto-accepted bookings go straight to success; others go to payment
+      if (!data.requires_payment) {
+        sessionStorage.setItem('sigfleet_last_booking_success', JSON.stringify({
+          id: data.booking_id,
+          booking_ref: data.booking_ref,
+          car: { title: data.vehicle_name, primary_image_url: data.car_primary_image },
+          pickup_datetime: pickup.toISOString(),
+          return_datetime: returnAt.toISOString(),
+          total_amount: data.price_breakdown?.total_amount || 0,
+        }))
+        navigate(`/booking/success?ref=${data.booking_ref}`)
+      } else {
+        navigate(`/booking/pay/${data.booking_id}`)
+      }
+    } catch (err) {
+      const detail = err.response?.data?.detail
+      const msg = typeof detail === 'string' ? detail : detail?.message || 'Unable to create booking.'
+      setBookingError(msg)
+      toast.error(msg)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
+  // Fetch available coupons on mount
   useEffect(() => {
-    if (!coupon.trim()) {
-      setCouponState(null)
-      return undefined
+    setLoadingCoupons(true)
+    api.get('/coupons')
+      .then((res) => setAvailableCoupons(res.data?.items ?? res.data ?? []))
+      .catch(() => setAvailableCoupons([]))
+      .finally(() => setLoadingCoupons(false))
+  }, [])
+
+  async function applyCoupon(code) {
+    const normalized = (code || coupon).trim().toUpperCase()
+    if (!normalized) return
+    setCouponState('checking')
+    setCouponMsg('')
+    try {
+      const baseAmount = Number(price.base_amount || car.price_per_day * numDays || 0)
+      const res = await api.post('/coupons/validate', { code: normalized, booking_amount: baseAmount })
+      const data = res.data
+      if (data?.valid) {
+        setCouponState('valid')
+        setCouponMsg(data.message || `${normalized} applied! You save ₹${data.discount_amount}`)
+        setAppliedCoupon({ code: normalized, discount_amount: data.discount_amount })
+        toast.success(data.message || `Coupon ${normalized} applied!`)
+      } else {
+        setCouponState('invalid')
+        setCouponMsg(data?.message || 'Invalid or expired coupon')
+        setAppliedCoupon(null)
+        toast.error(data?.message || 'Invalid or expired coupon')
+      }
+    } catch (err) {
+      const msg = err.response?.data?.detail || 'Invalid coupon code'
+      setCouponState('invalid')
+      setCouponMsg(typeof msg === 'string' ? msg : 'Invalid coupon code')
+      setAppliedCoupon(null)
+      toast.error(typeof msg === 'string' ? msg : 'Invalid coupon code')
     }
-    const timer = window.setTimeout(() => {
-      const valid = coupon.trim().toUpperCase() === 'FLAT100'
-      setCouponState(valid ? 'valid' : 'invalid')
-      toast[valid ? 'success' : 'error'](valid ? 'FLAT100 applied! Saving ₹100' : 'Invalid or expired coupon')
-    }, 800)
-    return () => window.clearTimeout(timer)
-  }, [coupon])
+  }
+
+  function removeCoupon() {
+    setCoupon('')
+    setCouponState(null)
+    setCouponMsg('')
+    setAppliedCoupon(null)
+  }
 
   useEffect(() => {
     api.get(`/vehicles/${car.id}/unavailable-dates`, { params: { from_date: pickup.toISOString() } })
@@ -311,9 +432,20 @@ function BookingWidget({ car, user, borderless = false }) {
   }, [car.id, insurance, pickup, returnAt])
 
   function onPickup(date) {
+    const minPickup = addHours(new Date(), 2)
+    if (date < minPickup) {
+      toast.error('Pickup must be at least 2 hours from now')
+      setPickup(minPickup)
+      if (returnAt < addHours(minPickup, car.min_trip_hours || 4)) {
+        setReturnAt(addHours(minPickup, car.min_trip_hours || 4))
+      }
+      return
+    }
     setPickup(date)
     if (returnAt < addHours(date, car.min_trip_hours || 4)) setReturnAt(addHours(date, car.min_trip_hours || 4))
   }
+
+  const baseAmount = Number(price.base_amount || car.price_per_day * numDays || 0)
 
   return (
     <aside className={`${borderless ? '' : 'rounded-lg border border-zinc-200 bg-white p-4 shadow-lg'}`}>
@@ -328,6 +460,71 @@ function BookingWidget({ car, user, borderless = false }) {
       {!availability.available && <div className="mt-3 rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">{availability.reason}. {availability.next_available_date && `Next available: ${new Date(availability.next_available_date).toLocaleString('en-IN')}`}</div>}
       {availability.available && <div className="mt-3 rounded-md bg-emerald-50 p-3 text-sm font-bold text-emerald-700">Available for this range.</div>}
 
+      {/* Rental Type — Chauffeur Toggle */}
+      <h3 className="mt-5 text-sm font-black uppercase text-zinc-500">Rental Type</h3>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => setWithChauffeur(false)}
+          className={`rounded-lg border-2 p-3 text-left transition ${!withChauffeur ? 'border-sigfleet bg-red-50' : 'border-zinc-200 hover:border-zinc-300'}`}
+        >
+          <p className="font-black text-sm text-zinc-950">Self Drive</p>
+          <p className="text-xs font-bold text-zinc-500">Free</p>
+          <p className="text-xs text-zinc-400 mt-1">Drive yourself</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => setWithChauffeur(true)}
+          className={`rounded-lg border-2 p-3 text-left transition ${withChauffeur ? 'border-sigfleet bg-red-50' : 'border-zinc-200 hover:border-zinc-300'}`}
+        >
+          <p className="font-black text-sm text-zinc-950">With Chauffeur</p>
+          <p className="text-xs font-bold text-sigfleet">+₹800/day</p>
+          <p className="text-xs text-zinc-400 mt-1">Professional driver</p>
+        </button>
+      </div>
+
+      {/* Location fields — conditional on rental type */}
+      <div className="mt-4 space-y-3">
+        {withChauffeur ? (
+          <>
+            {/* Chauffeur: ask for both pickup and drop */}
+            <div>
+              <label className="text-xs font-black uppercase text-zinc-500">
+                Pickup Address <span className="text-red-500">*</span>
+              </label>
+              <input
+                className="input mt-1 h-11"
+                value={pickupLocation}
+                onChange={(e) => setPickupLocation(e.target.value)}
+                placeholder="Enter your pickup address"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-black uppercase text-zinc-500">
+                Drop Address <span className="text-red-500">*</span>
+              </label>
+              <input
+                className="input mt-1 h-11"
+                value={dropLocation}
+                onChange={(e) => setDropLocation(e.target.value)}
+                placeholder="Enter your drop-off address"
+              />
+            </div>
+          </>
+        ) : (
+          /* Self drive: show vehicle store address, let customer optionally specify pickup point */
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+            <p className="text-xs font-black uppercase text-zinc-500 mb-1">Pickup Location</p>
+            <p className="text-sm font-bold text-zinc-800">
+              📍 {car.location_address || `${car.location_area || ''}, ${car.location_city}`.trim().replace(/^,\s*/, '')}
+            </p>
+            <p className="mt-1 text-xs font-bold text-zinc-500">
+              You will collect the vehicle from this address. Exact details shared after booking confirmation.
+            </p>
+          </div>
+        )}
+      </div>
+
       <h3 className="mt-5 text-sm font-black uppercase text-zinc-500">Insurance</h3>
       <div className="mt-2 grid grid-cols-3 gap-2">
         {INSURANCE.map((plan) => (
@@ -340,21 +537,83 @@ function BookingWidget({ car, user, borderless = false }) {
         ))}
       </div>
 
-      <div className="mt-5 flex gap-2">
-        <input className="input h-11" value={coupon} onChange={(event) => setCoupon(event.target.value)} placeholder="Coupon code" />
-        <button onClick={() => setCoupon(coupon.trim().toUpperCase())} className="rounded-md bg-zinc-950 px-4 font-black text-white">Apply</button>
+      {/* Coupon Section */}
+      <div className="mt-5">
+        <div className="flex gap-2">
+          <input
+            className="input h-11 flex-1"
+            value={coupon}
+            onChange={(event) => setCoupon(event.target.value.toUpperCase())}
+            placeholder="Coupon code"
+          />
+          <button
+            onClick={() => applyCoupon(coupon)}
+            disabled={couponState === 'checking'}
+            className="rounded-md bg-zinc-950 px-4 font-black text-white disabled:opacity-60"
+          >
+            {couponState === 'checking' ? '…' : 'Apply'}
+          </button>
+        </div>
+        {couponState === 'valid' && (
+          <div className="mt-2 flex items-center justify-between">
+            <p className="text-sm font-bold text-emerald-700">✓ {couponMsg}</p>
+            <button onClick={removeCoupon} className="text-xs font-bold text-zinc-500 underline">Remove</button>
+          </div>
+        )}
+        {couponState === 'invalid' && <p className="mt-2 text-sm font-bold text-red-700">{couponMsg}</p>}
+
+        {/* View available coupons */}
+        <button
+          type="button"
+          onClick={() => setShowCoupons(!showCoupons)}
+          className="mt-1 text-xs font-bold text-sigfleet underline hover:text-red-700"
+        >
+          {showCoupons ? 'Hide coupons ▲' : 'View available coupons ▼'}
+        </button>
+
+        {showCoupons && (
+          <div className="mt-2 overflow-hidden rounded-lg border border-zinc-200">
+            {loadingCoupons && <div className="p-3 text-sm text-zinc-500">Loading coupons…</div>}
+            {!loadingCoupons && availableCoupons.length === 0 && (
+              <div className="p-3 text-sm text-zinc-500">No active coupons available.</div>
+            )}
+            {availableCoupons.map((c) => {
+              const eligible = baseAmount >= Number(c.min_booking_amount || 0)
+              return (
+                <div key={c.code} className={`flex items-center justify-between border-b p-3 last:border-0 ${eligible ? 'bg-white' : 'bg-zinc-50 opacity-60'}`}>
+                  <div>
+                    <p className="font-mono font-black text-sm text-sigfleet">{c.code}</p>
+                    <p className="text-xs text-zinc-600">{c.description}</p>
+                    <p className="text-xs text-zinc-400">
+                      {eligible
+                        ? `Save up to ₹${formatMoney(c.max_discount || 0)}`
+                        : `Min booking ₹${formatMoney(c.min_booking_amount || 0)}`}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!eligible}
+                    onClick={() => { setCoupon(c.code); setShowCoupons(false); applyCoupon(c.code) }}
+                    className={`rounded-full border px-3 py-1 text-xs font-black ${eligible ? 'border-sigfleet text-sigfleet hover:bg-red-50' : 'cursor-not-allowed border-zinc-300 text-zinc-400'}`}
+                  >
+                    Apply
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
-      {couponState === 'valid' && <p className="mt-2 text-sm font-bold text-emerald-700">✓ ₹100 discount applied</p>}
-      {couponState === 'invalid' && <p className="mt-2 text-sm font-bold text-red-700">Invalid coupon code</p>}
 
       <button onClick={() => setExpanded(!expanded)} className="mt-5 w-full text-left text-sm font-black text-zinc-950">Price breakdown</button>
       {expanded && (
         <div className="mt-3 space-y-2 text-sm font-semibold text-zinc-600">
-          <Line label={`Base: ${price.duration?.duration_label || 'selected duration'}`} value={`₹${formatMoney(price.base_amount || 0)}`} />
+          <Line label={`Base: ${price.duration?.duration_label || `${numDays} day${numDays !== 1 ? 's' : ''}`}`} value={`₹${formatMoney(price.base_amount || car.price_per_day * numDays || 0)}`} />
+          {withChauffeur && <Line label={`Chauffeur: ₹800 × ${numDays} day${numDays !== 1 ? 's' : ''}`} value={`₹${formatMoney(chauffeurFee)}`} />}
           <Line label={`Insurance (${insurance})`} value={`₹${formatMoney(price.insurance_amount || 0)}`} />
-          <Line label="Coupon discount" value={`-₹${formatMoney(price.coupon_discount || 0)}`} />
+          {appliedCoupon && <Line label={`Coupon (${appliedCoupon.code})`} value={`-₹${formatMoney(appliedCoupon.discount_amount || 0)}`} />}
           <Line label="Platform fee" value={`₹${formatMoney(price.platform_fee || 0)}`} />
-          <Line label="Total" value={`₹${formatMoney(price.total_amount || 0)}`} strong />
+          <Line label="Total" value={`₹${formatMoney((price.total_amount || 0) + chauffeurFee - (appliedCoupon?.discount_amount || 0))}`} strong />
           <Line label="Security Deposit" value={`₹${formatMoney(car.security_deposit || 500)} refundable`} />
         </div>
       )}
@@ -364,13 +623,14 @@ function BookingWidget({ car, user, borderless = false }) {
       ) : (
         <>
           {!user && <p className="mt-4 rounded-md bg-amber-50 p-3 text-sm font-bold text-amber-800">Log in to continue with this booking.</p>}
-          {user && !user.is_kyc_verified && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">KYC approval is required before booking.</p>}
+          {user && !user.is_kyc_verified && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">KYC approval is required before booking. <Link to="/customer/kyc" className="underline">Complete KYC →</Link></p>}
+          {bookingError && <p className="mt-3 rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">{bookingError}</p>}
           <button
-            disabled={!availability.available}
+            disabled={!availability.available || submitting || (user && !user.is_kyc_verified)}
             onClick={handleRentClick}
-            className={`mt-4 block w-full rounded-md px-5 py-3 text-center font-black text-white ${availability.available ? 'bg-sigfleet' : 'pointer-events-none bg-zinc-300'}`}
+            className={`mt-4 flex w-full items-center justify-center gap-2 rounded-md px-5 py-3 font-black text-white ${availability.available && (!user || user.is_kyc_verified) ? 'bg-sigfleet' : 'pointer-events-none bg-zinc-300'}`}
           >
-            Rent Now
+            {submitting ? <><Loader2 size={18} className="animate-spin" /> Creating booking…</> : 'Book Now'}
           </button>
         </>
       )}

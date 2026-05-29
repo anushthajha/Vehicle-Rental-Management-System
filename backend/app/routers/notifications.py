@@ -102,6 +102,14 @@ async def mark_all_notifications_read_legacy(current_user: User = Depends(get_cu
     return await mark_all_notifications_read(current_user)
 
 
+@router.delete("/all")
+async def delete_all_notifications(current_user: User = Depends(get_current_active_user)):
+    """Delete all notifications for the current user."""
+    result = await get_mongo_db().notifications.delete_many({"user_id": current_user.id})
+    await get_redis().delete(f"notifications:unread:{current_user.id}")
+    return {"message": f"Deleted {result.deleted_count} notifications"}
+
+
 @router.delete("/{notification_id}")
 async def delete_user_notification(notification_id: str, current_user: User = Depends(get_current_active_user)):
     exists = await get_mongo_db().notifications.find_one({"_id": _object_id(notification_id), "user_id": current_user.id})

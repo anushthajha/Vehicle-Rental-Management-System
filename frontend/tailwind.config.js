@@ -9,6 +9,10 @@ export default {
       colors: {
         sigfleet: '#E31837',
       },
+      fontFamily: {
+        sans: ['Inter', 'ui-sans-serif', 'system-ui'],
+        display: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui'],
+      },
     },
   },
   plugins: [forms],

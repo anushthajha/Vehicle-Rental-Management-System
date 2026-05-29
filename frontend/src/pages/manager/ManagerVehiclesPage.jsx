@@ -1,21 +1,26 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Car as Vehicle, Eye, IndianRupee, Loader2, Pencil, Power, Trash2 } from 'lucide-react'
+import toast from 'react-hot-toast'
 import api from '../../services/api'
 
 export default function ManagerVehiclesPage() {
   const [vehicles, setCars] = useState([])
   const [filter, setFilter] = useState('all')
   const [isLoading, setLoading] = useState(true)
-  const [error, setError] = useState('')
 
   async function loadCars() {
     setLoading(true)
     try {
-      const response = await api.get('/vehicles/manager/vehicles')
-      setCars(response.data.vehicles || [])
+      const response = await api.get('/vehicles/manager/my-vehicles')
+      // Safely extract vehicles array from any response shape
+      const cars = response.data?.vehicles ?? response.data?.items ?? (Array.isArray(response.data) ? response.data : [])
+      setCars(Array.isArray(cars) ? cars : [])
     } catch (err) {
-      setError(err.response?.data?.detail || 'Unable to load vehicles.')
+      // Only show error toast on actual network/server failure
+      const msg = err.response?.data?.detail || err.message || 'Unable to load vehicles.'
+      toast.error(msg)
+      setCars([])
     } finally {
       setLoading(false)
     }
@@ -40,13 +45,24 @@ export default function ManagerVehiclesPage() {
   }
 
   async function toggle(carId) {
-    const response = await api.patch(`/vehicles/manager/${carId}/toggle-availability`)
-    setCars((current) => current.map((car) => car.id === carId ? { ...car, is_available: response.data.is_available } : car))
+    try {
+      const response = await api.patch(`/vehicles/manager/${carId}/toggle-availability`)
+      setCars((current) => current.map((car) => car.id === carId ? { ...car, is_available: response.data.is_available } : car))
+      toast.success(response.data.is_available ? 'Vehicle marked available' : 'Vehicle marked unavailable')
+    } catch (err) {
+      toast.error(err.message || 'Failed to update availability')
+    }
   }
 
   async function remove(carId) {
-    await api.delete(`/vehicles/${carId}`)
-    setCars((current) => current.map((car) => car.id === carId ? { ...car, is_available: false } : car))
+    if (!window.confirm('Remove this vehicle from availability?')) return
+    try {
+      await api.delete(`/vehicles/${carId}`)
+      setCars((current) => current.map((car) => car.id === carId ? { ...car, is_available: false } : car))
+      toast.success('Vehicle removed from availability')
+    } catch (err) {
+      toast.error(err.message || 'Failed to remove vehicle')
+    }
   }
 
   return (
@@ -71,7 +87,6 @@ export default function ManagerVehiclesPage() {
               <button key={tab} onClick={() => setFilter(tab)} className={`rounded-md px-4 py-2 text-sm font-bold capitalize ${filter === tab ? 'bg-sigfleet text-white' : 'bg-zinc-100 text-zinc-600'}`}>{tab}</button>
             ))}
           </div>
-          {error && <div className="m-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
           {isLoading ? (
             <div className="grid h-64 place-items-center"><Loader2 className="animate-spin text-sigfleet" /></div>
           ) : (
@@ -82,10 +97,23 @@ export default function ManagerVehiclesPage() {
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-lg font-black text-zinc-950">{car.title}</h2>
-                      <span className={`rounded-full px-2 py-1 text-xs font-black ${car.is_approved ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{car.is_approved ? 'Active' : 'Pending'}</span>
-                      {!car.is_available && <span className="rounded-full bg-zinc-200 px-2 py-1 text-xs font-black text-zinc-700">Inactive</span>}
+                      {car.is_approved && car.is_available && (
+                        <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-black text-emerald-700">Approved</span>
+                      )}
+                      {car.is_approved && !car.is_available && (
+                        <span className="rounded-full bg-zinc-200 px-2 py-1 text-xs font-black text-zinc-700">Inactive</span>
+                      )}
+                      {!car.is_approved && car.status !== 'rejected' && (
+                        <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-black text-amber-700">Pending Review</span>
+                      )}
+                      {car.status === 'rejected' && (
+                        <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-black text-red-700">Rejected</span>
+                      )}
                     </div>
                     <p className="mt-1 text-sm text-zinc-500">{car.location_city} | ₹{Number(car.price_per_day).toLocaleString('en-IN')}/day | {car.average_rating} rating | {car.total_trips} trips | ₹{Number(car.total_earnings || 0).toLocaleString('en-IN')} earned</p>
+                    {car.status === 'rejected' && car.rejection_reason && (
+                      <p className="mt-1 text-xs font-bold text-red-600">Rejection reason: {car.rejection_reason}</p>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button onClick={() => toggle(car.id)} className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-bold text-zinc-700">Toggle availability</button>

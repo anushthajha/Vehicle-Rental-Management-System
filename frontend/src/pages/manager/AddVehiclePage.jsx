@@ -5,6 +5,7 @@ import * as Slider from '@radix-ui/react-slider'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { z } from 'zod'
+import toast from 'react-hot-toast'
 import {
   Armchair,
   Car as Vehicle,
@@ -72,6 +73,13 @@ const initialForm = {
   location_city: 'Bengaluru', location_area: '', location_address: '', location_lat: 12.9716, location_lng: 77.5946,
   price_per_hour: 120, price_per_day: 2160, security_deposit: 0, included_km_per_day: 300, extra_km_charge: 8,
   min_trip_hours: 4, max_trip_days: 30, auto_accept_bookings: false, photos: [],
+  // Documents
+  rc_document: null,
+  insurance_document: null,
+  // Chauffeur
+  offer_chauffeur: false,
+  driver_name: '', driver_license_number: '', driver_phone: '', driver_experience: '',
+  driver_license_file: null, driver_photo: null,
 }
 
 const schemas = [
@@ -79,8 +87,9 @@ const schemas = [
   z.object({ description: z.string().min(50).max(1000) }),
   z.object({ location_city: z.string().min(1), location_area: z.string().min(2), location_address: z.string().min(10), location_lat: z.number(), location_lng: z.number() }),
   z.object({ price_per_hour: z.number().min(20), price_per_day: z.number().min(100), included_km_per_day: z.number().min(0), extra_km_charge: z.number().min(0), min_trip_hours: z.number(), max_trip_days: z.number() }),
-  z.object({ photos: z.array(z.any()).min(3) }),
-  z.object({}),
+  z.object({ photos: z.array(z.any()).min(1) }),
+  z.object({}), // Documents — RC is required but validated manually
+  z.object({}), // Review
 ]
 
 export const useCarWizardStore = create(persist((set) => ({
@@ -125,7 +134,7 @@ export default function AddVehiclePage({ editMode = false, carId = null, initial
   const [submitted, setSubmitted] = useState(false)
   const { categories, vehicleTypes } = useVehicleCategories()
   const activeForm = form
-  const stepNames = ['Basic Info', 'Features', 'Location', 'Pricing', 'Photos', 'Review']
+  const stepNames = ['Basic Info', 'Features', 'Location', 'Pricing', 'Photos', 'Documents', 'Review']
 
   useEffect(() => {
     if (initialData) {
@@ -210,10 +219,11 @@ export default function AddVehiclePage({ editMode = false, carId = null, initial
                 {step === 2 && <LocationStep form={activeForm} updateForm={updateForm} />}
                 {step === 3 && <PricingStep form={activeForm} updateForm={updateForm} />}
                 {step === 4 && <PhotosStep form={activeForm} updateForm={updateForm} editMode={editMode} />}
-                {step === 5 && <ReviewStep form={activeForm} setStep={setStep} />}
+                {step === 5 && <DocumentsStep form={activeForm} updateForm={updateForm} />}
+                {step === 6 && <ReviewStep form={activeForm} setStep={setStep} />}
                 <div className="mt-8 flex justify-between border-t border-zinc-200 pt-5">
                   <button disabled={step === 0} onClick={() => setStep(Math.max(step - 1, 0))} className="rounded-md border border-zinc-300 px-4 py-3 font-bold text-zinc-700 disabled:opacity-40">Back</button>
-                  {step < 5 ? (
+                  {step < 6 ? (
                     <button onClick={next} className="rounded-md bg-sigfleet px-5 py-3 font-bold text-white">Next</button>
                   ) : (
                     <button onClick={submit} disabled={isSubmitting} className="inline-flex min-w-36 items-center justify-center rounded-md bg-sigfleet px-5 py-3 font-bold text-white disabled:opacity-70">
@@ -269,6 +279,41 @@ function buildCarPayload(form) {
 
 function BasicStep({ form, updateForm, categories, vehicleTypes }) {
   const suggestions = MODEL_SUGGESTIONS[form.make] || []
+
+  // Determine selected vehicle type slug
+  const selectedType = vehicleTypes.find((t) => t.id === form.vehicle_type_id)
+  const isBike = selectedType?.slug === 'bike'
+  const isTraveller = selectedType?.slug === 'traveller'
+
+  // Filter categories based on vehicle type
+  const BIKE_CATEGORY_SLUGS = ['sport-bike', 'cruiser', 'scooter', 'adventure']
+  const TRAVELLER_CATEGORY_SLUGS = ['tempo-traveller', 'mini-bus', 'muv']
+  const CAR_CATEGORY_SLUGS = ['hatchback', 'sedan', 'suv', 'luxury', 'electric', 'muv', 'convertible']
+
+  const filteredCategories = categories.filter((c) => {
+    if (isBike) return BIKE_CATEGORY_SLUGS.includes(c.slug)
+    if (isTraveller) return TRAVELLER_CATEGORY_SLUGS.includes(c.slug)
+    return CAR_CATEGORY_SLUGS.includes(c.slug)
+  })
+
+  // When vehicle type changes, reset category_id if it doesn't fit
+  function handleTypeChange(vehicle_type_id) {
+    const newType = vehicleTypes.find((t) => t.id === vehicle_type_id)
+    const newIsBike = newType?.slug === 'bike'
+    const newIsTraveller = newType?.slug === 'traveller'
+    const validSlugs = newIsBike ? BIKE_CATEGORY_SLUGS : newIsTraveller ? TRAVELLER_CATEGORY_SLUGS : CAR_CATEGORY_SLUGS
+    const currentCat = categories.find((c) => c.id === form.category_id)
+    const catStillValid = currentCat && validSlugs.includes(currentCat.slug)
+    updateForm({ vehicle_type_id, category_id: catStillValid ? form.category_id : '' })
+  }
+
+  const fuelOptions = isBike
+    ? ['petrol', 'electric']
+    : ['petrol', 'diesel', 'electric', 'hybrid', 'cng']
+
+  const seatOptions = isBike ? [1, 2] : isTraveller ? [9, 10, 12, 14, 17, 20] : [2, 4, 5, 6, 7, 8]
+  const seatLabel = isBike ? 'Riders' : isTraveller ? 'Capacity (seats)' : 'Seats'
+
   return (
     <div>
       <StepTitle icon={Vehicle} title="Basic Info" />
@@ -282,11 +327,32 @@ function BasicStep({ form, updateForm, categories, vehicleTypes }) {
         <p className="label">Color</p>
         <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-8">{COLOR_PRESETS.map((color) => <button key={color} onClick={() => updateForm({ color })} className={`rounded-md border px-3 py-2 text-sm font-bold ${form.color === color ? 'border-sigfleet text-sigfleet' : 'border-zinc-200 text-zinc-600'}`}>{color}</button>)}</div>
       </div>
-      <SelectorGrid label="Category" options={categories.map((item) => ({ value: item.id, label: item.name }))} value={form.category_id} onChange={(category_id) => updateForm({ category_id })} />
-      <SelectorGrid label="Vehicle Type" options={vehicleTypes.map((item) => ({ value: item.id, label: item.name }))} value={form.vehicle_type_id} onChange={(vehicle_type_id) => updateForm({ vehicle_type_id })} />
-      <CardOptions label="Transmission" options={['manual', 'automatic']} value={form.transmission} onChange={(transmission) => updateForm({ transmission })} />
-      <CardOptions label="Fuel Type" options={['petrol', 'diesel', 'electric', 'hybrid', 'cng']} value={form.fuel_type} onChange={(fuel_type) => updateForm({ fuel_type })} />
-      <CardOptions label="Seats" options={[2, 4, 5, 6, 7, 8]} value={form.seats} onChange={(seats) => updateForm({ seats: Number(seats) })} />
+
+      {/* Vehicle Type — shown first so category filters correctly */}
+      <div className="mt-5">
+        <p className="label mb-2">Vehicle Type</p>
+        <div className="flex flex-wrap gap-2">
+          {vehicleTypes.map((t) => {
+            const emoji = t.slug === 'bike' ? '🏍️' : t.slug === 'traveller' ? '🚌' : '🚗'
+            return (
+              <button
+                key={t.id}
+                onClick={() => handleTypeChange(t.id)}
+                className={`rounded-md border px-4 py-2 text-sm font-black transition ${form.vehicle_type_id === t.id ? 'border-sigfleet bg-red-50 text-sigfleet' : 'border-zinc-200 text-zinc-600 hover:border-zinc-400'}`}
+              >
+                {emoji} {t.name}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <SelectorGrid label="Category" options={filteredCategories.map((item) => ({ value: item.id, label: item.name }))} value={form.category_id} onChange={(category_id) => updateForm({ category_id })} />
+      {!isBike && (
+        <CardOptions label="Transmission" options={['manual', 'automatic']} value={form.transmission} onChange={(transmission) => updateForm({ transmission })} />
+      )}
+      <CardOptions label="Fuel Type" options={fuelOptions} value={form.fuel_type} onChange={(fuel_type) => updateForm({ fuel_type })} />
+      <CardOptions label={seatLabel} options={seatOptions} value={form.seats} onChange={(seats) => updateForm({ seats: Number(seats) })} />
     </div>
   )
 }
@@ -397,6 +463,72 @@ function PhotosStep({ form, updateForm, editMode }) {
         ))}
       </div>
       <div className="mt-5 rounded-md bg-zinc-50 p-4 text-sm font-semibold text-zinc-600">Photo tips checklist: Front view | Back view | Interior | Dashboard | Trunk</div>
+    </div>
+  )
+}
+
+function DocumentsStep({ form, updateForm }) {
+  function FileField({ label, field, accept = 'image/jpeg,image/png,application/pdf', required = false }) {
+    const file = form[field]
+    return (
+      <div>
+        <p className="label mb-1">{label}{required && <span className="ml-1 text-red-500">*</span>}</p>
+        <label className={`flex cursor-pointer items-center gap-3 rounded-md border-2 border-dashed p-4 transition ${file ? 'border-emerald-400 bg-emerald-50' : 'border-zinc-300 bg-zinc-50 hover:border-sigfleet'}`}>
+          <Upload size={20} className={file ? 'text-emerald-600' : 'text-zinc-400'} />
+          <div className="min-w-0 flex-1">
+            {file ? (
+              <p className="truncate text-sm font-black text-emerald-700">{file.name}</p>
+            ) : (
+              <p className="text-sm font-bold text-zinc-600">Click to upload · JPG, PNG, PDF · Max 5MB</p>
+            )}
+          </div>
+          {file && <button type="button" onClick={(e) => { e.preventDefault(); updateForm({ [field]: null }) }} className="text-zinc-400 hover:text-red-600"><X size={16} /></button>}
+          <input type="file" hidden accept={accept} onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f && f.size > 5 * 1024 * 1024) { toast.error('File must be 5MB or smaller'); return }
+            updateForm({ [field]: f || null })
+          }} />
+        </label>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <StepTitle icon={Shield} title="Documents & Driver Details" />
+
+      <section className="rounded-md border border-zinc-200 p-5">
+        <h3 className="font-black text-zinc-900">Vehicle Documents</h3>
+        <p className="mt-1 text-sm text-zinc-500">RC document is required. Insurance is optional.</p>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <FileField label="RC Document (Registration Certificate)" field="rc_document" required />
+          <FileField label="Insurance Document (optional)" field="insurance_document" />
+        </div>
+      </section>
+
+      <section className="rounded-md border border-zinc-200 p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-black text-zinc-900">Chauffeur Service</h3>
+            <p className="mt-1 text-sm text-zinc-500">Offer a professional driver with your vehicle (+₹800/day).</p>
+          </div>
+          <label className="relative inline-flex cursor-pointer items-center">
+            <input type="checkbox" checked={form.offer_chauffeur} onChange={(e) => updateForm({ offer_chauffeur: e.target.checked })} className="sr-only peer" />
+            <div className="h-6 w-11 rounded-full bg-zinc-200 peer-checked:bg-sigfleet transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:after:translate-x-full" />
+          </label>
+        </div>
+
+        {form.offer_chauffeur && (
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <Field label="Driver Name"><input value={form.driver_name} onChange={(e) => updateForm({ driver_name: e.target.value })} className="input" placeholder="Full name" /></Field>
+            <Field label="Driver License Number"><input value={form.driver_license_number} onChange={(e) => updateForm({ driver_license_number: e.target.value })} className="input" placeholder="DL-XXXXXXXXXX" /></Field>
+            <Field label="Driver Phone"><input type="tel" value={form.driver_phone} onChange={(e) => updateForm({ driver_phone: e.target.value })} className="input" placeholder="+91 9876543210" /></Field>
+            <Field label="Experience (years)"><input type="number" min="0" max="50" value={form.driver_experience} onChange={(e) => updateForm({ driver_experience: e.target.value })} className="input" placeholder="5" /></Field>
+            <FileField label="Driver License Upload" field="driver_license_file" />
+            <FileField label="Driver Photo (optional)" field="driver_photo" accept="image/jpeg,image/png" />
+          </div>
+        )}
+      </section>
     </div>
   )
 }

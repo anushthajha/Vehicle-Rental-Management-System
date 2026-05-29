@@ -76,6 +76,7 @@ VEHICLE_UPDATE_FIELDS = {
     "has_luggage_carrier",
     "minimum_customer_rating",
     "auto_accept_bookings",
+    "total_units",
 }
 
 
@@ -114,6 +115,7 @@ class VehicleCreate(BaseModel):
     has_luggage_carrier: bool = False
     minimum_customer_rating: Decimal | None = None
     auto_accept_bookings: bool = False
+    total_units: int = Field(default=1, ge=1, le=20)
 
     @field_validator("registration_number")
     @classmethod
@@ -161,6 +163,7 @@ class VehicleUpdate(BaseModel):
     has_luggage_carrier: bool | None = None
     minimum_customer_rating: Decimal | None = None
     auto_accept_bookings: bool | None = None
+    total_units: int | None = Field(default=None, ge=1, le=20)
 
     @field_validator("registration_number")
     @classmethod
@@ -270,6 +273,7 @@ def _car_payload(
         "price_per_day": _money(car.price_per_day),
         "average_rating": _money(car.average_rating),
         "total_trips": car.total_trips,
+        "total_units": car.total_units or 1,
         "primary_image_url": primary_image_url,
         "features": _features(car),
         "manager_name": manager_name,
@@ -481,6 +485,8 @@ async def search_cars(
     transmission: str | None = None,
     fuel_type: str | None = None,
     availability: bool | None = None,
+    is_available: bool | None = None,
+    status_filter: str | None = Query(default=None, alias="status"),
     seats: str | None = None,
     min_price: float | None = None,
     max_price: float | None = None,
@@ -505,7 +511,9 @@ async def search_cars(
     conditions = [Vehicle.is_approved.is_(True)]
     active_pickup = pickup_date or start_date
     active_return = return_date or end_date
-    if availability is True:
+    if status_filter == "approved":
+        conditions.append(Vehicle.is_approved.is_(True))
+    if availability is True or is_available is True:
         conditions.append(Vehicle.is_available.is_(True))
     if active_pickup and active_return:
         booking_overlap = select(Booking.id).where(Booking.vehicle_id == Vehicle.id, *_overlap_conditions(active_pickup, active_return)).exists()
@@ -622,10 +630,11 @@ async def search_cars(
     await log_search(await _optional_user_id(request), city or "", filters_dict, total)
     return {
         "vehicles": vehicles,
-        "vehicles": vehicles,
         "total": total,
         "page": page,
+        "limit": limit,
         "pages": pages,
+        "total_pages": pages,
         "has_next": page < pages,
         "has_prev": page > 1,
         "applied_filters": applied_filters,
@@ -705,7 +714,7 @@ async def create_car(payload: VehicleCreate, current_user: User = Depends(requir
     legacy_category = data.pop("category", None)
     data["category_id"] = await _resolve_category_id(db, data.get("category_id"), legacy_category)
     data["vehicle_type_id"] = await _resolve_vehicle_type_id(db, data.get("vehicle_type_id"))
-    car = Vehicle(manager_id=current_user.id, title=title, is_approved=False, is_available=True, **data)
+    car = Vehicle(manager_id=current_user.id, title=title, is_approved=False, is_available=False, **data)
     db.add(car)
     await db.flush()
     manager_profile.total_listings += 1
@@ -733,6 +742,22 @@ async def get_city_vehicle_count(city: str | None = None, db: AsyncSession = Dep
         conditions.append(func.lower(Vehicle.location_city) == city.lower())
     count = await db.scalar(select(func.count()).select_from(Vehicle).where(*conditions)) or 0
     return {"city": city, "count": count}
+
+
+@vehicles_router.get("/city-counts")
+@router.get("/city-counts")
+async def get_city_vehicle_counts(db: AsyncSession = Depends(get_db)):
+    rows = (
+        await db.execute(
+            select(Vehicle.location_city, func.count(Vehicle.id))
+            .where(
+                (Vehicle.is_approved.is_(True) | Vehicle.is_approved.is_(None)),
+                (Vehicle.is_available.is_(True) | Vehicle.is_available.is_(None)),
+            )
+            .group_by(Vehicle.location_city)
+        )
+    ).all()
+    return {city: count for city, count in rows if city}
 
 
 @vehicles_router.get("/{vehicle_id}")

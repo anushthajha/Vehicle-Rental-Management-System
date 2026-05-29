@@ -1,55 +1,42 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { Area, AreaChart, Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import React, { useEffect, useState } from 'react'
+import { Area, AreaChart, Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { downloadCsv, getManager, money } from './managerApi'
 
 export default function ManagerStatisticsPage() {
   const [stats, setStats] = useState(null)
   const [perCar, setPerCar] = useState([])
+  const [revenueData, setRevenueData] = useState([])
+  const [bookingsData, setBookingsData] = useState([])
   const [range, setRange] = useState('30d')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
     Promise.all([
-      getManager('/stats', { range }).catch((err) => {
-        console.error('Failed to fetch manager stats', err)
-        return null
-      }),
-      getManager('/earnings/per-car').catch((err) => {
-        console.error('Failed to fetch manager per-car earnings', err)
-        return []
-      }),
-    ]).then(([statsData, perCarData]) => {
-      if (statsData) {
-        setStats(statsData)
-      } else {
-        setStats({
-          total_vehicles: 0,
-          active_vehicles: 0,
-          total_bookings: 0,
-          pending_requests: 0,
-          active_rentals: 0,
-          completed_rentals: 0,
-          total_revenue: 0,
-          this_month_revenue: 0,
-          acceptance_rate: 0,
-          avg_vehicle_rating: 0,
-          monthly_bookings: [],
-          recent_bookings: [],
-        })
-      }
-      if (perCarData) {
-        setPerCar(perCarData)
-      }
+      getManager('/stats', { range }).catch(() => null),
+      getManager('/earnings/per-car').catch(() => []),
+      getManager('/analytics/revenue').catch(() => []),
+      getManager('/analytics/bookings').catch(() => []),
+    ]).then(([statsData, perCarData, revData, bkData]) => {
+      setStats(statsData || {
+        total_vehicles: 0, active_vehicles: 0, total_bookings: 0,
+        pending_requests: 0, active_rentals: 0, completed_rentals: 0,
+        total_revenue: 0, this_month_revenue: 0, acceptance_rate: 0,
+        avg_vehicle_rating: 0, monthly_bookings: [], recent_bookings: [],
+      })
+      setPerCar(Array.isArray(perCarData) ? perCarData : [])
+      setRevenueData(Array.isArray(revData) ? revData : [])
+      setBookingsData(Array.isArray(bkData) ? bkData : [])
       setLoading(false)
     })
   }, [range])
 
-  const statusData = useMemo(() => [
-    { name: 'Approved', value: Number(stats?.completed_rentals || 0) + Number(stats?.active_rentals || 0) },
+  // statusData kept for potential future use
+  const statusData = [
+    { name: 'Completed', value: Number(stats?.completed_rentals || 0) },
+    { name: 'Active', value: Number(stats?.active_rentals || 0) },
     { name: 'Pending', value: Number(stats?.pending_requests || 0) },
-    { name: 'Other', value: Math.max(Number(stats?.total_bookings || 0) - Number(stats?.completed_rentals || 0) - Number(stats?.active_rentals || 0) - Number(stats?.pending_requests || 0), 0) },
-  ], [stats])
+  ]
 
   if (loading) {
     return (
@@ -114,29 +101,29 @@ export default function ManagerStatisticsPage() {
         </div>
 
         <div className="grid gap-5 xl:grid-cols-2">
-          <Chart title="Revenue Trend">
+          <Chart title="Revenue Trend" empty={!hasSignal(revenueData.length ? revenueData : (stats?.monthly_bookings || []), ['value', 'revenue'])}>
             <ResponsiveContainer width="100%" height={270}>
-              <AreaChart data={stats?.monthly_bookings || []}>
-                <XAxis dataKey="month" />
+              <AreaChart data={revenueData.length ? revenueData : (stats?.monthly_bookings || [])}>
+                <XAxis dataKey="name" />
                 <YAxis />
                 <Tooltip />
-                <Area type="monotone" dataKey="revenue" stroke="#E31837" fill="#FEE2E2" />
+                <Area type="monotone" dataKey="value" stroke="#E31837" fill="#FEE2E2" name="Revenue (₹)" />
+                <Area type="monotone" dataKey="revenue" stroke="#E31837" fill="#FEE2E2" name="Revenue (₹)" />
               </AreaChart>
             </ResponsiveContainer>
           </Chart>
-          <Chart title="Bookings By Status">
+          <Chart title="Bookings By Month" empty={!hasSignal(bookingsData.length ? bookingsData : (stats?.monthly_bookings || []), ['value', 'approved'])}>
             <ResponsiveContainer width="100%" height={270}>
-              <PieChart>
-                <Pie data={statusData} dataKey="value" innerRadius={65} outerRadius={100}>
-                  {statusData.map((item, index) => (
-                    <Cell key={item.name} fill={['#10B981', '#F59E0B', '#EF4444'][index]} />
-                  ))}
-                </Pie>
+              <BarChart data={bookingsData.length ? bookingsData : (stats?.monthly_bookings || [])}>
+                <XAxis dataKey="name" />
+                <YAxis />
                 <Tooltip />
-              </PieChart>
+                <Bar dataKey="value" fill="#1F2937" name="Bookings" />
+                <Bar dataKey="approved" fill="#10B981" name="Approved" />
+              </BarChart>
             </ResponsiveContainer>
           </Chart>
-          <Chart title="Top Performing Vehicles">
+          <Chart title="Top Performing Vehicles" empty={!hasSignal(perCar, ['net'])}>
             <ResponsiveContainer width="100%" height={270}>
               <BarChart data={perCar.slice(0, 6)} layout="vertical">
                 <XAxis type="number" />
@@ -146,7 +133,7 @@ export default function ManagerStatisticsPage() {
               </BarChart>
             </ResponsiveContainer>
           </Chart>
-          <Chart title="Average Rental Duration">
+          <Chart title="Average Rental Duration" empty={!hasSignal(perCar, ['trips'])}>
             <ResponsiveContainer width="100%" height={270}>
               <BarChart data={perCar.slice(0, 6).map((car) => ({ ...car, avg_days: car.trips ? 1 : 0 }))}>
                 <XAxis dataKey="title" hide />
@@ -192,11 +179,15 @@ export default function ManagerStatisticsPage() {
   )
 }
 
-function Chart({ title, children }) {
+function hasSignal(rows, keys) {
+  return rows.some((row) => keys.some((key) => Number(row?.[key] || 0) > 0))
+}
+
+function Chart({ title, empty, children }) {
   return (
     <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
       <h2 className="mb-4 font-black">{title}</h2>
-      {children}
+      {empty ? <div className="grid h-[270px] place-items-center rounded-md bg-zinc-50 text-sm font-black text-zinc-500">No data available</div> : children}
     </section>
   )
 }

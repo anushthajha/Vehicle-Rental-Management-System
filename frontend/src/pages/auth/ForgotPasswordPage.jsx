@@ -3,18 +3,30 @@ import { Loader2, MailCheck } from 'lucide-react'
 import AuthLayout from './AuthLayout'
 import api from '../../services/api'
 
+function validateEmail(value) {
+  if (!value?.trim()) return 'Email is required'
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())) return 'Enter a valid email address'
+  return null
+}
+
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
+  const [emailError, setEmailError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
 
   async function submit(event) {
     event.preventDefault()
+    const err = validateEmail(email)
+    if (err) {
+      setEmailError(err)
+      return
+    }
     setIsLoading(true)
     setError('')
     try {
-      await api.post('/auth/forgot-password', { email })
+      await api.post('/auth/forgot-password', { email: email.trim() })
       setSuccess(true)
     } catch (err) {
       setError(err.response?.data?.detail || 'Please wait before requesting another reset.')
@@ -36,9 +48,32 @@ export default function ForgotPasswordPage() {
           <>
             <h1 className="text-2xl font-black text-zinc-950">Forgot password</h1>
             <p className="mt-2 text-sm text-zinc-500">Enter your email and we'll send a secure reset link.</p>
-            {error && <div className="mt-5 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-            <label className="mt-6 block text-sm font-bold text-zinc-800">Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required className="mt-2 w-full rounded-md border-zinc-300" /></label>
-            <button type="submit" disabled={isLoading} className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-sigfleet px-4 font-bold text-white disabled:opacity-70">
+            {error && (
+              <div className="mt-5 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+            )}
+            <label className="mt-6 block text-sm font-bold text-zinc-800">
+              Email
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => {
+                  setEmail(event.target.value)
+                  if (emailError) setEmailError('')
+                }}
+                onBlur={() => setEmailError(validateEmail(email) || '')}
+                required
+                className={`mt-2 w-full rounded-md border-zinc-300 ${emailError ? 'border-red-500 bg-red-50' : ''}`}
+                placeholder="you@example.com"
+              />
+              {emailError && (
+                <span className="mt-1 block text-xs font-bold text-red-600">{emailError}</span>
+              )}
+            </label>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-sigfleet px-4 font-bold text-white disabled:opacity-70"
+            >
               {isLoading ? <Loader2 className="animate-spin" size={20} /> : 'Send reset link'}
             </button>
           </>

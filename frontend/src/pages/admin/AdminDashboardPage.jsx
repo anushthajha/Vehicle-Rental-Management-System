@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { ArrowDownRight, ArrowUpRight, Car as Vehicle, Headphones, IdCard, IndianRupee, Users, WalletCards } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { ArrowDownRight, ArrowUpRight, Car as Vehicle, ChevronRight, Headphones, IdCard, IndianRupee, TicketPercent, Users, WalletCards } from 'lucide-react'
 import {
   Area,
   AreaChart,
@@ -21,10 +21,11 @@ import { formatMoney, getAdmin, initials } from './adminApi'
 
 const colors = ['#E31837', '#111827', '#16A34A', '#F59E0B', '#2563EB']
 
-function StatCard({ title, value, subtitle, icon: Icon, trend = 'up' }) {
+function StatCard({ title, value, subtitle, icon: Icon, trend = 'up', to }) {
   const Trend = trend === 'down' ? ArrowDownRight : ArrowUpRight
+  const navigate = useNavigate()
   return (
-    <article className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+    <article onClick={() => to && navigate(to)} className="relative cursor-pointer rounded-lg border border-zinc-200 bg-white p-5 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-lg">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm font-bold text-zinc-500">{title}</p>
@@ -38,6 +39,7 @@ function StatCard({ title, value, subtitle, icon: Icon, trend = 'up' }) {
         <Trend size={16} />
         <span>{subtitle}</span>
       </div>
+      <ChevronRight className="absolute bottom-4 right-4 text-zinc-300" size={18} />
     </article>
   )
 }
@@ -112,14 +114,14 @@ export default function AdminDashboardPage() {
   return (
     <div className="space-y-6">
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Total Users" value={data.users.total} subtitle={`${data.users.new_this_week} new this week`} icon={Users} />
-        <StatCard title="Total Cars" value={data.vehicles.total} subtitle={`${data.vehicles.approved} approved`} icon={Vehicle} />
-        <StatCard title="Revenue This Month" value={formatMoney(data.revenue.this_month)} subtitle={`${formatMoney(data.revenue.this_week)} this week`} icon={IndianRupee} />
-        <StatCard title="Active Bookings Now" value={data.bookings.active_now} subtitle={`${data.bookings.this_month} this month`} icon={WalletCards} />
-        <StatCard title="Pending KYC" value={data.pending.kyc_count} subtitle="Needs review" icon={IdCard} trend={data.pending.kyc_count ? 'up' : 'down'} />
-        <StatCard title="Open Tickets" value={data.pending.support_tickets_count} subtitle="Support queue" icon={Headphones} trend={data.pending.support_tickets_count ? 'up' : 'down'} />
-        <StatCard title="Pending Vehicle Approvals" value={data.pending.car_approval_count} subtitle="Manager listings" icon={Vehicle} trend={data.pending.car_approval_count ? 'up' : 'down'} />
-        <StatCard title="Payout Requests" value={data.pending.payout_requests_count} subtitle="Manager payouts" icon={IndianRupee} trend={data.pending.payout_requests_count ? 'up' : 'down'} />
+        <StatCard title="Total Users" value={data.users.total} subtitle={`${data.users.new_this_week} new this week`} icon={Users} to="/admin/users" />
+        <StatCard title="Vehicle Managers" value={data.vehicle_managers?.total || data.managers?.total || 0} subtitle={`${data.vehicle_managers?.new_this_month || 0} new this month`} icon={Users} to="/admin/users/managers" />
+        <StatCard title="Total Vehicles" value={data.vehicles.total} subtitle={`${data.vehicles.approved} approved`} icon={Vehicle} to="/admin/vehicles" />
+        <StatCard title="Active Bookings" value={data.bookings.active_now} subtitle={`${data.bookings.this_month} this month`} icon={WalletCards} to="/admin/bookings" />
+        <StatCard title="Revenue Generated" value={formatMoney(data.revenue.total_revenue || data.revenue.total_all_time || 0)} subtitle={`${Number(data.revenue.revenue_growth_percent || 0).toFixed(1)}% this month`} icon={IndianRupee} trend={Number(data.revenue.revenue_growth_percent || 0) < 0 ? 'down' : 'up'} to="/admin/payments" />
+        <StatCard title="Pending KYC" value={data.pending.kyc_count} subtitle="Needs review" icon={IdCard} trend={data.pending.kyc_count ? 'up' : 'down'} to="/admin/kyc" />
+        <StatCard title="Support Tickets" value={data.pending.support_tickets_count} subtitle="Support queue" icon={Headphones} trend={data.pending.support_tickets_count ? 'up' : 'down'} to="/admin/support" />
+        <StatCard title="Coupons" value="Manage" subtitle="Promotions" icon={TicketPercent} trend="up" to="/admin/coupons" />
       </section>
 
       <section className="grid gap-5 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm xl:grid-cols-[1fr_1.1fr_0.9fr]">
@@ -134,12 +136,12 @@ export default function AdminDashboardPage() {
           </div>
         </div>
         <div className="h-56">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height={224}>
             <LineChart data={revenue}><Tooltip /><Line type="monotone" dataKey="platform_fee" stroke="#E31837" strokeWidth={3} dot={false} /><Line type="monotone" dataKey="manager_payouts" stroke="#111827" strokeWidth={2} dot={false} /></LineChart>
           </ResponsiveContainer>
         </div>
         <div className="h-56">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height={224}>
             <PieChart><Pie data={revenueBreakdown.length ? revenueBreakdown : [{ name: 'No revenue', value: 1 }]} dataKey="value" innerRadius={52} outerRadius={82}>{(revenueBreakdown.length ? revenueBreakdown : [{ name: 'No revenue' }]).map((entry, index) => <Cell key={entry.name} fill={colors[index % colors.length]} />)}</Pie><Tooltip /></PieChart>
           </ResponsiveContainer>
         </div>
@@ -147,22 +149,22 @@ export default function AdminDashboardPage() {
 
       <section className="grid gap-5 xl:grid-cols-2">
         <ChartCard title="Daily Bookings">
-          <ResponsiveContainer width="100%" height="85%">
+          <ResponsiveContainer width="100%" height={280}>
             <LineChart data={daily}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" hide /><YAxis allowDecimals={false} /><Tooltip /><Line type="monotone" dataKey="count" stroke="#E31837" strokeWidth={3} dot={false} /></LineChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="Monthly Revenue">
-          <ResponsiveContainer width="100%" height="85%">
+          <ResponsiveContainer width="100%" height={280}>
             <BarChart data={revenue}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" /><YAxis /><Tooltip /><Bar dataKey="platform_fee" stackId="a" fill="#E31837" /><Bar dataKey="manager_payouts" stackId="a" fill="#111827" /></BarChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="Booking Status">
-          <ResponsiveContainer width="100%" height="85%">
+          <ResponsiveContainer width="100%" height={280}>
             <PieChart><Pie data={statusData} dataKey="value" innerRadius={60} outerRadius={95} paddingAngle={3}>{statusData.map((entry, index) => <Cell key={entry.name} fill={colors[index % colors.length]} />)}</Pie><Tooltip /></PieChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="New Users">
-          <ResponsiveContainer width="100%" height="85%">
+          <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={users}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" /><YAxis allowDecimals={false} /><Tooltip /><Area type="monotone" dataKey="users" fill="#FEE2E2" stroke="#E31837" strokeWidth={3} /></AreaChart>
           </ResponsiveContainer>
         </ChartCard>

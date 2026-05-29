@@ -27,9 +27,10 @@ export function AdminPaymentsPage() {
     getAdmin('/payments', params)
       .then((data) => setRows(data.items || []))
       .catch(() => setRows([]))
+    // No return value — prevents "destroy is not a function" crash
   }
 
-  useEffect(load, [statusFilter])
+  useEffect(() => { load() }, [statusFilter])
 
   const filteredRows = rows.filter((row) => {
     const searchLower = search.toLowerCase()
@@ -116,8 +117,12 @@ export function AdminPaymentsPage() {
 
 export function AdminPayoutsPage() {
   const [rows, setRows] = useState([])
-  const load = () => getAdmin('/payouts', { limit: 50 }).then((data) => setRows(data.items || []))
-  useEffect(load, [])
+  const load = () => {
+    getAdmin('/payouts', { limit: 50 })
+      .then((data) => setRows(data.items || []))
+    // No return value — prevents "destroy is not a function" crash
+  }
+  useEffect(() => { load() }, [])
   const action = async (row, name) => {
     await patchAdmin(`/payouts/${row.id}/${name}`)
     toast.success('Payout updated')

@@ -25,14 +25,17 @@ from app.services.booking_flow import (
     get_or_create_wallet,
     mark_payment_paid,
     money,
+    sync_vehicle_availability,
 )
 from app.services.availability import AvailabilityService
 from app.services.pricing import calculate_booking_price
 from app.services.super_manager import check_and_update_super_manager
-from app.tasks.email_tasks import send_booking_cancelled_email, send_booking_request_to_manager_email
+from app.tasks.email_tasks import send_booking_cancelled_email, send_booking_confirmation_email, send_booking_request_to_manager_email
+from app.utils import email as email_utils
 from app.tasks.maintenance_tasks import send_review_request_task
 from app.utils.auth import get_current_active_user, require_customer, require_vehicle_manager, require_kyc_user
 from app.utils.validators import validate_booking_dates
+from app.routers.coupons import validate_coupon_for_user
 
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
@@ -46,6 +49,7 @@ class BookingPreviewRequest(BaseModel):
     return_datetime: datetime
     insurance_plan: str = "standard"
     coupon_code: str | None = None
+    with_chauffeur: bool = False
 
     @field_validator("pickup_datetime", "return_datetime", mode="before")
     @classmethod
@@ -73,6 +77,8 @@ class BookingPreviewRequest(BaseModel):
 
 class BookingCreateRequest(BookingPreviewRequest):
     customer_notes: str | None = Field(default=None, max_length=1000)
+    pickup_location: str | None = Field(default=None, max_length=500)
+    drop_location: str | None = Field(default=None, max_length=500)
 
 
 class RejectRequest(BaseModel):
@@ -150,30 +156,15 @@ async def _validate_dates(car: Vehicle, pickup: datetime, return_at: datetime) -
 async def _validate_coupon(db: AsyncSession, code: str | None, user: User | None, base_amount: float) -> tuple[Coupon | None, str | None]:
     if not code:
         return None, None
-    coupon = await db.scalar(select(Coupon).where(func.upper(Coupon.code) == code.upper()))
-    now = datetime.utcnow()
-    if coupon is None:
-        return None, "Coupon not found"
-    if not coupon.is_active:
-        return None, "Coupon is inactive"
-    if coupon.valid_from > now or coupon.valid_until < now:
-        return None, "Coupon has expired"
-    if coupon.usage_limit is not None and coupon.used_count >= coupon.usage_limit:
-        return None, "Coupon usage limit reached"
-    if base_amount < money(coupon.min_booking_amount):
-        return None, f"Minimum booking amount is ₹{money(coupon.min_booking_amount):.0f}"
-    if coupon.applicable_for == "new_users" and user is not None:
-        previous = await db.scalar(select(func.count()).select_from(Booking).where(Booking.customer_id == user.id))
-        if previous:
-            return None, "Coupon is only for new users"
-    return coupon, None
+    coupon, result = await validate_coupon_for_user(db, code, user, base_amount)
+    return coupon, None if result.get("valid") else result.get("message", "Invalid coupon")
 
 
 async def _price_breakdown(db: AsyncSession, car: Vehicle, payload: BookingPreviewRequest, user: User | None = None) -> tuple[dict, Coupon | None, str | None]:
     await _attach_pricing_rules(db, car)
-    raw = calculate_booking_price(car, payload.pickup_datetime, payload.return_datetime, payload.insurance_plan, payload.coupon_code)
+    raw = calculate_booking_price(car, payload.pickup_datetime, payload.return_datetime, payload.insurance_plan, payload.coupon_code, with_chauffeur=payload.with_chauffeur)
     coupon, coupon_error = await _validate_coupon(db, payload.coupon_code, user, raw["base_amount"])
-    breakdown = calculate_booking_price(car, payload.pickup_datetime, payload.return_datetime, payload.insurance_plan, payload.coupon_code, coupon)
+    breakdown = calculate_booking_price(car, payload.pickup_datetime, payload.return_datetime, payload.insurance_plan, payload.coupon_code, coupon, payload.with_chauffeur)
     breakdown["duration"] = AvailabilityService.calculate_rental_duration(payload.pickup_datetime, payload.return_datetime)
     return breakdown, coupon, coupon_error
 
@@ -229,12 +220,15 @@ def _booking_payload(booking: Booking, car: Vehicle, image: str | None, counterp
         "actual_pickup_time": _dt(booking.actual_pickup_time),
         "actual_return_time": _dt(booking.actual_return_time),
         "pickup_location": booking.pickup_location,
+        "drop_location": booking.drop_location,
         "total_hours": money(booking.total_hours),
         "base_amount": money(booking.base_amount),
         "discount_amount": money(booking.discount_amount),
         "insurance_amount": money(booking.insurance_amount),
         "insurance_plan": booking.insurance_plan,
         "security_deposit_amount": money(booking.security_deposit_amount),
+        "with_chauffeur": booking.with_chauffeur,
+        "chauffeur_fee": money(booking.chauffeur_fee),
         "total_amount": money(booking.total_amount),
         "platform_fee": money(booking.platform_fee),
         "manager_earnings": money(booking.manager_earnings),
@@ -306,7 +300,8 @@ async def create_booking(
         status="confirmed" if car.auto_accept_bookings else "pending",
         pickup_datetime=payload.pickup_datetime,
         return_datetime=payload.return_datetime,
-        pickup_location=car.location_address or f"{car.location_area or ''}, {car.location_city}".strip(", "),
+        pickup_location=payload.pickup_location or car.location_address or f"{car.location_area or ''}, {car.location_city}".strip(", "),
+        drop_location=payload.drop_location if payload.with_chauffeur else None,
         total_hours=Decimal(str(breakdown["duration_hours"])),
         base_amount=Decimal(str(breakdown["base_amount"])),
         discount_amount=Decimal(str(breakdown.get("discount_from_rules", 0))) + Decimal(str(breakdown.get("coupon_discount", 0))),
@@ -314,6 +309,8 @@ async def create_booking(
         insurance_amount=Decimal(str(breakdown["insurance_amount"])),
         insurance_plan=payload.insurance_plan,
         security_deposit_amount=Decimal(str(breakdown["security_deposit"])),
+        with_chauffeur=payload.with_chauffeur,
+        chauffeur_fee=Decimal(str(breakdown.get("chauffeur_fee", 0))),
         total_amount=Decimal(str(breakdown["total_amount"])),
         platform_fee=Decimal(str(breakdown["platform_fee"])),
         manager_earnings=Decimal(str(breakdown["manager_earnings"])),
@@ -336,6 +333,8 @@ async def create_booking(
         await mark_payment_paid(db, booking, payment, car, current_user, manager)
 
     await db.commit()
+    await sync_vehicle_availability(db, car.id)
+    await db.commit()
 
     if manager:
         notify_payload = booking_email_payload(booking, car) | {"customer_name": current_user.full_name}
@@ -345,6 +344,11 @@ async def create_booking(
             pass
         await create_notification(manager.id, "New booking request", f"{current_user.full_name} requested {car.title}.", "booking", action_url="/manager/bookings", meta={"booking_id": booking.id})
     await create_notification(current_user.id, "Booking request submitted", f"Booking {booking.booking_ref} was created.", "booking", action_url=f"/dashboard/bookings/{booking.id}", meta={"booking_id": booking.id})
+    confirmation_payload = booking_email_payload(booking, car)
+    try:
+        send_booking_confirmation_email.delay(current_user.email, confirmation_payload)
+    except Exception:
+        await email_utils.send_booking_confirmation_email(current_user.email, confirmation_payload)
 
     return {
         "booking_id": booking.id,
@@ -407,46 +411,191 @@ async def reject_booking(booking_id: str, payload: RejectRequest, current_user: 
 
 @router.post("/{booking_id}/cancel")
 async def cancel_booking(booking_id: str, payload: CancelRequest, current_user: User = Depends(require_customer), db: AsyncSession = Depends(get_db)):
+    """
+    Customer cancellation policy:
+    - Cancel >= 24 hours before pickup  → full refund (free cancellation)
+    - Cancel < 24 hours before pickup   → 10% cancellation charge (90% refund)
+    - Cancel after trip started (active) → no refund
+    """
     booking = await _booking_with_access(booking_id, current_user, db)
+    if booking.customer_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the customer can cancel their own booking")
     if booking.status in {"cancelled", "completed", "rejected"}:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Booking cannot be cancelled")
+    if booking.status == "active":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot cancel a trip that has already started")
+
     payment = await db.scalar(select(Payment).where(Payment.booking_id == booking.id))
-    is_manager_cancel = False
     refund = Decimal("0.00")
+    cancellation_charge = Decimal("0.00")
+    policy_applied = "no_charge"
+
     if payment and payment.status == "paid":
         hours_to_pickup = (booking.pickup_datetime - datetime.utcnow()).total_seconds() / 3600
-        if is_manager_cancel:
-            refund = Decimal(str(payment.amount))
-        elif hours_to_pickup > 48:
-            refund = Decimal(str(payment.amount)) * Decimal("0.90")
-        elif hours_to_pickup >= 24:
-            refund = Decimal(str(payment.amount)) * Decimal("0.50")
+        paid_amount = Decimal(str(payment.amount))
+
+        if hours_to_pickup >= 24:
+            # Free cancellation — full refund
+            refund = paid_amount
+            policy_applied = "full_refund"
+        else:
+            # Late cancellation — 10% charge, 90% refund
+            cancellation_charge = (paid_amount * Decimal("0.10")).quantize(Decimal("0.01"))
+            refund = (paid_amount - cancellation_charge).quantize(Decimal("0.01"))
+            policy_applied = "late_cancellation_10pct"
+
     booking.status = "cancelled"
     booking.cancellation_reason = payload.reason
     booking.cancelled_by = current_user.id
     booking.cancelled_at = datetime.utcnow()
     booking.refund_amount = refund.quantize(Decimal("0.01"))
     booking.refund_status = "processed" if refund > 0 else "not_applicable"
+
     if refund > 0:
         wallet = await get_or_create_wallet(db, booking.customer_id)
         wallet.balance = Decimal(str(wallet.balance)) + refund
-        add_wallet_transaction(db, booking.customer_id, "credit", refund, wallet.balance, f"Refund for {booking.booking_ref}", booking.id)
-    if is_manager_cancel:
-        profile = await db.scalar(select(ManagerProfile).where(ManagerProfile.user_id == booking.manager_id))
-        if profile:
-            profile.acceptance_rate = max(Decimal("0.00"), Decimal(str(profile.acceptance_rate)) - Decimal("2.00"))
+        desc = f"Full refund for cancelled booking {booking.booking_ref}" if policy_applied == "full_refund" else f"Partial refund (90%) for late cancellation {booking.booking_ref}"
+        add_wallet_transaction(db, booking.customer_id, "credit", refund, wallet.balance, desc, booking.id)
+
     car = await _load_car(db, booking.vehicle_id)
     customer = await db.scalar(select(User).where(User.id == booking.customer_id))
     manager = await db.scalar(select(User).where(User.id == booking.manager_id))
     await db.commit()
+    await sync_vehicle_availability(db, car.id)
+    await db.commit()
+
+    # Notifications
+    charge_note = f" A cancellation charge of ₹{money(cancellation_charge)} was applied." if cancellation_charge > 0 else ""
     for user in [customer, manager]:
         if user:
-            await create_notification(user.id, "Booking cancelled", f"{booking.booking_ref} was cancelled.", "booking", action_url=f"/dashboard/bookings/{booking.id}", meta={"booking_id": booking.id, "refund_amount": money(refund)})
+            await create_notification(
+                user.id,
+                "Booking cancelled",
+                f"{booking.booking_ref} was cancelled by customer.{charge_note} Refund: ₹{money(refund)}.",
+                "booking",
+                action_url=f"/dashboard/bookings/{booking.id}",
+                meta={"booking_id": booking.id, "refund_amount": money(refund), "cancellation_charge": money(cancellation_charge)},
+            )
             try:
                 send_booking_cancelled_email.delay(user.email, booking_email_payload(booking, car), money(refund))
             except Exception:
                 pass
-    return {"status": booking.status, "refund_amount": money(refund), "refund_status": booking.refund_status}
+
+    return {
+        "status": booking.status,
+        "refund_amount": money(refund),
+        "cancellation_charge": money(cancellation_charge),
+        "policy_applied": policy_applied,
+        "refund_status": booking.refund_status,
+        "message": (
+            f"Booking cancelled. Full refund of ₹{money(refund)} credited to your wallet."
+            if policy_applied == "full_refund"
+            else f"Booking cancelled. ₹{money(cancellation_charge)} cancellation charge applied. ₹{money(refund)} refunded to your wallet."
+            if refund > 0
+            else "Booking cancelled. No refund applicable."
+        ),
+    }
+
+
+@router.post("/{booking_id}/manager-cancel")
+async def manager_cancel_booking(booking_id: str, payload: CancelRequest, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
+    """
+    Manager cancellation policy:
+    - Manager cancels a confirmed/pending booking → customer gets 100% refund
+    - Manager also pays a cancellation fine: max(₹500, 10% of booking amount)
+      credited directly to the customer's wallet
+    - Manager's acceptance_rate is penalised (-5%)
+    """
+    booking = await _booking_with_access(booking_id, current_user, db)
+    if booking.manager_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the assigned manager can cancel this booking")
+    if booking.status not in {"pending", "confirmed"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only pending or confirmed bookings can be cancelled by the manager",
+        )
+
+    payment = await db.scalar(select(Payment).where(Payment.booking_id == booking.id))
+    refund = Decimal("0.00")
+    fine = Decimal("0.00")
+
+    if payment and payment.status == "paid":
+        paid_amount = Decimal(str(payment.amount))
+        # Full refund to customer
+        refund = paid_amount
+        # Fine = max(₹500, 10% of booking amount)
+        fine = max(Decimal("500.00"), (paid_amount * Decimal("0.10")).quantize(Decimal("0.01")))
+
+    booking.status = "cancelled"
+    booking.cancellation_reason = f"[Manager cancelled] {payload.reason}"
+    booking.cancelled_by = current_user.id
+    booking.cancelled_at = datetime.utcnow()
+    booking.refund_amount = refund.quantize(Decimal("0.01"))
+    booking.refund_status = "processed" if refund > 0 else "not_applicable"
+
+    # Credit full refund + fine to customer wallet
+    if refund > 0 or fine > 0:
+        customer_wallet = await get_or_create_wallet(db, booking.customer_id)
+        total_credit = refund + fine
+        customer_wallet.balance = Decimal(str(customer_wallet.balance)) + total_credit
+        if refund > 0:
+            add_wallet_transaction(
+                db, booking.customer_id, "credit", refund, customer_wallet.balance,
+                f"Full refund — manager cancelled booking {booking.booking_ref}", booking.id,
+            )
+        if fine > 0:
+            add_wallet_transaction(
+                db, booking.customer_id, "credit", fine, customer_wallet.balance,
+                f"Cancellation fine from manager — booking {booking.booking_ref}", booking.id,
+            )
+
+    # Penalise manager acceptance rate
+    profile = await db.scalar(select(ManagerProfile).where(ManagerProfile.user_id == booking.manager_id))
+    if profile:
+        profile.acceptance_rate = max(Decimal("0.00"), Decimal(str(profile.acceptance_rate)) - Decimal("5.00"))
+
+    car = await _load_car(db, booking.vehicle_id)
+    customer = await db.scalar(select(User).where(User.id == booking.customer_id))
+    manager = await db.scalar(select(User).where(User.id == booking.manager_id))
+    await db.commit()
+    await sync_vehicle_availability(db, car.id)
+    await db.commit()
+
+    # Notify customer
+    if customer:
+        await create_notification(
+            customer.id,
+            "Booking cancelled by manager",
+            f"Your booking {booking.booking_ref} was cancelled by the manager. "
+            f"Full refund ₹{money(refund)} + cancellation fine ₹{money(fine)} credited to your wallet.",
+            "booking",
+            action_url=f"/dashboard/bookings/{booking.id}",
+            meta={"booking_id": booking.id, "refund_amount": money(refund), "fine_amount": money(fine)},
+        )
+        try:
+            send_booking_cancelled_email.delay(customer.email, booking_email_payload(booking, car), money(refund + fine))
+        except Exception:
+            pass
+
+    # Notify manager
+    if manager:
+        await create_notification(
+            manager.id,
+            "You cancelled a booking",
+            f"You cancelled booking {booking.booking_ref}. "
+            f"Cancellation fine of ₹{money(fine)} was charged and credited to the customer.",
+            "booking",
+            action_url="/manager/bookings",
+            meta={"booking_id": booking.id, "fine_amount": money(fine)},
+        )
+
+    return {
+        "status": booking.status,
+        "refund_amount": money(refund),
+        "fine_amount": money(fine),
+        "total_credited_to_customer": money(refund + fine),
+        "message": f"Booking cancelled. Customer refunded ₹{money(refund)} + ₹{money(fine)} cancellation fine.",
+    }
 
 
 @router.patch("/{booking_id}/start-trip")
@@ -494,12 +643,95 @@ async def end_trip(booking_id: str, payload: EndTripRequest, current_user: User 
     customer = await db.scalar(select(User).where(User.id == booking.customer_id))
     await check_and_update_super_manager(booking.manager_id, db)
     await db.commit()
+    await sync_vehicle_availability(db, booking.vehicle_id)
+    await db.commit()
     if customer:
         try:
             send_review_request_task.apply_async(args=[booking.id], countdown=7200)
         except Exception:
             pass
     return {"status": booking.status, "extra_km_charged": money(booking.extra_km_charged)}
+
+
+async def _process_expired_pending_bookings(db: AsyncSession, booking_ids: list[str]) -> None:
+    """
+    Auto-expire pending bookings whose pickup time has passed.
+    
+    Rules:
+    - If booking.status == 'pending' AND booking.pickup_datetime < now:
+        - Mark as 'cancelled' with reason '[EXPIRED] Manager did not accept'
+        - If booking was created >= 24 hours before pickup AND payment was made:
+            - Customer gets full refund
+            - Manager gets a fine: max(₹500, 10% of booking amount) credited to customer wallet
+            - Manager acceptance_rate penalised -5%
+        - If booking was created < 24 hours before pickup:
+            - Customer gets full refund (no fine — customer booked too late)
+    """
+    now = datetime.utcnow()
+    for booking_id in booking_ids:
+        booking = await db.scalar(select(Booking).where(Booking.id == booking_id, Booking.status == "pending"))
+        if booking is None:
+            continue
+        if booking.pickup_datetime >= now:
+            continue  # Not expired yet
+
+        # This pending booking's pickup time has passed — auto-expire it
+        payment = await db.scalar(select(Payment).where(Payment.booking_id == booking.id))
+        refund = Decimal("0.00")
+        fine = Decimal("0.00")
+        fine_applied = False
+
+        if payment and payment.status == "paid":
+            paid_amount = Decimal(str(payment.amount))
+            refund = paid_amount  # Always full refund for expired pending
+
+            # Fine only if booking was created >= 24h before pickup
+            hours_advance = (booking.pickup_datetime - booking.created_at).total_seconds() / 3600
+            if hours_advance >= 24:
+                fine = max(Decimal("500.00"), (paid_amount * Decimal("0.10")).quantize(Decimal("0.01")))
+                fine_applied = True
+
+        booking.status = "cancelled"
+        booking.cancellation_reason = "[EXPIRED] Manager did not accept the booking in time"
+        booking.cancelled_at = now
+        booking.refund_amount = refund.quantize(Decimal("0.01"))
+        booking.refund_status = "processed" if refund > 0 else "not_applicable"
+
+        if refund > 0:
+            customer_wallet = await get_or_create_wallet(db, booking.customer_id)
+            customer_wallet.balance = Decimal(str(customer_wallet.balance)) + refund
+            add_wallet_transaction(
+                db, booking.customer_id, "credit", refund, customer_wallet.balance,
+                f"Full refund — manager did not accept booking {booking.booking_ref}", booking.id,
+            )
+
+        if fine_applied and fine > 0:
+            customer_wallet = await get_or_create_wallet(db, booking.customer_id)
+            customer_wallet.balance = Decimal(str(customer_wallet.balance)) + fine
+            add_wallet_transaction(
+                db, booking.customer_id, "credit", fine, customer_wallet.balance,
+                f"Manager non-acceptance fine for booking {booking.booking_ref}", booking.id,
+            )
+            # Penalise manager
+            profile = await db.scalar(select(ManagerProfile).where(ManagerProfile.user_id == booking.manager_id))
+            if profile:
+                profile.acceptance_rate = max(Decimal("0.00"), Decimal(str(profile.acceptance_rate)) - Decimal("5.00"))
+
+        # Notify customer
+        customer = await db.scalar(select(User).where(User.id == booking.customer_id))
+        if customer:
+            fine_note = f" Manager non-acceptance fine of ₹{money(fine)} also credited." if fine_applied else ""
+            await create_notification(
+                customer.id,
+                "Booking expired — manager did not respond",
+                f"Your booking {booking.booking_ref} expired because the manager did not accept it. "
+                f"Full refund of ₹{money(refund)} credited to your wallet.{fine_note}",
+                "booking",
+                action_url=f"/dashboard/bookings/{booking.id}",
+                meta={"booking_id": booking.id, "refund_amount": money(refund), "fine_amount": money(fine)},
+            )
+
+        await db.commit()
 
 
 @router.get("/")
@@ -517,6 +749,21 @@ async def list_bookings(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Customer access required.")
     if as_role == "vehicle_manager" and current_user.role not in {"vehicle_manager", "admin"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vehicle Manager access required.")
+
+    # Auto-expire any pending bookings whose pickup time has passed (for this user)
+    now = datetime.utcnow()
+    expired_pending = (
+        await db.execute(
+            select(Booking.id).where(
+                Booking.manager_id == current_user.id if as_role == "vehicle_manager" else Booking.customer_id == current_user.id,
+                Booking.status == "pending",
+                Booking.pickup_datetime < now,
+            )
+        )
+    ).scalars().all()
+    if expired_pending:
+        await _process_expired_pending_bookings(db, list(expired_pending))
+
     conditions = [Booking.customer_id == current_user.id] if as_role == "customer" else [Booking.manager_id == current_user.id]
     if status_filter:
         statuses = [item.strip() for item in status_filter.split(",") if item.strip()]
@@ -534,7 +781,16 @@ async def list_bookings(
         counterparty_id = booking.manager_id if as_role == "customer" else booking.customer_id
         counterparty = await db.scalar(select(User).where(User.id == counterparty_id))
         payment = await db.scalar(select(Payment).where(Payment.booking_id == booking.id))
-        items.append(_booking_payload(booking, car, image, counterparty, payment))
+        payload = _booking_payload(booking, car, image, counterparty, payment)
+        # Mark as history if return_datetime is in the past
+        payload["is_history"] = booking.return_datetime < now
+        # Mark as expired if it was a pending booking that auto-expired
+        payload["is_expired"] = (
+            booking.status == "cancelled"
+            and booking.cancellation_reason is not None
+            and "[EXPIRED]" in (booking.cancellation_reason or "")
+        )
+        items.append(payload)
     pages = math.ceil(total / limit) if total else 0
     return {"bookings": items, "total": total, "page": page, "pages": pages, "has_next": page < pages}
 

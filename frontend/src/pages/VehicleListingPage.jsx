@@ -12,6 +12,8 @@ import SearchBar from '../components/search/SearchBar'
 import { dateRangeLabel, DEFAULT_FILTERS, formatMoney, SORT_OPTIONS } from '../utils/searchData'
 import { useAuthStore } from '../context/AuthContext'
 import DashboardShell from './user/DashboardShell'
+import Navbar from '../components/layout/Navbar'
+import Pagination, { getStoredPagination, saveStoredPagination } from '../components/common/Pagination'
 
 const DEFAULT_CENTER = [12.9716, 77.5946]
 
@@ -53,7 +55,9 @@ export default function VehicleListingPage() {
   const filters = useMemo(() => filtersFromParams(searchParams), [searchParams])
   const [vehicles, setCars] = useState([])
   const [total, setTotal] = useState(0)
-  const [page, setPage] = useState(Number(searchParams.get('page') || 1))
+  const storedPagination = useMemo(() => getStoredPagination('vehicles', { itemsPerPage: 12, page: 1 }), [])
+  const [page, setPage] = useState(Number(searchParams.get('page') || storedPagination.page || 1))
+  const [itemsPerPage, setItemsPerPage] = useState(Number(searchParams.get('limit') || storedPagination.itemsPerPage || 12))
   const [pages, setPages] = useState(0)
   const [hasNext, setHasNext] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -96,8 +100,9 @@ export default function VehicleListingPage() {
     if (next.distance) query.set('radius_km', next.distance)
     if (next.sortBy) query.set('sort_by', next.sortBy)
     query.set('page', '1')
+    query.set('limit', itemsPerPage)
     setSearchParams(query)
-  }, [searchParams, setSearchParams])
+  }, [itemsPerPage, searchParams, setSearchParams])
 
   const activeCount = useMemo(() => {
     let count = 0
@@ -126,7 +131,7 @@ export default function VehicleListingPage() {
   const buildQuery = useCallback((nextPage) => {
     const query = new URLSearchParams(location.search)
     query.set('page', nextPage)
-    query.set('limit', viewMode === 'map' ? 50 : 12)
+    query.set('limit', viewMode === 'map' ? 50 : itemsPerPage)
     query.set('sort_by', filters.sortBy)
     query.set('availability', filters.availability ? 'true' : 'false')
     query.delete('min_rating')
@@ -139,7 +144,7 @@ export default function VehicleListingPage() {
       query.set('radius_km', mapBounds.radius)
     }
     return query
-  }, [filters.availability, filters.rating, filters.sortBy, location.search, mapBounds, viewMode])
+  }, [filters.availability, filters.rating, filters.sortBy, itemsPerPage, location.search, mapBounds, viewMode])
 
   const loadCars = useCallback(async (nextPage = 1, append = false) => {
     if (append) setLoadingMore(true)
@@ -151,7 +156,7 @@ export default function VehicleListingPage() {
       setCars((current) => append ? [...current, ...nextCars] : nextCars)
       setTotal(response.data.total || 0)
       setPage(response.data.page || nextPage)
-      setPages(response.data.pages || 0)
+      setPages(response.data.total_pages || response.data.pages || 0)
       setHasNext(Boolean(response.data.has_next))
       setBrandsAvailable(response.data.brands_available || [])
       setBrandCounts(response.data.filter_counts?.brands || {})
@@ -168,6 +173,10 @@ export default function VehicleListingPage() {
     loadCars(Number(searchParams.get('page') || 1), false)
   }, [queryKey, loadCars, searchParams])
 
+  useEffect(() => {
+    saveStoredPagination('vehicles', { itemsPerPage, page })
+  }, [itemsPerPage, page])
+
   function clearFilters() {
     const keep = new URLSearchParams()
     for (const key of ['city', 'pickup_date', 'return_date']) {
@@ -176,26 +185,80 @@ export default function VehicleListingPage() {
     }
     keep.set('availability', 'true')
     keep.set('page', '1')
+    keep.set('limit', itemsPerPage)
     setSearchParams(keep)
   }
 
   function goToPage(nextPage) {
     const query = new URLSearchParams(searchParams)
     query.set('page', nextPage)
+    query.set('limit', itemsPerPage)
     setSearchParams(query)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const city = searchParams.get('city') || 'Bengaluru'
+  function changeItemsPerPage(nextLimit) {
+    setItemsPerPage(nextLimit)
+    const query = new URLSearchParams(searchParams)
+    query.set('page', '1')
+    query.set('limit', nextLimit)
+    setSearchParams(query)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const city = searchParams.get('city') || ''
+  const hasCity = Boolean(city)
   const resultDates = dateRangeLabel(searchParams.get('pickup_date'), searchParams.get('return_date'))
-  const firstShown = total ? ((page - 1) * 12) + 1 : 0
-  const lastShown = Math.min(page * 12, total)
+  const firstShown = total ? ((page - 1) * itemsPerPage) + 1 : 0
+  const lastShown = Math.min(page * itemsPerPage, total)
+
+  // Heading: show city name if filtered, otherwise "across India"
+  const locationLabel = hasCity ? `in ${city}` : 'across India'
+
+  // Active vehicle type from URL
+  const activeTypeSlug = (searchParams.get('vehicle_type') || '').split(',')[0] || ''
+
+  function setVehicleType(slug) {
+    const query = new URLSearchParams(searchParams)
+    if (slug) query.set('vehicle_type', slug)
+    else query.delete('vehicle_type')
+    query.set('page', '1')
+    setSearchParams(query)
+  }
+
+  const TYPE_TABS = [
+    { slug: '', label: 'All', emoji: '🔍' },
+    { slug: 'car', label: 'Cars', emoji: '🚗' },
+    { slug: 'bike', label: 'Bikes', emoji: '🏍️' },
+    { slug: 'traveller', label: 'Travellers', emoji: '🚌' },
+  ]
 
   const pageContent = (
     <>
       <div className="sticky top-0 z-30 border-b border-zinc-200 bg-zinc-50/95 p-3 backdrop-blur">
         <div className="mx-auto max-w-[1500px]">
           <SearchBar compact />
+        </div>
+      </div>
+
+      {/* Vehicle type tab bar */}
+      <div className="border-b border-zinc-200 bg-white px-3">
+        <div className="mx-auto max-w-[1500px]">
+          <div className="flex gap-1 overflow-x-auto py-2 scrollbar-none" style={{ scrollbarWidth: 'none' }}>
+            {TYPE_TABS.map(({ slug, label, emoji }) => (
+              <button
+                key={slug}
+                onClick={() => setVehicleType(slug)}
+                className={`inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-black transition ${
+                  activeTypeSlug === slug
+                    ? 'bg-[#E31837] text-white shadow-sm'
+                    : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                }`}
+              >
+                <span>{emoji}</span> {label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -207,8 +270,20 @@ export default function VehicleListingPage() {
         <section className="min-w-0">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-black text-zinc-950">{total} vehicles in {city}{resultDates ? ` for ${resultDates}` : ''}</h1>
-              <p className="mt-1 text-sm font-semibold text-zinc-500">Showing {firstShown}-{lastShown} of {total} vehicles</p>
+              <h1 className="text-2xl font-black text-zinc-950">
+                {total} {activeTypeSlug === 'bike' ? 'bike' : activeTypeSlug === 'traveller' ? 'traveller' : 'vehicle'}{total !== 1 ? 's' : ''} {locationLabel}
+                {resultDates ? ` for ${resultDates}` : ''}
+              </h1>
+              {!hasCity && (
+                <p className="mt-1 text-sm font-bold text-amber-700 flex items-center gap-1">
+                  <span>📍</span> Use the City field above to filter by your city
+                </p>
+              )}
+              {hasCity && (
+                <p className="mt-1 text-sm font-semibold text-zinc-500">
+                  Showing {firstShown}–{lastShown} of {total} vehicles
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <select className="input hidden h-10 w-44 lg:block" value={filters.sortBy} onChange={(event) => updateFilters({ sortBy: event.target.value })}>
@@ -245,8 +320,15 @@ export default function VehicleListingPage() {
           {loadingMore && <div className="grid h-20 place-items-center"><Loader2 className="animate-spin text-sigfleet" /></div>}
           {!loading && !error && vehicles.length > 0 && (
             <>
-              <div className="mt-6 hidden justify-center gap-2 lg:flex">
-                <Pagination page={page} pages={pages} onPage={goToPage} />
+              <div className="mt-6">
+                <Pagination
+                  currentPage={page}
+                  totalItems={total}
+                  itemsPerPage={itemsPerPage}
+                  onPageChange={goToPage}
+                  onItemsPerPageChange={changeItemsPerPage}
+                  itemLabel="vehicles"
+                />
               </div>
               {hasNext && (
                 <div className="mt-6 grid lg:hidden">
@@ -281,10 +363,10 @@ export default function VehicleListingPage() {
 
   if (user?.role === 'customer') {
     return (
-      <DashboardShell title={`Vehicles in ${city}`} eyebrow="Search">
+      <DashboardShell title={hasCity ? `Vehicles in ${city}` : 'Vehicles across India'} eyebrow="Search">
         <Helmet>
-          <title>{`Vehicles — ${city} | SigFleet`}</title>
-          <meta name="description" content={`Find self-drive rental vehicles in ${city} with exact search filters, availability, and pagination.`} />
+          <title>{hasCity ? `Vehicles — ${city}` : 'Vehicles across India'} | SigFleet</title>
+          <meta name="description" content={`Find self-drive rental vehicles ${locationLabel} with exact search filters, availability, and pagination.`} />
         </Helmet>
         {pageContent}
       </DashboardShell>
@@ -294,32 +376,35 @@ export default function VehicleListingPage() {
   return (
     <main id="main-content" className="min-h-screen bg-zinc-50">
       <Helmet>
-        <title>{`Vehicles — ${city} | SigFleet`}</title>
-        <meta name="description" content={`Find self-drive rental vehicles in ${city} with exact search filters, availability, and pagination.`} />
+        <title>{hasCity ? `Vehicles — ${city}` : 'Vehicles across India'} | SigFleet</title>
+        <meta name="description" content={`Find self-drive rental vehicles ${locationLabel} with exact search filters, availability, and pagination.`} />
       </Helmet>
-      {pageContent}
+      {/* Solid white navbar for non-hero pages — always visible */}
+      <header className="sticky top-0 z-50 border-b border-zinc-200 bg-white shadow-sm">
+        <nav className="mx-auto flex min-h-[64px] max-w-7xl items-center justify-between px-4">
+          <Link to="/" className="flex items-center">
+            <span className="text-2xl font-black text-zinc-900">Sig<span className="text-[#E31837]">Fleet</span></span>
+          </Link>
+          <div className="flex items-center gap-4">
+            <Link to="/vehicles" className="text-sm font-black text-zinc-800 hover:text-[#E31837]">Browse Vehicles</Link>
+            <Link to="/how-it-works" className="text-sm font-black text-zinc-800 hover:text-[#E31837]">How it Works</Link>
+            {!user ? (
+              <div className="flex items-center gap-2">
+                <Link to="/auth/login" className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-black text-zinc-900 hover:bg-zinc-50">Login</Link>
+                <Link to="/auth/register" className="rounded-md bg-[#E31837] px-4 py-2 text-sm font-black text-white">Register</Link>
+              </div>
+            ) : (
+              <Link to={user.role === 'customer' ? '/customer/dashboard' : user.role === 'vehicle_manager' ? '/manager/dashboard' : '/admin/dashboard'} className="rounded-md bg-[#E31837] px-4 py-2 text-sm font-black text-white">
+                Dashboard
+              </Link>
+            )}
+          </div>
+        </nav>
+      </header>
+      <div>
+        {pageContent}
+      </div>
     </main>
-  )
-}
-
-function Pagination({ page, pages, onPage }) {
-  const items = Array.from({ length: pages }, (_, index) => index + 1).filter((item) => item === 1 || item === pages || Math.abs(item - page) <= 2)
-  let previous = 0
-  return (
-    <nav className="flex items-center gap-2" aria-label="Vehicle pagination">
-      <button disabled={page <= 1} onClick={() => onPage(page - 1)} className="rounded-md border border-zinc-300 px-4 py-2 font-black disabled:opacity-40">Prev</button>
-      {items.map((item) => {
-        const gap = item - previous > 1
-        previous = item
-        return (
-          <React.Fragment key={item}>
-            {gap && <span className="px-1 font-black text-zinc-400">...</span>}
-            <button onClick={() => onPage(item)} className={`h-10 min-w-10 rounded-md border px-3 font-black ${item === page ? 'border-sigfleet bg-sigfleet text-white' : 'border-zinc-300 bg-white text-zinc-800'}`}>{item}</button>
-          </React.Fragment>
-        )
-      })}
-      <button disabled={page >= pages} onClick={() => onPage(page + 1)} className="rounded-md border border-zinc-300 px-4 py-2 font-black disabled:opacity-40">Next</button>
-    </nav>
   )
 }
 

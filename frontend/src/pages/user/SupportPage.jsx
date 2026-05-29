@@ -24,10 +24,15 @@ export default function SupportPage() {
 
   async function loadTickets() {
     setLoading(true)
-    const response = await api.get('/support/tickets')
-    setTickets(response.data.tickets || [])
-    setLoading(false)
-    if (!selectedId && response.data.tickets?.[0]) setSelectedId(response.data.tickets[0].id)
+    try {
+      const response = await api.get('/support/tickets')
+      setTickets(response.data.tickets || [])
+      if (!selectedId && response.data.tickets?.[0]) setSelectedId(response.data.tickets[0].id)
+    } catch {
+      setTickets([])
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { loadTickets() }, [])

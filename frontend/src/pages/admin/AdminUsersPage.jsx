@@ -17,7 +17,8 @@ export default function AdminUsersPage({ initialTab = 'customers' }) {
   const load = () => {
     const params = {
       search: filters.search || undefined,
-      role: filters.role || (tab === 'customers' ? 'customer' : tab === 'managers' ? 'vehicle_manager' : undefined),
+      // Always filter by role based on tab — customers tab ONLY shows customers
+      role: tab === 'managers' ? 'vehicle_manager' : 'customer',
       is_active: filters.is_active === '' ? undefined : filters.is_active === 'true',
       limit: 50,
     }
@@ -38,7 +39,9 @@ export default function AdminUsersPage({ initialTab = 'customers' }) {
     try {
       await putAdmin(`/users/${user.id}/status`, { is_active: active })
       toast.success(active ? 'User reactivated' : 'User suspended')
-      load()
+      setRows((current) => current.map((row) => (
+        row.id === user.id ? { ...row, is_active: active, account_active: active, status: active ? 'active' : 'suspended' } : row
+      )))
     } catch (error) {
       toast.error(error?.message || 'Failed to update user status')
     }
@@ -95,7 +98,9 @@ export default function AdminUsersPage({ initialTab = 'customers' }) {
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-white p-2 shadow-sm">
         <div className="flex gap-1">
-          {[['customers', 'Customers'], ['managers', 'Vehicle Managers'], ['all', 'All Users']].map(([key, label]) => <button key={key} onClick={() => { setTab(key); setFilters((value) => ({ ...value, role: '' })) }} className={`rounded-md px-4 py-2 text-sm font-black ${tab === key ? 'bg-[#E31837] text-white' : 'text-zinc-600 hover:bg-zinc-100'}`}>{label}</button>)}
+          {[['customers', 'Customers'], ['managers', 'Vehicle Managers']].map(([key, label]) => (
+            <button key={key} onClick={() => { setTab(key); setFilters((value) => ({ ...value, role: '' })) }} className={`rounded-md px-4 py-2 text-sm font-black ${tab === key ? 'bg-[#E31837] text-white' : 'text-zinc-600 hover:bg-zinc-100'}`}>{label}</button>
+          ))}
         </div>
         {tab === 'managers' && <Link to="/admin/users/managers/create" className="rounded-md bg-zinc-950 px-4 py-2 text-sm font-black text-white">+ Create Vehicle Manager</Link>}
       </div>
@@ -105,9 +110,6 @@ export default function AdminUsersPage({ initialTab = 'customers' }) {
           <Search className="absolute left-3 top-3 text-zinc-400" size={18} />
           <input className="input pl-10" placeholder="Search name, email, phone" value={filters.search} onChange={(event) => setFilters((value) => ({ ...value, search: event.target.value }))} onKeyDown={(event) => event.key === 'Enter' && load()} />
         </div>
-        <select className="input w-44" value={filters.role} onChange={(event) => setFilters((value) => ({ ...value, role: event.target.value }))}>
-          <option value="">All roles</option><option value="customer">Customer</option><option value="vehicle_manager">Vehicle Manager</option><option value="admin">Admin</option>
-        </select>
         <select className="input w-44" value={filters.is_active} onChange={(event) => setFilters((value) => ({ ...value, is_active: event.target.value }))}>
           <option value="">All status</option><option value="true">Active</option><option value="false">Suspended</option>
         </select>
@@ -210,7 +212,7 @@ function ManagerTable({ rows, openDetails, suspend, setRoleUser, handleDemote, h
               <td className="p-4 font-bold">{manager.vehicles_count || manager.cars_count || 0}</td>
               <td className="p-4 font-bold">{manager.active_bookings || 0}</td>
               <td className="p-4 font-black">{formatMoney(manager.revenue || 0)}</td>
-              <td className="p-4"><Badge value={manager.is_active ? 'active' : 'suspended'} /></td>
+              <td className="p-4"><Badge value={manager.status || (manager.is_active ? 'active' : 'suspended')} /></td>
               <td className="p-4 overflow-visible relative">
                 <div className="flex gap-2 items-center">
                   <TooltipButton icon={Eye} tooltip="View Details" onClick={() => openDetails(manager)} />
@@ -259,7 +261,7 @@ function Info({ label, value }) {
 }
 
 function RoleModal({ user, onClose, onSaved }) {
-  const [role, setRole] = useState(user.role)
+  const [role, setRole] = useState(user.role || 'customer')
   const save = async () => {
     await patchAdmin(`/users/${user.id}`, { role })
     toast.success('Role updated')

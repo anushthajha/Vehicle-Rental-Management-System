@@ -18,12 +18,21 @@ export default function KYCPage() {
 
   async function loadStatus() {
     setLoading(true)
-    const response = await api.get('/kyc/status')
-    setKyc(response.data)
-    if (response.data.record) {
-      setForm({ dl_number: response.data.record.dl_number || '', aadhar_number: response.data.record.aadhar_number || '' })
+    try {
+      const response = await api.get('/kyc/status')
+      setKyc(response.data)
+      if (response.data.record) {
+        setForm({ dl_number: response.data.record.dl_number || '', aadhar_number: response.data.record.aadhar_number || '' })
+      }
+    } catch (err) {
+      if (err.status === 404 || err.response?.status === 404) {
+        setKyc({ status: 'not_submitted', record: null })
+      } else {
+        toast.error('Failed to load KYC status. Please refresh.')
+      }
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   async function submit(event) {
@@ -36,7 +45,7 @@ export default function KYCPage() {
     try {
       const endpoint = kyc?.status === 'rejected' ? '/kyc/resubmit' : '/kyc/submit'
       const response = await api.post(endpoint, data)
-      toast.success(response.data.message)
+      toast.success(response.data?.message || 'KYC submitted successfully.')
       setFiles(initialFiles)
       await loadStatus()
     } catch (err) {
@@ -63,9 +72,41 @@ export default function KYCPage() {
 }
 
 function KYCForm({ form, setForm, files, setFiles, onSubmit, submitting, rejected = false }) {
-  const isComplete = form.dl_number.trim() && cleanDigits(form.aadhar_number).length >= 12 && Object.values(files).every(Boolean)
+  const [fieldErrors, setFieldErrors] = useState({})
+
+  function validateForm() {
+    const errors = {}
+    if (!form.dl_number.trim() || form.dl_number.trim().length < 8) {
+      errors.dl_number = 'Driving licence number must be at least 8 characters'
+    }
+    const digits = cleanDigits(form.aadhar_number)
+    if (digits.length !== 12) {
+      errors.aadhar_number = 'Aadhaar number must be exactly 12 digits'
+    }
+    if (!files.dl_front) errors.dl_front = 'DL front image is required'
+    if (!files.dl_back) errors.dl_back = 'DL back image is required'
+    if (!files.aadhar_front) errors.aadhar_front = 'Aadhaar front image is required'
+    if (!files.aadhar_back) errors.aadhar_back = 'Aadhaar back image is required'
+    return errors
+  }
+
+  function handleSubmit(event) {
+    event.preventDefault()
+    const errors = validateForm()
+    if (Object.keys(errors).length) {
+      setFieldErrors(errors)
+      return
+    }
+    setFieldErrors({})
+    onSubmit(event)
+  }
+
+  const isComplete = form.dl_number.trim().length >= 8
+    && cleanDigits(form.aadhar_number).length === 12
+    && Object.values(files).every(Boolean)
+
   return (
-    <form onSubmit={onSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <section className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
         <h2 className="text-2xl font-black">{rejected ? 'Resubmit Documents' : 'Verify Your Identity'}</h2>
         <div className="mt-5 grid gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm font-bold text-blue-950 md:grid-cols-3">
@@ -76,15 +117,70 @@ function KYCForm({ form, setForm, files, setFiles, onSubmit, submitting, rejecte
       </section>
 
       <DocumentSection title="Driver's License">
-        <label className="block md:col-span-2"><span className="label">DL Number</span><input className="input mt-1 h-11" value={form.dl_number} onChange={(event) => setForm((current) => ({ ...current, dl_number: event.target.value }))} placeholder="e.g. DL-0420110012345" /></label>
-        <FileUpload label="Front side" file={files.dl_front} onFile={(file) => setFiles((current) => ({ ...current, dl_front: file }))} />
-        <FileUpload label="Back side" file={files.dl_back} onFile={(file) => setFiles((current) => ({ ...current, dl_back: file }))} />
+        <div className="md:col-span-2">
+          <label className="block">
+            <span className="label">DL Number</span>
+            <input
+              className={`input mt-1 h-11 ${fieldErrors.dl_number ? 'border-red-500 bg-red-50' : ''}`}
+              value={form.dl_number}
+              onChange={(event) => {
+                setForm((current) => ({ ...current, dl_number: event.target.value }))
+                if (fieldErrors.dl_number) setFieldErrors((e) => ({ ...e, dl_number: undefined }))
+              }}
+              onBlur={() => {
+                if (form.dl_number.trim().length > 0 && form.dl_number.trim().length < 8) {
+                  setFieldErrors((e) => ({ ...e, dl_number: 'DL number must be at least 8 characters' }))
+                }
+              }}
+              placeholder="e.g. DL-0420110012345"
+            />
+            {fieldErrors.dl_number && (
+              <span className="mt-1 block text-xs font-bold text-red-600">{fieldErrors.dl_number}</span>
+            )}
+          </label>
+        </div>
+        <div>
+          <FileUpload label="Front side *" file={files.dl_front} onFile={(file) => { setFiles((current) => ({ ...current, dl_front: file })); setFieldErrors((e) => ({ ...e, dl_front: undefined })) }} />
+          {fieldErrors.dl_front && <span className="mt-1 block text-xs font-bold text-red-600">{fieldErrors.dl_front}</span>}
+        </div>
+        <div>
+          <FileUpload label="Back side *" file={files.dl_back} onFile={(file) => { setFiles((current) => ({ ...current, dl_back: file })); setFieldErrors((e) => ({ ...e, dl_back: undefined })) }} />
+          {fieldErrors.dl_back && <span className="mt-1 block text-xs font-bold text-red-600">{fieldErrors.dl_back}</span>}
+        </div>
       </DocumentSection>
 
       <DocumentSection title="Aadhaar Card">
-        <label className="block md:col-span-2"><span className="label">Aadhaar Number</span><input className="input mt-1 h-11" value={maskedAadhaar(form.aadhar_number)} onChange={(event) => setForm((current) => ({ ...current, aadhar_number: cleanDigits(event.target.value).slice(0, 12) }))} placeholder="12-digit Aadhaar number" /></label>
-        <FileUpload label="Front side" file={files.aadhar_front} onFile={(file) => setFiles((current) => ({ ...current, aadhar_front: file }))} />
-        <FileUpload label="Back side" file={files.aadhar_back} onFile={(file) => setFiles((current) => ({ ...current, aadhar_back: file }))} />
+        <div className="md:col-span-2">
+          <label className="block">
+            <span className="label">Aadhaar Number</span>
+            <input
+              className={`input mt-1 h-11 ${fieldErrors.aadhar_number ? 'border-red-500 bg-red-50' : ''}`}
+              value={maskedAadhaar(form.aadhar_number)}
+              onChange={(event) => {
+                setForm((current) => ({ ...current, aadhar_number: cleanDigits(event.target.value).slice(0, 12) }))
+                if (fieldErrors.aadhar_number) setFieldErrors((e) => ({ ...e, aadhar_number: undefined }))
+              }}
+              onBlur={() => {
+                const digits = cleanDigits(form.aadhar_number)
+                if (digits.length > 0 && digits.length !== 12) {
+                  setFieldErrors((e) => ({ ...e, aadhar_number: 'Aadhaar number must be exactly 12 digits' }))
+                }
+              }}
+              placeholder="12-digit Aadhaar number"
+            />
+            {fieldErrors.aadhar_number && (
+              <span className="mt-1 block text-xs font-bold text-red-600">{fieldErrors.aadhar_number}</span>
+            )}
+          </label>
+        </div>
+        <div>
+          <FileUpload label="Front side *" file={files.aadhar_front} onFile={(file) => { setFiles((current) => ({ ...current, aadhar_front: file })); setFieldErrors((e) => ({ ...e, aadhar_front: undefined })) }} />
+          {fieldErrors.aadhar_front && <span className="mt-1 block text-xs font-bold text-red-600">{fieldErrors.aadhar_front}</span>}
+        </div>
+        <div>
+          <FileUpload label="Back side *" file={files.aadhar_back} onFile={(file) => { setFiles((current) => ({ ...current, aadhar_back: file })); setFieldErrors((e) => ({ ...e, aadhar_back: undefined })) }} />
+          {fieldErrors.aadhar_back && <span className="mt-1 block text-xs font-bold text-red-600">{fieldErrors.aadhar_back}</span>}
+        </div>
       </DocumentSection>
 
       <button disabled={!isComplete || submitting} className="inline-flex h-12 items-center rounded-md bg-sigfleet px-6 font-black text-white disabled:opacity-50">

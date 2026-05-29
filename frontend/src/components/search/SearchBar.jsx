@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import DatePicker from 'react-datepicker'
 import { CalendarDays, Clock, MapPin, Search } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { addHours, CITIES, formatDuration, TOP_CITIES } from '../../utils/searchData'
+import { addHours, CITIES, formatDuration } from '../../utils/searchData'
 
 function parseDate(value, fallback = null) {
   const parsed = value ? new Date(value) : null
@@ -14,8 +14,8 @@ export default function SearchBar({ className = '', compact = false }) {
   const location = useLocation()
   const params = useMemo(() => new URLSearchParams(location.search), [location.search])
   const [q, setQ] = useState(params.get('q') || '')
-  const [city, setCity] = useState(params.get('city') || 'Bengaluru')
-  const [cityDraft, setCityDraft] = useState(params.get('city') || 'Bengaluru')
+  const [city, setCity] = useState(params.get('city') || '')
+  const [cityDraft, setCityDraft] = useState(params.get('city') || '')
   const [pickup, setPickup] = useState(parseDate(params.get('pickup_date') || params.get('start_date')))
   const [returnAt, setReturnAt] = useState(parseDate(params.get('return_date') || params.get('end_date')))
 
@@ -47,11 +47,13 @@ export default function SearchBar({ className = '', compact = false }) {
 
   function submit(event) {
     event.preventDefault()
-    const keepExisting = location.pathname === '/vehicles' || location.pathname === '/vehicles'
+    const keepExisting = location.pathname === '/vehicles'
     const query = new URLSearchParams(keepExisting ? location.search : '')
     if (q.trim()) query.set('q', q.trim())
     else query.delete('q')
-    query.set('city', city)
+    // Only set city if user actually typed one
+    if (city.trim()) query.set('city', city.trim())
+    else query.delete('city')
     if (pickup) query.set('pickup_date', pickup.toISOString())
     else query.delete('pickup_date')
     if (returnAt) query.set('return_date', returnAt.toISOString())
@@ -75,32 +77,17 @@ export default function SearchBar({ className = '', compact = false }) {
           />
         </div>
         <div>
-          <label className="label flex items-center gap-2"><MapPin size={16} /> City</label>
+          <label className="label flex items-center gap-2"><MapPin size={16} /> City <span className="text-xs font-normal text-zinc-400">(optional — leave blank for all India)</span></label>
           <input
             className="input mt-2 h-12"
             list="sigfleet-cities"
             value={cityDraft}
             onChange={(event) => setCityDraft(event.target.value)}
-            placeholder="Select city"
+            placeholder="e.g. Bengaluru, Mumbai, Delhi…"
           />
           <datalist id="sigfleet-cities">
             {CITIES.map((item) => <option key={item} value={item} />)}
           </datalist>
-          <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
-            {TOP_CITIES.map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => {
-                  setCityDraft(item)
-                  setCity(item)
-                }}
-                className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold ${city === item ? 'border-sigfleet bg-red-50 text-sigfleet' : 'border-zinc-200 bg-zinc-50 text-zinc-600'}`}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
         </div>
         <div>
           <label className="label flex items-center gap-2"><CalendarDays size={16} /> Pickup</label>

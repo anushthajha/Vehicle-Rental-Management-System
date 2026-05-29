@@ -42,17 +42,21 @@ export default function Navbar() {
 
   const role = user?.role
   const nav = role === 'admin'
-    ? [['Dashboard', '/admin/dashboard'], ['Users', '/admin/users'], ['Vehicles', '/admin/vehicles'], ['Bookings', '/admin/bookings'], ['Analytics', '/admin/analytics']]
+    ? [['Dashboard', '/admin/dashboard'], ['Users', '/admin/users'], ['Vehicles', '/admin/vehicles'], ['Bookings', '/admin/bookings']]
     : role === 'vehicle_manager'
       ? [['My Vehicles', '/manager/vehicles'], ['Bookings', '/manager/bookings'], ['Availability', '/manager/vehicles']]
-      : [['Browse Vehicles', '/vehicles'], ['How it Works', '/how-it-works'], ['Support Ticket', '/contact']]
+      : [['Browse Vehicles', '/vehicles'], ['How it Works', '/how-it-works']]
+
+  // Support ticket link — requires login
+  const supportPath = user ? '/customer/support' : null
 
   const dashboardPath = roleDashboards[role] || '/'
 
   const logoutAndGo = () => {
     logout()
     toast.success('Logged out')
-    navigate('/')
+    setDrawer(false)
+    navigate('/', { replace: true })
   }
 
   const headerTone = scrolled
@@ -68,6 +72,20 @@ export default function Navbar() {
         </Link>
         <div className="hidden items-center gap-8 md:flex">
           {nav.map(([label, to]) => <NavLink key={to} to={to} className={({ isActive }) => `text-sm font-black ${isActive ? 'text-[#E31837]' : scrolled ? 'text-zinc-800 hover:text-[#E31837]' : 'text-white hover:text-white/80'}`}>{label}</NavLink>)}
+          {/* Support Ticket — requires login */}
+          {!role && (
+            <button
+              onClick={() => navigate('/auth/login', { state: { from: '/contact' } })}
+              className={`text-sm font-black ${scrolled ? 'text-zinc-800 hover:text-[#E31837]' : 'text-white hover:text-white/80'}`}
+            >
+              Support Ticket
+            </button>
+          )}
+          {role === 'customer' && (
+            <NavLink to="/customer/support" className={({ isActive }) => `text-sm font-black ${isActive ? 'text-[#E31837]' : scrolled ? 'text-zinc-800 hover:text-[#E31837]' : 'text-white hover:text-white/80'}`}>
+              Support
+            </NavLink>
+          )}
         </div>
         <div className="hidden items-center gap-3 md:flex">
           {user ? (
@@ -114,7 +132,6 @@ export default function Navbar() {
                         <MenuItem to="/admin/dashboard">Admin Dashboard</MenuItem>
                         <MenuItem to="/admin/users">User Management</MenuItem>
                         <MenuItem to="/admin/vehicles">Vehicles</MenuItem>
-                        <MenuItem to="/admin/analytics">Analytics</MenuItem>
                       </>
                     )}
                     <div className="my-1 border-t border-zinc-100" />
@@ -140,6 +157,7 @@ export default function Navbar() {
           <Dialog.Overlay className="fixed inset-0 z-[70] bg-black/45 md:hidden" />
           <Dialog.Content className="fixed bottom-0 right-0 top-0 z-[71] w-[min(88vw,22rem)] bg-white p-5 shadow-2xl transition md:hidden">
             <Dialog.Title className="sr-only">Navigation menu</Dialog.Title>
+            <Dialog.Description className="sr-only">Main navigation links and account options.</Dialog.Description>
             <div className="flex items-center justify-between">
               <Link to="/" onClick={() => setDrawer(false)}>
                 <SigFleetLogo textClassName="text-zinc-950" />
@@ -148,6 +166,15 @@ export default function Navbar() {
             </div>
             <div className="mt-8 grid gap-2">
               {nav.map(([label, to]) => <Link key={to} to={to} onClick={() => setDrawer(false)} className="rounded-md px-3 py-3 font-black text-zinc-800 hover:bg-zinc-100">{label}</Link>)}
+              {/* Support Ticket — requires login */}
+              {!user && (
+                <button
+                  onClick={() => { setDrawer(false); navigate('/auth/login', { state: { from: '/contact' } }) }}
+                  className="rounded-md px-3 py-3 text-left font-black text-zinc-800 hover:bg-zinc-100"
+                >
+                  Support Ticket
+                </button>
+              )}
               {user ? (
                 <>
                   <Link to="/dashboard/notifications" onClick={() => setDrawer(false)} className="flex items-center justify-between rounded-md px-3 py-3 font-black text-zinc-800">Notifications <span className="rounded-full bg-sigfleet px-2 py-0.5 text-xs text-white">{unread}</span></Link>

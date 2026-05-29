@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.booking import Booking
@@ -12,6 +12,9 @@ from app.models.user import User
 from app.mongo_models.notification import create_notification
 from app.tasks.email_tasks import send_booking_confirmation_email
 from app.tasks.maintenance_tasks import send_trip_reminder_task
+from app.utils import email as email_utils
+
+BLOCKING_STATUSES = ("pending", "confirmed", "active")
 
 
 def money(value) -> float:
@@ -29,6 +32,26 @@ async def get_or_create_wallet(db: AsyncSession, user_id: str) -> UserWallet:
         db.add(wallet)
         await db.flush()
     return wallet
+
+
+async def sync_vehicle_availability(db: AsyncSession, vehicle_id: str) -> None:
+    """
+    Set is_available=False when all units are booked, True when slots free up.
+    Called after any booking status change that affects the active booking count.
+    """
+    car = await db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id))
+    if car is None:
+        return
+    total_units = car.total_units or 1
+    active_count = await db.scalar(
+        select(func.count()).select_from(Booking).where(
+            Booking.vehicle_id == vehicle_id,
+            Booking.status.in_(BLOCKING_STATUSES),
+        )
+    ) or 0
+    should_be_available = active_count < total_units
+    if car.is_available != should_be_available:
+        car.is_available = should_be_available
 
 
 def add_wallet_transaction(
@@ -54,20 +77,23 @@ def add_wallet_transaction(
 
 def booking_email_payload(booking: Booking, car: Vehicle) -> dict:
     return {
+        "booking_id": booking.id,
         "booking_ref": booking.booking_ref,
         "vehicle_name": car.title,
         "pickup_date": booking.pickup_datetime.strftime("%d %b %Y, %I:%M %p"),
         "return_date": booking.return_datetime.strftime("%d %b %Y, %I:%M %p"),
         "location": car.location_address or f"{car.location_area or ''}, {car.location_city}".strip(", "),
         "total_amount": f"{money(booking.total_amount):,.2f}",
+        "with_chauffeur": booking.with_chauffeur,
+        "chauffeur_fee": money(booking.chauffeur_fee),
     }
 
 
-def queue_booking_confirmation(to_email: str, payload: dict) -> None:
+async def queue_booking_confirmation(to_email: str, payload: dict) -> None:
     try:
         send_booking_confirmation_email.delay(to_email, payload)
     except Exception:
-        pass
+        await email_utils.send_booking_confirmation_email(to_email, payload)
 
 
 async def mark_payment_paid(
@@ -115,8 +141,8 @@ async def mark_payment_paid(
     )
 
     payload = booking_email_payload(booking, car)
-    queue_booking_confirmation(customer.email, payload)
-    queue_booking_confirmation(manager.email, payload)
+    await queue_booking_confirmation(customer.email, payload)
+    await queue_booking_confirmation(manager.email, payload)
     try:
         reminder_at = booking.pickup_datetime - timedelta(hours=2)
         countdown = max(int((reminder_at - datetime.utcnow()).total_seconds()), 0)

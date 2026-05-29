@@ -1,97 +1,228 @@
-# Vehicle Rental Management System
+# SigFleet — Self-Drive Vehicle Rental Platform
 
-A full-stack vehicle rental management system for customers, vehicle managers, and administrators. The platform supports vehicle discovery, rentals, KYC, wallet payments, manager operations, admin-controlled vehicle taxonomy, analytics, notifications, and support workflows.
+A full-stack vehicle rental platform for customers, vehicle managers, and administrators. Supports vehicle discovery, bookings, KYC verification, wallet payments, manager operations, admin controls, analytics, notifications, and support workflows.
 
-## Quick Start
+---
 
+## Quick Start (Local — without Docker)
+
+### Prerequisites
+- Python 3.11+
+- Node.js 18+
+- MySQL 8.0 running locally
+- MongoDB 7.0 running locally
+- Redis 8.x running locally
+
+### 1. Start infrastructure services
 ```bash
-git clone <your-repo>
-cd vehicle-rental-management-system
-cp .env.example .env
-# Edit .env and set SMTP credentials. Mailtrap.io works well for local email testing.
-docker-compose up --build
-# First boot takes about 3 minutes for migrations and demo seeding.
-# Open http://localhost
+brew services start mongodb-community@7.0
+brew services start redis
+# MySQL should already be running
 ```
 
-## Default Credentials
+### 2. Backend
+```bash
+cd backend
+source venv/bin/activate          # or: python -m venv venv && pip install -r requirements.txt
+cp .env.example .env               # edit .env with your MySQL/SMTP credentials
+alembic upgrade head               # run DB migrations
+python app/seed.py                 # seed demo data
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
 
-| Role | Email | Password |
+### 3. Frontend
+```bash
+cd frontend
+npm install
+npm run dev
+# Opens at http://localhost:5173 (or next available port)
+```
+
+---
+
+## Quick Start (Docker)
+
+```bash
+git clone <repo>
+cd sigfleet
+cp .env.example .env
+# Edit .env — set SMTP credentials (Gmail or Mailtrap)
+docker-compose up --build
+# First boot: ~3 minutes for migrations + seeding
+# App: http://localhost:3001
+# API docs: http://localhost:8000/api/docs
+```
+
+---
+
+## Default Login Credentials
+
+> All passwords follow the pattern: `Role@123`
+
+### Admin
+| Email | Password |
+|---|---|
+| admin@sigfleet.com | Admin@123 |
+| ops@sigfleet.com | Admin@123 |
+
+### Vehicle Managers
+| Email | Password | City |
 |---|---|---|
-| Admin | admin@sigfleet.com | Admin@1234 |
-| Vehicle Manager 1 | priya@manager.com | Pass@1234 |
-| Vehicle Manager 2 | arjun@manager.com | Pass@1234 |
-| Customer 1 | customer1@test.com | Customer@1234 |
-| Customer 2 | customer2@test.com | Customer@1234 |
+| ravi@sigfleet.com | Manager@123 | Bengaluru |
+| priya@sigfleet.com | Manager@123 | Mumbai |
+| arjun@sigfleet.com | Manager@123 | Delhi |
+| sneha@sigfleet.com | Manager@123 | Chennai |
+| karan@sigfleet.com | Manager@123 | Pune |
+| anika@sigfleet.com | Manager@123 | Hyderabad |
+| deepak@sigfleet.com | Manager@123 | Jaipur |
 
-## Database Architecture
-
-| Database | Engine | Usage |
+### Customers
+| Email | Password | KYC Status |
 |---|---|---|
-| MySQL 8 | Relational | Users, vehicles, rentals, payments, coupons, manager profiles, and transactional data |
-| MongoDB 7 | Document | Reviews, notifications, support messages, analytics events, and activity feed |
-| Redis 7 | Cache | JWT blacklist, rate limits, session data, and Celery broker |
+| amit@example.com | Customer@123 | Approved ✓ |
+| divya@example.com | Customer@123 | Approved ✓ |
+| meera@example.com | Customer@123 | Approved ✓ |
+| pooja@example.com | Customer@123 | Approved ✓ |
+| sid@example.com | Customer@123 | Approved ✓ |
+| nikhil@example.com | Customer@123 | Approved ✓ |
+| tanvi@example.com | Customer@123 | Approved ✓ |
+| rohan@example.com | Customer@123 | Pending |
+| vikram@example.com | Customer@123 | Pending |
+| lakshmi@example.com | Customer@123 | Pending |
 
-## Application Architecture
+> **Note:** Customers with KYC Approved can book vehicles immediately. Pending KYC customers must complete verification first.
 
-The app has three distinct dashboard experiences:
+---
 
-- Customer dashboard for rentals, KYC, wallet, rental history, tracking, wishlist, notifications, and support.
-- Vehicle Manager dashboard for vehicle inventory, availability, bookings, earnings, payouts, statistics, and profile management.
-- Admin dashboard for users, vehicle managers, vehicles, categories, bookings, payments, support, coupons, analytics, and payouts.
+## Seeded Demo Data
+
+| Entity | Count |
+|---|---|
+| Admin users | 2 |
+| Vehicle Managers | 7 |
+| Customers | 10 |
+| Vehicles | 33 (all approved, all cities) |
+| Coupons | 5 active (FIRST5, FLEET5, EV5, WEEKEND5, CITY5) |
+| Bookings | 25 (15 completed, 5 confirmed, 3 active, 2 cancelled) |
+| Support tickets | 8 |
+
+### Cities with vehicles
+| City | Vehicles |
+|---|---|
+| Bengaluru | 5 |
+| Mumbai | 5 |
+| Delhi | 5 |
+| Chennai | 4 |
+| Pune | 4 |
+| Hyderabad | 4 |
+| Goa | 3 |
+| Jaipur | 3 |
+
+### Active Coupon Codes
+| Code | Discount | Min Booking | Max Discount |
+|---|---|---|---|
+| FIRST5 | 5% | ₹500 | ₹150 |
+| FLEET5 | 5% | ₹2,000 | ₹200 |
+| EV5 | 5% | ₹1,000 | ₹150 |
+| WEEKEND5 | 5% | ₹1,500 | ₹175 |
+| CITY5 | 5% | ₹800 | ₹120 |
+
+---
+
+## Application URLs
+
+| URL | Description |
+|---|---|
+| http://localhost:5176 | Frontend (Vite dev server) |
+| http://localhost:8000 | Backend API |
+| http://localhost:8000/api/docs | Swagger UI |
+| http://localhost:8000/api/redoc | ReDoc |
+| http://localhost:3001 | Docker Nginx (production build) |
+
+---
+
+## User Roles & Dashboards
+
+### Customer (`/customer/dashboard`)
+- Browse and search vehicles by city, date, category, price
+- Book vehicles with insurance and optional chauffeur
+- KYC document upload and verification
+- Wallet: add money, pay for bookings
+- Booking history, active trip tracking
+- Wishlist, reviews, support tickets
+- OTP email verification on registration
+
+### Vehicle Manager (`/manager/dashboard`)
+- Add and manage vehicle listings (pending admin approval)
+- Accept/reject booking requests
+- Start and end trips with odometer readings
+- Earnings dashboard, payout requests
+- Availability calendar, block dates
+- Statistics and analytics charts
+
+### Admin (`/admin/dashboard`)
+- User management (customers + managers)
+- Vehicle approval/rejection workflow
+- KYC review and approval
+- Support ticket management with reply
+- Coupon CRUD (max 5% discount enforced)
+- Payments, payouts, bookings overview
+- Analytics: revenue, bookings, users, vehicles
+
+---
 
 ## Tech Stack
 
-Frontend: React 18, Vite, Tailwind CSS, React Query, Zustand, Leaflet  
-Backend: FastAPI, SQLAlchemy, MySQL, Motor, MongoDB, Celery  
-Infrastructure: Docker Compose, Nginx
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, Vite, Tailwind CSS, Zustand, TanStack Query, Recharts, Leaflet |
+| Backend | FastAPI, SQLAlchemy (async), Alembic, Celery |
+| Primary DB | MySQL 8.0 (users, vehicles, bookings, payments, coupons) |
+| Document DB | MongoDB 7.0 (reviews, notifications, support messages, analytics) |
+| Cache / Queue | Redis 8 (JWT blacklist, rate limits, Celery broker) |
+| Email | Gmail SMTP (OTP verification, booking confirmations, KYC notifications) |
+| Infrastructure | Docker Compose, Nginx |
 
-## URLs
+---
 
-- App: http://localhost
-- API Docs: http://localhost/api/docs
-- ReDoc: http://localhost/api/redoc
+## Booking Flow
 
-## Final Checklist
+1. Customer browses vehicles (public — no login required)
+2. Customer clicks "Rent Now" → redirected to login if not authenticated
+3. Customer selects dates, insurance, chauffeur option
+4. Booking created → auto-confirmed (all demo vehicles have `auto_accept_bookings=true`)
+5. Customer proceeds to payment page
+6. Selects payment method: Card / UPI / Net Banking / Wallet
+7. Payment processed (simulated — no real money)
+8. Booking confirmation page with booking reference
 
-- [ ] Register, verify email, and login
-- [ ] Browse vehicles without login
-- [ ] Search with city, date, category, and price filters
-- [ ] Map view with markers
-- [ ] Vehicle detail page with rental widget
-- [ ] Complete KYC with document upload
-- [ ] Rent a vehicle, pay, confirm, and reach success page
-- [ ] Vehicle Manager adds a vehicle
-- [ ] Vehicle Manager accepts booking, starts trip, and ends trip
-- [ ] Write review after completed trip
-- [ ] Admin approves vehicle listing and KYC
-- [ ] Admin analytics charts render
-- [ ] Wallet add money and wallet payment
-- [ ] Coupon code application
-- [ ] Support ticket and chat thread
-- [ ] Vehicle Manager earnings and payout request
-- [ ] Forgot/reset password via email
-- [ ] All pages mobile responsive
-- [ ] Dark mode toggle works
-- [ ] `docker-compose up --build` serves the site at localhost
-- [ ] Seed data is populated on first boot
+---
 
-## Phase Execution Summary
+## Environment Variables (backend/.env)
 
-| Phase | What It Builds | DB Touched |
-|---|---|---|
-| 1 | Docker Compose infrastructure | - |
-| 2 | MySQL and MongoDB connection layer | Both |
-| 3 | MySQL ORM models | MySQL |
-| 4 | MongoDB document models | MongoDB |
-| 5 | Authentication | MySQL, Redis |
-| 6 | Vehicle listing and manager APIs | MySQL |
-| 7 | Search, filters, map, detail, wishlist | MySQL, MongoDB |
-| 8 | Rental, payment, wallet flow | MySQL, MongoDB |
-| 9 | Customer dashboard, KYC, wallet, profile | MySQL |
-| 10 | Reviews, notifications, support | Both |
-| 11 | Admin dashboard | Both |
-| 12 | Vehicle Manager earnings and payouts | MySQL |
-| 13 | Homepage and static routing | MySQL reads |
-| 14 | Complete seed file | Both |
-| 15 | Polish, mobile, dark mode, performance, README | - |
+```env
+MYSQL_URL=mysql+aiomysql://root:password@127.0.0.1:3306/zoomcar
+MONGODB_URL=mongodb://127.0.0.1:27017/zoomcar_docs
+REDIS_URL=redis://127.0.0.1:6379/0
+SECRET_KEY=your-secret-key-min-32-chars
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+REFRESH_TOKEN_EXPIRE_DAYS=30
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your@gmail.com
+SMTP_PASSWORD=your-app-password
+SMTP_FROM=your@gmail.com
+FRONTEND_URL=http://localhost:5176
+```
+
+---
+
+## Common Issues
+
+| Issue | Fix |
+|---|---|
+| "Booking is not ready for payment" | All vehicles must have `auto_accept_bookings=true`. Run: `UPDATE vehicles SET auto_accept_bookings=1` |
+| 401 on admin endpoints | Token expired — log out and log back in |
+| OTP not received | Check Gmail SMTP credentials in backend/.env |
+| Vehicles not showing | Run `UPDATE vehicles SET is_approved=1, is_available=1` |
+| KYC stuck on loading | Backend `/kyc/status` returns 200 with `{status: "not_submitted"}` for new users |

@@ -14,12 +14,19 @@ from app.models.user import User
 from app.mongo_models.analytics import log_activity
 from app.mongo_models.notification import create_notification
 from app.mongo_models.review import add_manager_reply, create_review, get_booking_reviews, get_car_reviews, get_user_reviews, update_car_avg_rating
+from app.mongodb import get_mongo_db
 from app.services.booking_flow import money
 from app.utils.auth import get_current_active_user, require_verified_user
 
 
 router = APIRouter(prefix="/reviews", tags=["reviews"])
 REVIEW_WINDOW_DAYS = 14
+
+
+def _serialize_id(doc: dict) -> dict:
+    if "_id" in doc:
+        doc["_id"] = str(doc["_id"])
+    return doc
 
 
 class ReviewCreateRequest(BaseModel):
@@ -175,6 +182,19 @@ async def reply_to_review(
             meta={"booking_id": booking.id, "review_id": str(review.get("_id"))},
         )
     return {"message": "Reply posted successfully"}
+
+
+@router.get("/recent")
+async def list_recent_reviews(
+    limit: int = Query(default=20, ge=1, le=50),
+):
+    """Public endpoint — returns the most recent published customer_to_vehicle reviews for the homepage."""
+    db_mongo = get_mongo_db()
+    cursor = db_mongo.reviews.find(
+        {"review_type": "customer_to_vehicle", "is_published": True}
+    ).sort("created_at", -1).limit(limit)
+    docs = await cursor.to_list(length=limit)
+    return {"reviews": [_review_payload(_serialize_id(doc)) for doc in docs]}
 
 
 @router.get("/car/{vehicle_id}")

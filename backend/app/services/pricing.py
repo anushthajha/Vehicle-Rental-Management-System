@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
 
+from app.config import settings
+
 
 def _trip_weekend_ratio(start_dt: datetime, end_dt: datetime) -> float:
     current = start_dt
@@ -21,6 +23,7 @@ def calculate_booking_price(
     insurance_plan: str,
     coupon_code: str | None = None,
     db_coupon=None,
+    with_chauffeur: bool = False,
 ) -> dict:
     total_seconds = (end_dt - start_dt).total_seconds()
     if total_seconds <= 0:
@@ -66,9 +69,11 @@ def calculate_booking_price(
     taxable = max(base_amount - coupon_discount, 0)
     platform_fee = taxable * 0.10
     security_deposit = float(car.security_deposit)
+    chauffeur_days = max(int(total_days) + (1 if total_days % 1 else 0), 1)
+    chauffeur_fee = settings.CHAUFFEUR_FEE_PER_DAY * chauffeur_days if with_chauffeur else 0
 
-    total_amount = taxable + insurance_amount + platform_fee
-    manager_earnings = taxable + insurance_amount - platform_fee
+    total_amount = taxable + insurance_amount + platform_fee + chauffeur_fee
+    manager_earnings = taxable + insurance_amount + chauffeur_fee - platform_fee
 
     return {
         "base_amount": round(base_amount, 2),
@@ -76,6 +81,10 @@ def calculate_booking_price(
         "coupon_discount": round(coupon_discount, 2),
         "insurance_amount": round(insurance_amount, 2),
         "insurance_plan": insurance_plan,
+        "with_chauffeur": bool(with_chauffeur),
+        "chauffeur_fee_per_day": settings.CHAUFFEUR_FEE_PER_DAY,
+        "chauffeur_days": chauffeur_days,
+        "chauffeur_fee": round(chauffeur_fee, 2),
         "platform_fee": round(platform_fee, 2),
         "security_deposit": security_deposit,
         "total_amount": round(total_amount, 2),

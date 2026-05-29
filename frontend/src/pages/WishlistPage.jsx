@@ -15,13 +15,18 @@ export default function WishlistPage() {
   useEffect(() => {
     async function loadWishlist() {
       setLoading(true)
-      if (user) {
-        const response = await api.get('/wishlist/')
-        setCars(response.data.vehicles || [])
-      } else {
-        setCars(getLocalWishlistCars())
+      try {
+        if (user) {
+          const response = await api.get('/wishlist/')
+          setCars(response.data.vehicles || [])
+        } else {
+          setCars(getLocalWishlistCars())
+        }
+      } catch {
+        setCars([])
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
     loadWishlist()
   }, [user])

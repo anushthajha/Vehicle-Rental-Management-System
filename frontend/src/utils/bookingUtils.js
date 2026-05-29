@@ -31,6 +31,7 @@ export function statusClass(status) {
 export function priceLines(breakdown = {}) {
   return [
     ['Base amount', breakdown.base_amount],
+    ['Chauffeur fee', breakdown.chauffeur_fee],
     ['Rule discount', breakdown.discount_from_rules ? -breakdown.discount_from_rules : 0],
     ['Coupon discount', breakdown.coupon_discount ? -breakdown.coupon_discount : 0],
     ['Insurance', breakdown.insurance_amount],

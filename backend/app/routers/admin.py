@@ -26,6 +26,9 @@ from app.tasks.email_tasks import (
     send_kyc_rejected_email,
     send_manager_role_update_email,
     send_manager_welcome_email,
+    send_support_reply_email,
+    send_vehicle_approved_email,
+    send_vehicle_rejected_email,
 )
 from app.utils.auth import get_password_hash, require_admin, validate_password_strength
 from app.utils.validators import validate_phone
@@ -54,6 +57,7 @@ class SupportReplyRequest(BaseModel):
 
 class StatusRequest(BaseModel):
     status: str
+    reason: str | None = None
 
 
 class PriorityRequest(BaseModel):
@@ -112,7 +116,7 @@ def _pages(total: int, limit: int) -> int:
 def _car_status(car: Vehicle) -> str:
     if car.is_approved:
         return "approved" if car.is_available else "inactive"
-    return "pending" if car.is_available else "rejected"
+    return "pending_approval" if not car.is_available else "pending_approval"
 
 
 def _primary_image(images: dict[str, str | None], vehicle_id: str) -> str | None:
@@ -155,7 +159,6 @@ async def _image_map(db: AsyncSession, vehicle_ids: list[str]) -> dict[str, str 
 
 
 async def _active_now_count(db: AsyncSession) -> int:
-    now = datetime.utcnow()
     redis = get_redis()
     try:
         cached = await redis.get("admin:active_bookings_now")
@@ -163,10 +166,11 @@ async def _active_now_count(db: AsyncSession) -> int:
             return int(cached)
     except Exception:
         pass
+    # Count all bookings with status='active' — the status itself means the trip is in progress
     count = await db.scalar(
         select(func.count())
         .select_from(Booking)
-        .where(Booking.status == "active", Booking.pickup_datetime <= now, Booking.return_datetime >= now)
+        .where(Booking.status == "active")
     ) or 0
     try:
         await redis.setex("admin:active_bookings_now", 30, int(count))
@@ -332,7 +336,9 @@ async def list_vehicle_managers(
                 "full_name": user.full_name,
                 "email": user.email,
                 "phone": user.phone,
+                "role": user.role,
                 "is_active": bool(profile.is_active) if profile else user.is_active,
+                "status": "active" if (bool(profile.is_active) if profile else user.is_active) else "pending_approval",
                 "account_active": user.is_active,
                 "department": profile.department if profile else None,
                 "assigned_at": _dt(profile.assigned_at) if profile else None,
@@ -455,12 +461,17 @@ async def stats_overview(_: User = Depends(require_admin), db: AsyncSession = De
     paid_filter = Payment.status.in_(("paid", "refunded"))
     revenue_total = await db.scalar(select(func.coalesce(func.sum(Payment.amount), 0)).where(paid_filter)) or Decimal("0")
     revenue_month = await db.scalar(select(func.coalesce(func.sum(Payment.amount), 0)).where(paid_filter, Payment.created_at >= month_start)) or Decimal("0")
+    last_month_start = (month_start - timedelta(days=1)).replace(day=1)
+    revenue_last_month = await db.scalar(select(func.coalesce(func.sum(Payment.amount), 0)).where(paid_filter, Payment.created_at >= last_month_start, Payment.created_at < month_start)) or Decimal("0")
+    revenue_growth = Decimal("0")
+    if revenue_last_month:
+        revenue_growth = ((revenue_month - revenue_last_month) / revenue_last_month) * Decimal("100")
     revenue_week = await db.scalar(select(func.coalesce(func.sum(Payment.amount), 0)).where(paid_filter, Payment.created_at >= week_start)) or Decimal("0")
     fees_month = await db.scalar(
         select(func.coalesce(func.sum(Booking.platform_fee), 0)).join(Payment, Payment.booking_id == Booking.id).where(paid_filter, Payment.created_at >= month_start)
     ) or Decimal("0")
 
-    pending_kyc = await db.scalar(select(func.count()).select_from(UserKYC).where(UserKYC.kyc_status == "under_review")) or 0
+    pending_kyc = await db.scalar(select(func.count()).select_from(UserKYC).where(UserKYC.kyc_status.in_(("pending", "under_review")))) or 0
     open_tickets = await db.scalar(select(func.count()).select_from(SupportTicket).where(SupportTicket.status.in_(("open", "in_progress")))) or 0
     pending_payouts = await db.scalar(select(func.count()).select_from(ManagerPayoutRequest).where(ManagerPayoutRequest.status == "pending")) or 0
 
@@ -478,7 +489,11 @@ async def stats_overview(_: User = Depends(require_admin), db: AsyncSession = De
         },
         "revenue": {
             "total_all_time": money(revenue_total),
+            "total_revenue": money(revenue_total),
             "this_month": money(revenue_month),
+            "revenue_this_month": money(revenue_month),
+            "revenue_last_month": money(revenue_last_month),
+            "revenue_growth_percent": money(revenue_growth),
             "this_week": money(revenue_week),
             "platform_fees_this_month": money(fees_month),
         },
@@ -541,6 +556,21 @@ async def daily_bookings(_: User = Depends(require_admin), db: AsyncSession = De
     return [{"date": (since + timedelta(days=i)).strftime("%d %b"), "count": counts.get((since + timedelta(days=i)).date().isoformat(), 0)} for i in range(30)]
 
 
+@router.get("/analytics/bookings")
+async def bookings_analytics(year: int | None = Query(default=None), _: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    year = year or datetime.utcnow().year
+    rows = (
+        await db.execute(
+            select(func.month(Booking.created_at), func.count(Booking.id))
+            .where(func.year(Booking.created_at) == year)
+            .group_by(func.month(Booking.created_at))
+        )
+    ).all()
+    counts = {month: count for month, count in rows}
+    labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    return {"labels": labels, "data": [counts.get(index, 0) for index in range(1, 13)]}
+
+
 @router.get("/analytics/new-users")
 async def new_users(_: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
     now = datetime.utcnow()
@@ -560,6 +590,38 @@ async def new_users(_: User = Depends(require_admin), db: AsyncSession = Depends
         next_month = cursor.replace(day=28) + timedelta(days=4)
         cursor = next_month.replace(day=1)
     return result
+
+
+@router.get("/analytics/users")
+async def users_analytics(year: int | None = Query(default=None), _: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    year = year or datetime.utcnow().year
+    rows = (
+        await db.execute(
+            select(func.month(User.created_at), User.role, func.count(User.id))
+            .where(func.year(User.created_at) == year)
+            .group_by(func.month(User.created_at), User.role)
+        )
+    ).all()
+    customers = {month: count for month, role, count in rows if role == "customer"}
+    managers = {month: count for month, role, count in rows if role == "vehicle_manager"}
+    labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    return {
+        "labels": labels,
+        "customers": [customers.get(index, 0) for index in range(1, 13)],
+        "managers": [managers.get(index, 0) for index in range(1, 13)],
+    }
+
+
+@router.get("/analytics/vehicles")
+async def vehicles_analytics(_: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    rows = (
+        await db.execute(
+            select(Vehicle.location_city, func.count(Vehicle.id))
+            .group_by(Vehicle.location_city)
+            .order_by(func.count(Vehicle.id).desc())
+        )
+    ).all()
+    return {"labels": [city or "Unknown" for city, _ in rows], "data": [count for _, count in rows]}
 
 
 @router.get("/analytics/cities")
@@ -812,7 +874,7 @@ async def list_cars(
 ):
     conditions = []
     if status_filter == "pending":
-        conditions += [Vehicle.is_approved.is_(False), Vehicle.is_available.is_(True)]
+        conditions += [Vehicle.is_approved.is_(False)]
     elif status_filter == "approved":
         conditions.append(Vehicle.is_approved.is_(True))
     elif status_filter == "inactive":
@@ -882,11 +944,24 @@ async def list_cars(
         ],
         "total": total,
         "page": page,
+        "limit": limit,
         "pages": _pages(total, limit),
+        "total_pages": _pages(total, limit),
     }
 
 
+@router.get("/vehicles/pending")
+async def list_pending_cars(
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=100),
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    return await list_cars("pending", page=page, limit=limit, _=admin, db=db)
+
+
 @router.patch("/vehicles/{vehicle_id}/approve")
+@router.put("/vehicles/{vehicle_id}/approve")
 async def approve_car(vehicle_id: str, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
     car = await db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id))
     if car is None:
@@ -894,12 +969,19 @@ async def approve_car(vehicle_id: str, admin: User = Depends(require_admin), db:
     car.is_approved = True
     car.is_available = True
     await db.commit()
+    manager = await db.scalar(select(User).where(User.id == car.manager_id))
     await create_notification(car.manager_id, "Vehicle approved", f"{car.title} is live for bookings.", "manager", action_url="/manager/vehicles", meta={"vehicle_id": car.id})
+    if manager:
+        try:
+            send_vehicle_approved_email.delay(manager.email, manager.full_name, car.title, car.location_city)
+        except Exception:
+            pass
     await log_activity(admin.id, "car_approved", "car", car.id, {"title": car.title})
     return {"status": "approved"}
 
 
 @router.patch("/vehicles/{vehicle_id}/reject")
+@router.put("/vehicles/{vehicle_id}/reject")
 async def reject_car(vehicle_id: str, payload: RejectRequest, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
     car = await db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id))
     if car is None:
@@ -907,7 +989,13 @@ async def reject_car(vehicle_id: str, payload: RejectRequest, admin: User = Depe
     car.is_approved = False
     car.is_available = False
     await db.commit()
+    manager = await db.scalar(select(User).where(User.id == car.manager_id))
     await create_notification(car.manager_id, "Vehicle rejected", payload.reason, "manager", action_url="/manager/vehicles", meta={"vehicle_id": car.id})
+    if manager:
+        try:
+            send_vehicle_rejected_email.delay(manager.email, manager.full_name, car.title, payload.reason)
+        except Exception:
+            pass
     await log_activity(admin.id, "car_rejected", "car", car.id, {"reason": payload.reason})
     return {"status": "rejected"}
 
@@ -1015,6 +1103,8 @@ async def list_kyc(
     conditions = []
     if status_filter:
         conditions.append(UserKYC.kyc_status == status_filter)
+    else:
+        conditions.append(UserKYC.kyc_status.in_(("pending", "under_review")))
     total = await db.scalar(select(func.count()).select_from(UserKYC).where(*conditions)) or 0
     rows = (
         await db.execute(
@@ -1047,7 +1137,9 @@ async def list_kyc(
         ],
         "total": total,
         "page": page,
+        "limit": limit,
         "pages": _pages(total, limit),
+        "total_pages": _pages(total, limit),
     }
 
 
@@ -1072,6 +1164,15 @@ async def approve_kyc(kyc_id: str, admin: User = Depends(require_admin), db: Asy
         await create_notification(user.id, "KYC approved", "Your documents are verified.", "kyc", action_url="/dashboard/kyc")
     await log_activity(admin.id, "kyc_approved", "user_kyc", kyc.id)
     return {"status": "approved"}
+
+
+@router.put("/kyc/{kyc_id}/review")
+async def review_kyc(kyc_id: str, payload: StatusRequest, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    if payload.status == "approved":
+        return await approve_kyc(kyc_id, admin, db)
+    if payload.status == "rejected":
+        return await reject_kyc(kyc_id, RejectRequest(reason=payload.reason or "KYC rejected by admin."), admin, db)
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Status must be approved or rejected")
 
 
 @router.post("/kyc/{kyc_id}/reject")
@@ -1227,6 +1328,13 @@ async def support_reply(ticket_id: str, payload: SupportReplyRequest, admin: Use
     await db.commit()
     if ticket.user_id:
         await create_notification(ticket.user_id, "Support replied", payload.message[:160], "system", action_url="/dashboard/support", meta={"ticket_id": ticket.id})
+        customer_email = ticket.contact_email
+        customer_name = ticket.contact_name or "Customer"
+        if customer_email:
+            try:
+                send_support_reply_email.delay(customer_email, customer_name, ticket.subject, payload.message)
+            except Exception:
+                pass
     await log_activity(admin.id, "support_replied", "support_ticket", ticket.id)
     return {"message": "Reply sent"}
 
@@ -1434,6 +1542,10 @@ async def update_user_status(user_id: str, payload: UpdateUserStatusRequest, adm
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     user.is_active = payload.is_active
+    if user.role == "vehicle_manager":
+        profile = await db.scalar(select(ManagerProfile).where(ManagerProfile.user_id == user.id))
+        if profile:
+            profile.is_active = payload.is_active
     if not payload.is_active:
         from app.models.booking import Booking
         pending = (await db.execute(select(Booking).where(Booking.customer_id == user.id, Booking.status == "pending"))).scalars().all()
@@ -1444,7 +1556,14 @@ async def update_user_status(user_id: str, payload: UpdateUserStatusRequest, adm
             booking.cancellation_reason = "Cancelled after account suspension"
     await db.commit()
     await log_activity(admin.id, "user_status_updated", "user", user.id, {"is_active": payload.is_active})
-    return {"message": f"User status updated to {'active' if payload.is_active else 'inactive'}"}
+    return {
+        "message": f"User status updated to {'active' if payload.is_active else 'inactive'}",
+        "user": {
+            "id": user.id,
+            "is_active": user.is_active,
+            "status": "active" if user.is_active else "suspended",
+        },
+    }
 
 class UpdateUserRoleRequest(BaseModel):
     role: str = Field(pattern="^(customer|vehicle_manager|admin)$")

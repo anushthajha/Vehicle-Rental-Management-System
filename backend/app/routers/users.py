@@ -146,6 +146,23 @@ async def upload_avatar(
     return {"profile_picture": current_user.profile_picture, "user": _user_payload(current_user)}
 
 
+@router.delete("/profile/avatar")
+async def delete_avatar(
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if not current_user.profile_picture:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No profile picture to remove")
+    # Delete the file from disk if it exists
+    file_path = Path(settings.UPLOAD_DIR) / "avatars" / f"{current_user.id}.webp"
+    if file_path.exists():
+        file_path.unlink()
+    current_user.profile_picture = None
+    await db.commit()
+    await db.refresh(current_user)
+    return {"profile_picture": None, "user": _user_payload(current_user)}
+
+
 @router.get("/{user_id}/public")
 async def get_public_user(user_id: str, db: AsyncSession = Depends(get_db)):
     user = await db.scalar(select(User).where(User.id == user_id, User.is_active.is_(True)))

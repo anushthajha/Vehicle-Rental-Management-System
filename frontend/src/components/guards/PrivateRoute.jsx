@@ -1,6 +1,2 @@
-import React from 'react'
-import { AuthenticatedOutlet } from './guardUtils'
-
-export default function PrivateRoute() {
-  return <AuthenticatedOutlet />
-}
+// Re-exports from the consolidated RouteGuards.jsx
+export { PrivateRoute as default } from '../RouteGuards'

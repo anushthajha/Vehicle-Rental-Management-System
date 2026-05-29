@@ -10,8 +10,12 @@ export default function PayoutsPage() {
   const [bankOpen, setBankOpen] = useState(false)
   const [confirm, setConfirm] = useState(false)
 
-  const load = () => Promise.all([getManager('/earnings/summary'), getManager('/payouts')]).then(([s, h]) => { setSummary(s); setHistory(h) })
-  useEffect(load, [])
+  function load() {
+    Promise.all([getManager('/earnings/summary'), getManager('/payouts')])
+      .then(([s, h]) => { setSummary(s); setHistory(h) })
+    // No return value — prevents "destroy is not a function" crash
+  }
+  useEffect(() => { load() }, [])
 
   const request = async () => {
     const response = await postManager('/payouts/request', { amount: Number(amount) })

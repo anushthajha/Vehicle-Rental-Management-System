@@ -2,16 +2,26 @@ import { z } from 'zod'
 
 const passwordRule = z.string()
   .min(8, 'Password must be at least 8 characters')
+  .regex(/[a-z]/, 'Password must include a lowercase letter')
   .regex(/[A-Z]/, 'Password must include an uppercase letter')
   .regex(/\d/, 'Password must include a number')
-  .regex(/[!@#$%^&*]/, 'Password must include a special character')
+  .regex(/[!@#$%^&*]/, 'Password must include a special character (!@#$%^&*)')
 
 export const registerSchema = z.object({
-  full_name: z.string().trim().min(2, 'Name must be at least 2 characters').max(100, 'Name is too long').regex(/^[^\d]+$/, 'Name cannot contain numbers'),
+  full_name: z.string()
+    .trim()
+    .min(4, 'Name must be greater than 3 letters')
+    .max(100, 'Name is too long')
+    .regex(/[A-Za-z]/, 'Name must contain letters')
+    .regex(/^[A-Za-z][A-Za-z .'-]*$/, 'Name can contain only letters, spaces, dot, apostrophe, or hyphen')
+    .refine((value) => !/^\d+$/.test(value), 'Name cannot be only numbers'),
   email: z.string().trim().email('Enter a valid email'),
-  phone: z.string().transform((value) => value.replace(/^\+91/, '').replace(/\D/g, '')).pipe(z.string().length(10, 'Phone must be exactly 10 digits')),
+  phone: z.string()
+    .transform((value) => value.replace(/^\+91/, '').replace(/\D/g, ''))
+    .pipe(z.string().length(10, 'Phone must be exactly 10 digits').regex(/^[6-9]\d{9}$/, 'Phone must be a valid Indian mobile number')),
   password: passwordRule,
   confirm_password: z.string(),
+  role: z.enum(['customer', 'vehicle_manager']).default('customer'),
   terms: z.literal(true, { errorMap: () => ({ message: 'Please accept the terms' }) }),
 }).refine((data) => data.password === data.confirm_password, {
   message: 'Passwords do not match',
@@ -87,4 +97,13 @@ export const supportTicketSchema = z.object({
 
 export function collectZodErrors(error) {
   return Object.fromEntries((error?.issues || []).map((issue) => [issue.path.join('.'), issue.message]))
+}
+
+export function collectApiFieldErrors(detail) {
+  if (!Array.isArray(detail)) return {}
+  return Object.fromEntries(detail.map((issue) => {
+    const field = (issue.loc || []).filter((part) => part !== 'body').join('.')
+    const message = String(issue.msg || 'Invalid value').replace(/^Value error,\s*/i, '')
+    return [field, message]
+  }).filter(([field]) => field))
 }

@@ -1,5 +1,8 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
+import json
+import re
+import secrets
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -10,11 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.middleware.rate_limiter import rate_limit
 from app.models.payment import UserWallet
-from app.models.user import EmailVerification, PasswordReset, User, UserKYC
+from app.models.manager import ManagerProfile
+from app.models.user import PasswordReset, User, UserKYC
 from app.mongo_models.analytics import log_activity
 from app.mongo_models.session import create_session
 from app.redis import get_redis
-from app.tasks.email_tasks import send_password_reset_email, send_verification_email
+from app.utils import email as email_utils
 from app.utils.auth import (
     create_access_token,
     create_refresh_token,
@@ -31,21 +35,81 @@ from app.utils.validators import validate_phone
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+NAME_RE = re.compile(r"^[A-Za-z][A-Za-z .'-]*$")
+
+# ---------------------------------------------------------------------------
+# OTP helpers
+# ---------------------------------------------------------------------------
+
+OTP_TTL = 600          # 10 minutes
+OTP_MAX_ATTEMPTS = 5
+RESEND_COOLDOWN = 60   # seconds
+
+
+def _generate_otp() -> str:
+    """Return a cryptographically random 6-digit OTP string."""
+    return str(secrets.randbelow(900000) + 100000)
+
+
+async def _store_otp(email: str, otp: str) -> None:
+    redis = get_redis()
+    data = json.dumps({"otp": otp, "attempts": 0, "sent_at": int(datetime.utcnow().timestamp())})
+    await redis.setex(f"email_otp:{email.lower()}", OTP_TTL, data)
+
+
+async def _verify_otp(email: str, entered_otp: str) -> dict:
+    redis = get_redis()
+    raw = await redis.get(f"email_otp:{email.lower()}")
+    if not raw:
+        return {"valid": False, "reason": "OTP expired or not found. Please request a new one."}
+    data = json.loads(raw)
+    if data["attempts"] >= OTP_MAX_ATTEMPTS:
+        await redis.delete(f"email_otp:{email.lower()}")
+        return {"valid": False, "reason": "Too many incorrect attempts. Please request a new OTP."}
+    if data["otp"] != entered_otp:
+        data["attempts"] += 1
+        await redis.setex(f"email_otp:{email.lower()}", OTP_TTL, json.dumps(data))
+        remaining = OTP_MAX_ATTEMPTS - data["attempts"]
+        return {"valid": False, "reason": f"Incorrect code. {remaining} attempt{'s' if remaining != 1 else ''} left."}
+    await redis.delete(f"email_otp:{email.lower()}")
+    return {"valid": True}
+
+
+# ---------------------------------------------------------------------------
+# Pydantic schemas
+# ---------------------------------------------------------------------------
 
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     confirm_password: str
-    full_name: str = Field(min_length=2, max_length=200)
+    full_name: str = Field(min_length=4, max_length=200)
     phone: str | None = None
     phoneNumber: str | None = None
+    role: str = Field(default="customer", pattern="^(customer|vehicle_manager)$")
 
     @field_validator("password")
     @classmethod
     def password_is_strong(cls, value: str) -> str:
         if not validate_password_strength(value):
-            raise ValueError("Password must be at least 8 characters and include uppercase, digit, and special character")
+            raise ValueError(
+                "Password must be at least 8 characters and include lowercase, uppercase, number, and special character"
+            )
         return value
+
+    @field_validator("full_name")
+    @classmethod
+    def full_name_is_valid(cls, value: str) -> str:
+        normalized = " ".join(value.strip().split())
+        if len(normalized) < 4:
+            raise ValueError("Name must be greater than 3 letters")
+        if normalized.isdigit():
+            raise ValueError("Name cannot be only numbers")
+        if not any(ch.isalpha() for ch in normalized):
+            raise ValueError("Name must contain letters")
+        if not NAME_RE.match(normalized):
+            raise ValueError("Name can contain only letters, spaces, dot, apostrophe, or hyphen")
+        return normalized
 
     @field_validator("confirm_password")
     @classmethod
@@ -71,6 +135,11 @@ class EmailRequest(BaseModel):
     email: EmailStr
 
 
+class OtpVerifyRequest(BaseModel):
+    email: EmailStr
+    otp: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+
+
 class RefreshRequest(BaseModel):
     refresh_token: str
 
@@ -88,7 +157,9 @@ class ResetPasswordRequest(BaseModel):
     @classmethod
     def password_is_strong(cls, value: str) -> str:
         if not validate_password_strength(value):
-            raise ValueError("Password must be at least 8 characters and include uppercase, digit, and special character")
+            raise ValueError(
+                "Password must be at least 8 characters and include lowercase, uppercase, number, and special character"
+            )
         return value
 
     @field_validator("confirm_password")
@@ -108,7 +179,9 @@ class ChangePasswordRequest(BaseModel):
     @classmethod
     def password_is_strong(cls, value: str) -> str:
         if not validate_password_strength(value):
-            raise ValueError("Password must be at least 8 characters and include uppercase, digit, and special character")
+            raise ValueError(
+                "Password must be at least 8 characters and include lowercase, uppercase, number, and special character"
+            )
         return value
 
     @field_validator("confirm_new_password")
@@ -118,6 +191,10 @@ class ChangePasswordRequest(BaseModel):
             raise ValueError("Passwords do not match")
         return value
 
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
 
 def _token_subject(user: User) -> dict:
     return {"sub": user.id, "email": user.email, "role": user.role}
@@ -161,7 +238,15 @@ async def _find_user_by_email(db: AsyncSession, email: str) -> User | None:
     return result.scalar_one_or_none()
 
 
-@router.post("/register", status_code=status.HTTP_201_CREATED, dependencies=[Depends(rate_limit("auth_register", 3, 60, "ip"))])
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/register",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit("auth_register", 3, 60, "ip"))],
+)
 async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db)):
     existing = await _find_user_by_email(db, payload.email)
     if existing:
@@ -176,69 +261,114 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
         hashed_password=get_password_hash(payload.password),
         full_name=payload.full_name.strip(),
         phone=phone_value,
-        role="customer",
+        role=payload.role,
+        is_vehicle_manager=payload.role == "vehicle_manager",
+        is_active=payload.role != "vehicle_manager",
+        is_verified=False,
     )
     db.add(user)
     await db.flush()
 
     db.add(UserWallet(user_id=user.id))
-    token = str(uuid4())
-    db.add(
-        EmailVerification(
-            user_id=user.id,
-            token=token,
-            expires_at=datetime.utcnow() + timedelta(hours=24),
-        )
-    )
+    if payload.role == "vehicle_manager":
+        db.add(ManagerProfile(user_id=user.id, is_active=False, bio="Pending admin approval."))
     await db.commit()
 
-    send_verification_email.delay(user.email, user.full_name, token)
+    if payload.role == "vehicle_manager":
+        # Managers don't need email OTP — they await admin approval
+        await log_activity(user.id, "register", "user", user.id)
+        return {"message": "Registration successful! Awaiting admin approval.", "pending_approval": True}
+
+    # Generate and send OTP for customer accounts
+    otp = _generate_otp()
+    await _store_otp(user.email, otp)
+
+    # Development: print OTP to console for easy testing
+    print(f"[DEV OTP] {user.email}: {otp}")
+
+    try:
+        await email_utils.send_otp_email(user.email, user.full_name, otp)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Account created, but OTP email failed: {exc}",
+        ) from exc
+
     await log_activity(user.id, "register", "user", user.id)
-    return {"message": "Account created. Please check your email to verify."}
+    return {"message": "OTP sent to your email.", "email": user.email}
 
 
-@router.post("/verify-email")
-async def verify_email(token: str = Query(...), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(EmailVerification).where(EmailVerification.token == token))
-    verification = result.scalar_one_or_none()
-    if verification is None or verification.is_used:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or already used token")
-    if verification.expires_at < datetime.utcnow():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Verification link expired. Please request a new one.")
-
-    result = await db.execute(select(User).where(User.id == verification.user_id))
-    user = result.scalar_one_or_none()
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid verification token")
-
-    user.is_verified = True
-    verification.is_used = True
-    await db.commit()
-    return {"message": "Email verified successfully. You can now log in."}
-
-
-@router.post("/resend-verification", dependencies=[Depends(rate_limit("auth_resend_verification", 1, 60, "email"))])
-async def resend_verification(payload: EmailRequest, db: AsyncSession = Depends(get_db)):
+@router.post("/verify-otp")
+async def verify_otp_endpoint(payload: OtpVerifyRequest, request: Request, db: AsyncSession = Depends(get_db)):
     email = payload.email.lower()
-    redis = get_redis()
-    created = await redis.set(f"resend:{email}", "1", ex=60, nx=True)
-    if not created:
-        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Please wait before requesting another link")
+    result = await _verify_otp(email, payload.otp)
+    if not result["valid"]:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["reason"])
 
     user = await _find_user_by_email(db, email)
-    if user and not user.is_verified:
-        token = str(uuid4())
-        db.add(
-            EmailVerification(
-                user_id=user.id,
-                token=token,
-                expires_at=datetime.utcnow() + timedelta(hours=24),
-            )
-        )
-        await db.commit()
-        send_verification_email.delay(user.email, user.full_name, token)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    return {"message": "If unverified, a new link has been sent."}
+    user.is_verified = True
+    user.last_login = datetime.utcnow()
+    await db.commit()
+
+    access_token = create_access_token(_token_subject(user))
+    refresh_token = create_refresh_token(_token_subject(user))
+
+    client_ip = request.client.host if request.client else ""
+    await create_session(user.id, request.headers.get("user-agent", ""), client_ip)
+    await log_activity(user.id, "verify_otp", "user", user.id)
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "user": await _serialize_user(db, user),
+    }
+
+
+@router.post(
+    "/resend-otp",
+    dependencies=[Depends(rate_limit("auth_resend_otp", 3, 60, "ip"))],
+)
+async def resend_otp(payload: EmailRequest, db: AsyncSession = Depends(get_db)):
+    email = payload.email.lower()
+    user = await _find_user_by_email(db, email)
+    if user is None:
+        # Don't reveal whether the email exists
+        return {"message": "If that email is registered and unverified, a new OTP has been sent."}
+    if user.is_verified:
+        return {"message": "This email is already verified. Please log in."}
+
+    # Enforce 60-second cooldown using the sent_at field stored in Redis
+    redis = get_redis()
+    raw = await redis.get(f"email_otp:{email}")
+    if raw:
+        data = json.loads(raw)
+        sent_at = data.get("sent_at", 0)
+        elapsed = int(datetime.utcnow().timestamp()) - sent_at
+        if elapsed < RESEND_COOLDOWN:
+            wait = RESEND_COOLDOWN - elapsed
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Please wait {wait} seconds before requesting a new OTP.",
+            )
+
+    otp = _generate_otp()
+    await _store_otp(email, otp)
+
+    print(f"[DEV OTP] {email}: {otp}")
+
+    try:
+        await email_utils.send_otp_email(user.email, user.full_name, otp)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"OTP email failed: {exc}",
+        ) from exc
+
+    return {"message": "New OTP sent to your email."}
 
 
 @router.post("/login", dependencies=[Depends(rate_limit("auth_login", 5, 60, "ip"))])
@@ -249,9 +379,21 @@ async def login(payload: LoginRequest, request: Request, db: AsyncSession = Depe
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account suspended")
     if not user.is_verified:
+        # Send a fresh OTP and tell the frontend to redirect to verify page
+        otp = _generate_otp()
+        await _store_otp(user.email, otp)
+        print(f"[DEV OTP] {user.email}: {otp}")
+        try:
+            await email_utils.send_otp_email(user.email, user.full_name, otp)
+        except Exception:
+            pass  # Don't block login response if email fails
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"detail": "EMAIL_NOT_VERIFIED", "message": "Please verify your email first."},
+            detail={
+                "detail": "Email not verified. A new OTP has been sent.",
+                "requires_otp": True,
+                "email": user.email,
+            },
         )
 
     access_token = create_access_token(_token_subject(user))
@@ -293,7 +435,10 @@ async def logout(token: str = Depends(oauth2_scheme)):
     return {"message": "Logged out successfully."}
 
 
-@router.post("/forgot-password", dependencies=[Depends(rate_limit("auth_forgot_password", 2, 300, "email"))])
+@router.post(
+    "/forgot-password",
+    dependencies=[Depends(rate_limit("auth_forgot_password", 2, 300, "email"))],
+)
 async def forgot_password(payload: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
     email = payload.email.lower()
     user = await _find_user_by_email(db, email)
@@ -303,11 +448,17 @@ async def forgot_password(payload: ForgotPasswordRequest, db: AsyncSession = Dep
             PasswordReset(
                 user_id=user.id,
                 token=token,
-                expires_at=datetime.utcnow() + timedelta(hours=2),
+                expires_at=datetime.utcnow() + timedelta(hours=1),
             )
         )
         await db.commit()
-        send_password_reset_email.delay(user.email, user.full_name, token)
+        try:
+            await email_utils.send_password_reset_email(user.email, user.full_name, token)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Password reset email failed: {exc}",
+            ) from exc
 
     return {"message": "If that email exists, a password reset link has been sent."}
 
@@ -317,17 +468,27 @@ async def reset_password(payload: ResetPasswordRequest, db: AsyncSession = Depen
     result = await db.execute(select(PasswordReset).where(PasswordReset.token == payload.token))
     reset = result.scalar_one_or_none()
     if reset is None or reset.is_used or reset.expires_at < datetime.utcnow():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired password reset token")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired password reset token",
+        )
 
     result = await db.execute(select(User).where(User.id == reset.user_id))
     user = result.scalar_one_or_none()
     if user is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid password reset token")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid password reset token",
+        )
 
     user.hashed_password = get_password_hash(payload.new_password)
     reset.is_used = True
     await db.commit()
-    await get_redis().set(f"force_logout:{user.id}", int(datetime.utcnow().timestamp()), ex=60 * 60 * 24 * 31)
+    await get_redis().set(
+        f"force_logout:{user.id}",
+        int(datetime.utcnow().timestamp()),
+        ex=60 * 60 * 24 * 31,
+    )
     return {"message": "Password reset successfully. You can now log in."}
 
 
@@ -343,8 +504,15 @@ async def change_password(
     db: AsyncSession = Depends(get_db),
 ):
     if not verify_password(payload.current_password, current_user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
     current_user.hashed_password = get_password_hash(payload.new_password)
     await db.commit()
-    await get_redis().set(f"force_logout:{current_user.id}", int(datetime.utcnow().timestamp()), ex=60 * 60 * 24 * 31)
+    await get_redis().set(
+        f"force_logout:{current_user.id}",
+        int(datetime.utcnow().timestamp()),
+        ex=60 * 60 * 24 * 31,
+    )
     return {"message": "Password changed successfully. Please log in again."}

@@ -118,7 +118,7 @@ export default function SigFleetLogo({ className = '', textClassName = 'text-whi
           <line x1="39.5" y1="23" x2="44.5" y2="23" stroke="#FFFFFF" strokeWidth="0.8" />
         </g>
       </svg>
-      <span className={`text-xl font-black tracking-tight ${textClassName}`}>
+      <span className={`text-xl font-bold tracking-tight ${textClassName}`}>
         <span className="text-[#E31837]">Sig</span>
         <span className="text-zinc-400">Fleet</span>
       </span>
