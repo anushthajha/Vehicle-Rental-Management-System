@@ -8,7 +8,7 @@ import DashboardShell from '../user/DashboardShell'
 
 const TABS = {
   upcoming: ['pending', 'confirmed'],
-  active: ['active'],
+  active: ['confirmed', 'active'],
   history: [], // all past bookings — filtered client-side by is_history
   cancelled: ['cancelled', 'rejected'],
 }
@@ -58,6 +58,7 @@ export default function MyBookingsPage() {
 
   const visible = useMemo(() => {
     let filtered = bookings
+    const isInProgress = (b) => new Date(b.pickup_datetime) <= now && new Date(b.return_datetime) >= now
 
     if (tab === 'history') {
       // History: bookings whose return_datetime is in the past (is_history=true)
@@ -69,11 +70,15 @@ export default function MyBookingsPage() {
         new Date(b.return_datetime) < now
       )
     } else if (tab === 'upcoming') {
-      // Upcoming: pending/confirmed AND return_datetime is in the future
+      // Upcoming: pending/confirmed bookings that have not started yet
       filtered = bookings.filter((b) =>
         ['pending', 'confirmed'].includes(b.status) &&
-        new Date(b.return_datetime) >= now &&
+        new Date(b.pickup_datetime) > now &&
         !b.is_expired
+      )
+    } else if (tab === 'active') {
+      filtered = bookings.filter((b) =>
+        b.status === 'active' || (b.status === 'confirmed' && isInProgress(b))
       )
     }
 

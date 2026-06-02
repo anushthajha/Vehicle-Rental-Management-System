@@ -218,6 +218,8 @@ function buildHiddenToolHistory(data) {
         transmission: v.transmission,
         seats: v.seats,
         location_city: v.location_city,
+        category: v.category,
+        vehicle_type: v.vehicle_type,
       })),
     }
   }

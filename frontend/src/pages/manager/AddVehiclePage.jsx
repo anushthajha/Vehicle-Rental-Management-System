@@ -349,13 +349,13 @@ function BasicStep({ form, updateForm, categories, vehicleTypes, fieldErrors = {
       <StepTitle icon={Vehicle} title="Basic Info" />
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <Field label="Make">
+          <Field label="Brand">
             <select
               value={form.make}
               onChange={(e) => { updateForm({ make: e.target.value, car_model: '' }); clearError('make') }}
               className={`input ${fieldErrors.make ? 'border-red-500 bg-red-50' : ''}`}
             >
-              <option value="">— Select make —</option>
+              <option value="">— Select brand —</option>
               {BRANDS.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
             </select>
           </Field>

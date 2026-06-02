@@ -11,7 +11,7 @@ from uuid import UUID
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -21,6 +21,7 @@ from app.models.coupon import Coupon
 from app.models.payment import Payment, WalletTransaction
 from app.models.user import User, UserKYC
 from app.models.vehicle import Vehicle, VehicleImage, VehiclePricingRule
+from app.models.vehicle_category import VehicleCategory, VehicleType
 from app.redis import get_redis
 from app.services.availability import AvailabilityService
 from app.routers.bookings import cancellation_preview, perform_cancellation
@@ -317,6 +318,14 @@ def _latest_tool_result(history: list[dict], result_type: str) -> dict | None:
     return None
 
 
+def _latest_tool_result_with_index(history: list[dict], result_type: str) -> tuple[int, dict] | tuple[None, None]:
+    for index in range(len(history) - 1, -1, -1):
+        result = _extract_tool_result(history[index])
+        if result and result.get("type") == result_type:
+            return index, result
+    return None, None
+
+
 def _is_confirmation(text: str) -> bool:
     normalized = text.lower()
     return any(word in normalized for word in ("yes", "confirm", "book it", "proceed", "go ahead"))
@@ -508,8 +517,34 @@ async def execute_tool(tool_name: str, params: dict, current_user: User, db: Asy
         ]
         if max_price:
             conditions.append(Vehicle.price_per_day <= Decimal(str(max_price)))
-        if category and category in {"electric", "luxury"}:
-            conditions.append(Vehicle.car_model.ilike(f"%{category}%") | Vehicle.make.ilike(f"%{category}%"))
+        category_aliases = {
+            "ev": "electric",
+            "sedans": "sedan",
+            "suvs": "suv",
+            "hatchbacks": "hatchback",
+            "bikes": "bike",
+            "traveler": "traveller",
+            "travelers": "traveller",
+            "travellers": "traveller",
+            "tempo traveler": "traveller",
+            "tempo traveller": "traveller",
+        }
+        category_normalized = category_aliases.get(str(category).lower().strip(), str(category).lower().strip())
+        if category_normalized in {"car", "cars", "vehicle", "vehicles", "any"}:
+            category_normalized = ""
+        if category_normalized:
+            conditions.append(or_(
+                Vehicle.category.has(or_(
+                    func.lower(VehicleCategory.slug) == category_normalized,
+                    func.lower(VehicleCategory.name) == category_normalized,
+                )),
+                Vehicle.vehicle_type.has(or_(
+                    func.lower(VehicleType.slug) == category_normalized,
+                    func.lower(VehicleType.name) == category_normalized,
+                )),
+                Vehicle.car_model.ilike(f"%{category_normalized}%"),
+                Vehicle.make.ilike(f"%{category_normalized}%"),
+            ))
 
         rows = (await db.execute(
             select(Vehicle).where(*conditions).order_by(Vehicle.average_rating.desc()).limit(5)
@@ -520,6 +555,8 @@ async def execute_tool(tool_name: str, params: dict, current_user: User, db: Asy
             img = await db.scalar(
                 select(VehicleImage.image_url).where(VehicleImage.vehicle_id == v.id, VehicleImage.is_primary.is_(True)).limit(1)
             )
+            category_name = await db.scalar(select(VehicleCategory.name).where(VehicleCategory.id == v.category_id)) if v.category_id else None
+            vehicle_type_name = await db.scalar(select(VehicleType.name).where(VehicleType.id == v.vehicle_type_id)) if v.vehicle_type_id else None
             avail, _ = await AvailabilityService.check_vehicle_available(v.id, pickup, return_dt, db)
             if avail:
                 vehicles.append({
@@ -535,6 +572,8 @@ async def execute_tool(tool_name: str, params: dict, current_user: User, db: Asy
                     "average_rating": float(v.average_rating),
                     "total_trips": v.total_trips,
                     "location_city": v.location_city,
+                    "category": category_name,
+                    "vehicle_type": vehicle_type_name,
                     "primary_image_url": img,
                 })
 
@@ -545,6 +584,7 @@ async def execute_tool(tool_name: str, params: dict, current_user: User, db: Asy
             "pickup_datetime_iso": pickup.isoformat(),
             "return_datetime_iso": return_dt.isoformat(),
             "city": city_normalized,
+            "category": category_normalized or None,
         }
 
     elif tool_name == "get_vehicle_details":
@@ -591,12 +631,8 @@ async def execute_tool(tool_name: str, params: dict, current_user: User, db: Asy
 
         breakdown = calculate_booking_price(v, pickup, return_dt, insurance_type, coupon_code, with_chauffeur=with_chauffeur)
         duration = AvailabilityService.calculate_rental_duration(pickup, return_dt)
-        num_days = max(duration["total_days"], 1)
-        
-        chauffeur_fee = 800 * num_days if with_chauffeur else 0
-        total_with_chauffeur = float(breakdown["total_amount"])
-        if with_chauffeur:
-            total_with_chauffeur += chauffeur_fee
+        num_days = max(int(breakdown.get("chauffeur_days") or 1), 1)
+        chauffeur_fee = float(breakdown.get("chauffeur_fee", 0))
 
         return {
             "type": "booking_summary",
@@ -606,12 +642,12 @@ async def execute_tool(tool_name: str, params: dict, current_user: User, db: Asy
             "duration": duration["duration_label"],
             "num_days": num_days,
             "base_amount": float(breakdown["base_amount"]),
-            "chauffeur_fee": chauffeur_fee if with_chauffeur else 0,
+            "chauffeur_fee": chauffeur_fee,
             "insurance_amount": float(breakdown["insurance_amount"]),
             "insurance_type": insurance_type,
             "coupon_discount": float(breakdown.get("coupon_discount", 0)),
             "platform_fee": float(breakdown["platform_fee"]),
-            "total_amount": total_with_chauffeur,
+            "total_amount": float(breakdown["total_amount"]),
             "security_deposit": float(v.security_deposit),
             "vehicle_id": v.id,
             "pickup_datetime_iso": pickup.isoformat(),
@@ -666,9 +702,7 @@ async def execute_tool(tool_name: str, params: dict, current_user: User, db: Asy
         setattr(v, "pricing_rules", rules)
 
         breakdown = calculate_booking_price(v, pickup, return_dt, insurance_type, coupon_code, with_chauffeur=with_chauffeur)
-        duration = AvailabilityService.calculate_rental_duration(pickup, return_dt)
-        num_days = max(duration["total_days"], 1)
-        chauffeur_fee = Decimal("800") * num_days if with_chauffeur else Decimal("0")
+        chauffeur_fee = Decimal(str(breakdown.get("chauffeur_fee", 0)))
 
         import string, random
         ref = "JPSN" + "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
@@ -690,7 +724,7 @@ async def execute_tool(tool_name: str, params: dict, current_user: User, db: Asy
             security_deposit_amount=v.security_deposit,
             with_chauffeur=with_chauffeur,
             chauffeur_fee=chauffeur_fee,
-            total_amount=Decimal(str(breakdown["total_amount"])) + chauffeur_fee,
+            total_amount=Decimal(str(breakdown["total_amount"])),
             platform_fee=Decimal(str(breakdown["platform_fee"])),
             manager_earnings=Decimal(str(breakdown["manager_earnings"])),
             manager_accepted_at=datetime.utcnow(),
@@ -842,8 +876,15 @@ async def chat(
     result_data = None
     result_booking_id = None
 
-    latest_cancellation = _latest_tool_result(history, "cancellation_preview")
-    if latest_cancellation and _is_confirmation(user_message):
+    latest_cancellation_index, latest_cancellation = _latest_tool_result_with_index(history, "cancellation_preview")
+    latest_cancellation_complete_index, _ = _latest_tool_result_with_index(history, "cancellation_complete")
+    latest_summary_index, latest_summary = _latest_tool_result_with_index(history, "booking_summary")
+    cancellation_is_pending = (
+        latest_cancellation is not None
+        and (latest_cancellation_complete_index is None or latest_cancellation_index > latest_cancellation_complete_index)
+        and (latest_summary_index is None or latest_cancellation_index > latest_summary_index)
+    )
+    if cancellation_is_pending and _is_confirmation(user_message):
         tool_result = await execute_tool(
             "confirm_cancellation",
             {
@@ -881,7 +922,7 @@ async def chat(
         }
 
     lowered_message = user_message.lower()
-    if latest_cancellation and any(phrase in lowered_message for phrase in ("no", "keep", "don't cancel", "do not cancel")):
+    if cancellation_is_pending and any(phrase in lowered_message for phrase in ("no", "keep", "don't cancel", "do not cancel")):
         return {
             "reply": "No problem. Your booking is still active.",
             "action": None,
@@ -918,7 +959,6 @@ async def chat(
             "booking_id": None,
         }
 
-    latest_summary = _latest_tool_result(history, "booking_summary")
     if latest_summary and _is_confirmation(user_message):
         tool_result = await execute_tool(
             "create_booking",
@@ -1059,8 +1099,28 @@ async def chat(
                 "booking_id": result_booking_id,
             }
 
+        tool_params = tool_call.get("params", {})
+        if tool_call["tool"] == "create_booking":
+            latest_summary_for_tool = result_data if result_data and result_data.get("type") == "booking_summary" else _latest_tool_result(history, "booking_summary")
+            if latest_summary_for_tool:
+                tool_params = {
+                    "vehicle_id": latest_summary_for_tool.get("vehicle_id"),
+                    "pickup_datetime": latest_summary_for_tool.get("pickup_datetime_iso"),
+                    "return_datetime": latest_summary_for_tool.get("return_datetime_iso"),
+                    "with_chauffeur": latest_summary_for_tool.get("with_chauffeur", False),
+                    "insurance_type": latest_summary_for_tool.get("insurance_type", "standard"),
+                    "coupon_code": latest_summary_for_tool.get("coupon_code"),
+                    **tool_params,
+                }
+                if "with_chauffeur" not in tool_call.get("params", {}):
+                    tool_params["with_chauffeur"] = latest_summary_for_tool.get("with_chauffeur", False)
+                if "insurance_type" not in tool_call.get("params", {}):
+                    tool_params["insurance_type"] = latest_summary_for_tool.get("insurance_type", "standard")
+                if "coupon_code" not in tool_call.get("params", {}):
+                    tool_params["coupon_code"] = latest_summary_for_tool.get("coupon_code")
+
         # Execute the tool
-        tool_result = await execute_tool(tool_call["tool"], tool_call.get("params", {}), current_user, db)
+        tool_result = await execute_tool(tool_call["tool"], tool_params, current_user, db)
         if tool_call["tool"] == "search_vehicles":
             return {
                 "reply": _vehicle_list_reply(tool_result),
