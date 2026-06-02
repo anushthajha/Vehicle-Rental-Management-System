@@ -19,21 +19,17 @@ export default function BookingDetailsPage() {
   const [reason, setReason] = useState('')
 
   async function load() {
-    const response = await api.get(`/bookings/${bookingId}`)
-    setBooking(response.data)
-    setQr(await QRCode.toString(response.data.booking_ref, { type: 'svg', width: 128, margin: 1 }))
-    try {
-      const inspectionResponse = await api.get(`/inspections/booking/${bookingId}`)
-      setInspection(inspectionResponse.data?.inspection || inspectionResponse.data)
-    } catch {
-      setInspection(null)
-    }
-    try {
-      const reviewsResponse = await api.get(`/reviews/booking/${bookingId}`)
-      setReviews(reviewsResponse.data?.reviews || [])
-    } catch {
-      setReviews([])
-    }
+    // All 3 fetches in parallel — booking data, inspection report, and reviews
+    const [bookingResponse, inspectionResult, reviewsResult] = await Promise.all([
+      api.get(`/bookings/${bookingId}`),
+      api.get(`/inspections/booking/${bookingId}`).catch(() => null),
+      api.get(`/reviews/booking/${bookingId}`).catch(() => null),
+    ])
+    const bookingData = bookingResponse.data
+    setBooking(bookingData)
+    setQr(await QRCode.toString(bookingData.booking_ref, { type: 'svg', width: 128, margin: 1 }))
+    setInspection(inspectionResult?.data?.inspection || inspectionResult?.data || null)
+    setReviews(reviewsResult?.data?.reviews || [])
   }
 
   useEffect(() => { load() }, [bookingId])
@@ -161,8 +157,6 @@ export default function BookingDetailsPage() {
 
         <section className="flex flex-wrap gap-3 rounded-lg border border-zinc-200 bg-white p-5">
           {['pending', 'confirmed'].includes(booking.status) && <button onClick={() => setCancelOpen(true)} className="rounded-md bg-red-50 px-4 py-3 font-black text-red-700">Cancel Booking</button>}
-          {booking.status === 'confirmed' && <button className="rounded-md border border-zinc-300 px-4 py-3 font-black text-zinc-800">Extend Trip request</button>}
-          {booking.status === 'active' && <button className="rounded-md border border-zinc-300 px-4 py-3 font-black text-zinc-800">Extend Trip</button>}
           {booking.status === 'completed' && (
             booking.has_reviewed
               ? <Link to="/dashboard/reviews" className="rounded-md bg-zinc-950 px-4 py-3 font-black text-white inline-flex items-center gap-2"><Star size={16} /> View Review</Link>

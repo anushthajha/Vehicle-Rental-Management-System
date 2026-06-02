@@ -116,7 +116,8 @@ async def _ticket_with_access(ticket_id: str, current_user: User, db: AsyncSessi
     ticket = await db.scalar(select(SupportTicket).where(SupportTicket.id == ticket_id))
     if ticket is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
-    if current_user.role != "admin" and ticket.user_id != current_user.id:
+    # Admin and vehicle managers can access all tickets; customers only their own
+    if current_user.role not in ("admin", "vehicle_manager") and ticket.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to access this ticket")
     return ticket
 
@@ -156,7 +157,8 @@ async def create_ticket(
 
 @router.get("/tickets")
 async def list_tickets(current_user: User = Depends(get_current_active_user), db: AsyncSession = Depends(get_db)):
-    conditions = [] if current_user.role == "admin" else [SupportTicket.user_id == current_user.id]
+    # Admin and vehicle managers see all tickets; customers see only their own
+    conditions = [] if current_user.role in ("admin", "vehicle_manager") else [SupportTicket.user_id == current_user.id]
     tickets = (await db.execute(select(SupportTicket).where(*conditions).order_by(SupportTicket.updated_at.desc()))).scalars().all()
     items = []
     for ticket in tickets:
@@ -181,10 +183,12 @@ async def add_ticket_message(
 ):
     ticket = await _ticket_with_access(ticket_id, current_user, db)
     attachment_url = await _save_attachment(ticket.id, attachment)
-    sender_role = "admin" if current_user.role == "admin" else "user"
+    # Admin and vehicle managers reply as staff; customers reply as user
+    is_staff = current_user.role in ("admin", "vehicle_manager")
+    sender_role = "admin" if is_staff else "user"
     await add_support_message(ticket.id, current_user.id, current_user.full_name, sender_role, message, attachment_url)
     ticket.updated_at = datetime.utcnow()
-    if sender_role == "user":
+    if not is_staff:
         ticket.status = "in_progress"
         await _notify_admins(db, ticket, "Support ticket updated", f"{current_user.full_name} replied to {ticket.subject}.")
     elif ticket.user_id:
@@ -198,9 +202,11 @@ async def close_ticket(ticket_id: str, current_user: User = Depends(get_current_
     ticket = await _ticket_with_access(ticket_id, current_user, db)
     if ticket.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the ticket owner can close this ticket")
+    if ticket.status != "resolved":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ticket can only be closed after staff marks it as resolved")
     ticket.status = "closed"
     ticket.updated_at = datetime.utcnow()
-    await add_support_message(ticket.id, "system", "SigFleet Support", "system", "Ticket closed by user.")
+    await add_support_message(ticket.id, "system", "SigFleet Support", "system", "Customer marked as satisfied. Ticket closed.")
     await db.commit()
     return {"status": "closed"}
 

@@ -1,0 +1,1 @@
+import{N as e,h as t}from"./index-D5x9QxCF.js";import n from"./AdminUsersPage-BeHUp4ES.js";e();var r=t();function i(){return(0,r.jsx)(n,{initialTab:`managers`})}export{i as default};

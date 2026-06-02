@@ -76,9 +76,19 @@ function Badge({ value }) {
 }
 
 function ReviewPanel({ kyc, onClose, onApprove, onReject, onImage }) {
-  const [reason, setReason] = useState(reasons[0])
+  const [action, setAction] = useState('') // '' | 'approve' | 'reject'
+  const [reason, setReason] = useState('')
   const [other, setOther] = useState('')
-  const finalReason = reason === 'Other (specify)' ? other : reason
+  const [reasonError, setReasonError] = useState('')
+  const finalReason = reason === 'Other (specify)' ? other.trim() : reason
+
+  function handleReject() {
+    if (!reason) { setReasonError('Please select a rejection reason'); return }
+    if (reason === 'Other (specify)' && other.trim().length < 5) { setReasonError('Please describe the reason (at least 5 characters)'); return }
+    setReasonError('')
+    onReject(kyc, finalReason)
+  }
+
   const docs = [
     ['DL Front', kyc?.dl_front_image],
     ['DL Back', kyc?.dl_back_image],
@@ -87,12 +97,89 @@ function ReviewPanel({ kyc, onClose, onApprove, onReject, onImage }) {
   ]
   return (
     <aside className="fixed inset-y-0 right-0 z-50 w-full max-w-3xl overflow-y-auto border-l border-zinc-200 bg-white p-6 shadow-2xl">
-      <div className="flex items-center justify-between"><h3 className="text-xl font-black">KYC Review</h3><button onClick={onClose} className="rounded-md p-2 hover:bg-zinc-100"><X size={20} /></button></div>
-      <section className="mt-5 rounded-lg bg-zinc-50 p-4"><h4 className="font-black">{kyc?.user?.full_name || 'Unknown user'}</h4><p className="text-sm font-bold text-zinc-500">{kyc?.user?.email || 'No email'} · {kyc?.user?.phone || 'No phone'} · Member since {formatDate(kyc?.user?.created_at)}</p></section>
-      <div className="mt-5 grid gap-4 md:grid-cols-2">{docs.map(([label, src]) => <button key={label} onClick={() => src && onImage(src)} className="text-left"><p className="mb-2 text-sm font-black">{label}</p><img alt="" src={src || '/vite.svg'} className="h-56 w-full rounded-md border border-zinc-200 object-contain" /></button>)}</div>
-      <div className="mt-5 grid gap-3 md:grid-cols-2"><div className="rounded-md bg-zinc-50 p-3"><p className="text-xs font-black uppercase text-zinc-500">DL Number</p><p className="font-black">{kyc?.dl_number || '-'}</p></div><div className="rounded-md bg-zinc-50 p-3"><p className="text-xs font-black uppercase text-zinc-500">Aadhaar Number</p><p className="font-black">{kyc?.aadhar_number || '-'}</p></div></div>
-      <div className="mt-5 rounded-lg border border-zinc-200 p-4"><select className="input" value={reason} onChange={(event) => setReason(event.target.value)}>{reasons.map((item) => <option key={item}>{item}</option>)}</select>{reason === 'Other (specify)' && <textarea className="input mt-3 min-h-24" value={other} onChange={(event) => setOther(event.target.value)} />}</div>
-      <div className="mt-5 flex gap-3"><button onClick={() => onApprove(kyc)} className="rounded-md bg-emerald-600 px-5 py-3 font-black text-white">Approve</button><button onClick={() => onReject(kyc, finalReason)} disabled={finalReason.length < 3} className="rounded-md bg-[#E31837] px-5 py-3 font-black text-white disabled:opacity-50">Reject</button></div>
+      <div className="flex items-center justify-between">
+        <h3 className="text-xl font-black">KYC Review</h3>
+        <button onClick={onClose} className="rounded-md p-2 hover:bg-zinc-100"><X size={20} /></button>
+      </div>
+
+      <section className="mt-5 rounded-lg bg-zinc-50 p-4">
+        <h4 className="font-black">{kyc?.user?.full_name || 'Unknown user'}</h4>
+        <p className="text-sm font-bold text-zinc-500">{kyc?.user?.email || 'No email'} · {kyc?.user?.phone || 'No phone'} · Member since {formatDate(kyc?.user?.created_at)}</p>
+      </section>
+
+      <div className="mt-5 grid gap-4 md:grid-cols-2">
+        {docs.map(([label, src]) => (
+          <button key={label} onClick={() => src && onImage(src)} className="text-left">
+            <p className="mb-2 text-sm font-black">{label}</p>
+            <img alt="" src={src || '/vite.svg'} className="h-56 w-full rounded-md border border-zinc-200 object-contain" />
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
+        <div className="rounded-md bg-zinc-50 p-3"><p className="text-xs font-black uppercase text-zinc-500">DL Number</p><p className="font-black">{kyc?.dl_number || '-'}</p></div>
+        <div className="rounded-md bg-zinc-50 p-3"><p className="text-xs font-black uppercase text-zinc-500">Aadhaar Number</p><p className="font-black">{kyc?.aadhar_number || '-'}</p></div>
+      </div>
+
+      {/* Action buttons — shown first, rejection form only appears after clicking Reject */}
+      {action === '' && (
+        <div className="mt-6 flex gap-3">
+          <button
+            onClick={() => onApprove(kyc)}
+            className="rounded-md bg-emerald-600 px-5 py-3 font-black text-white hover:bg-emerald-700 transition"
+          >
+            ✓ Approve KYC
+          </button>
+          <button
+            onClick={() => setAction('reject')}
+            className="rounded-md bg-[#E31837] px-5 py-3 font-black text-white hover:bg-red-700 transition"
+          >
+            ✗ Reject KYC
+          </button>
+        </div>
+      )}
+
+      {/* Rejection form — only shown after clicking Reject */}
+      {action === 'reject' && (
+        <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-5 space-y-3">
+          <h4 className="font-black text-red-900">Rejection Reason</h4>
+          <div>
+            <select
+              className={`input ${reasonError ? 'border-red-500' : ''}`}
+              value={reason}
+              onChange={(e) => { setReason(e.target.value); setReasonError('') }}
+            >
+              <option value="">— Select a reason —</option>
+              {reasons.map((item) => <option key={item}>{item}</option>)}
+            </select>
+            {reasonError && <p className="mt-1 text-xs font-bold text-red-600">{reasonError}</p>}
+          </div>
+          {reason === 'Other (specify)' && (
+            <div>
+              <textarea
+                className={`input min-h-24 ${reasonError ? 'border-red-500' : ''}`}
+                value={other}
+                onChange={(e) => { setOther(e.target.value); setReasonError('') }}
+                placeholder="Describe the rejection reason (min 5 characters)"
+              />
+            </div>
+          )}
+          <div className="flex gap-3 pt-1">
+            <button
+              onClick={handleReject}
+              className="rounded-md bg-[#E31837] px-5 py-3 font-black text-white hover:bg-red-700 transition"
+            >
+              Confirm Rejection
+            </button>
+            <button
+              onClick={() => { setAction(''); setReason(''); setOther(''); setReasonError('') }}
+              className="rounded-md border border-zinc-300 px-5 py-3 font-black text-zinc-700 hover:bg-zinc-50 transition"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </aside>
   )
 }

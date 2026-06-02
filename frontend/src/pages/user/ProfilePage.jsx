@@ -1,19 +1,25 @@
 import React, { useEffect, useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { BadgeCheck, Camera, CalendarDays, Car, IndianRupee, Loader2, Lock, Star, Trash2, Wallet, X } from 'lucide-react'
+import { BadgeCheck, Camera, CalendarDays, Car, Eye, EyeOff, IndianRupee, Loader2, Lock, Star, Trash2, Wallet, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../../services/api'
 import { useAuthStore } from '../../context/AuthContext'
 import PasswordStrengthMeter from '../auth/PasswordStrengthMeter'
 import DashboardShell from './DashboardShell'
+import { changePasswordSchema, collectZodErrors, profileUpdateSchema } from '../../utils/validationSchemas'
 
 export default function ProfilePage() {
   const { setUser, logout } = useAuthStore()
   const fileRef = useRef(null)
   const [profile, setProfile] = useState(null)
   const [form, setForm] = useState({ full_name: '', phone: '' })
+  const [formErrors, setFormErrors] = useState({})
   const [passwords, setPasswords] = useState({ current_password: '', new_password: '', confirm_new_password: '' })
+  const [passwordErrors, setPasswordErrors] = useState({})
+  const [showCurrent, setShowCurrent] = useState(false)
+  const [showNew, setShowNew] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [prefs, setPrefs] = useState({ booking: true, promos: false, manager: true })
   const [showPassword, setShowPassword] = useState(false)
   const [deleteText, setDeleteText] = useState('')
@@ -33,6 +39,12 @@ export default function ProfilePage() {
 
   async function saveProfile(event) {
     event.preventDefault()
+    const parsed = profileUpdateSchema.safeParse(form)
+    if (!parsed.success) {
+      setFormErrors(collectZodErrors(parsed.error))
+      return
+    }
+    setFormErrors({})
     setSaving(true)
     try {
       const response = await api.patch('/users/profile', form)
@@ -86,10 +98,12 @@ export default function ProfilePage() {
 
   async function changePassword(event) {
     event.preventDefault()
-    if (passwords.new_password !== passwords.confirm_new_password) {
-      toast.error('New passwords do not match')
+    const parsed = changePasswordSchema.safeParse(passwords)
+    if (!parsed.success) {
+      setPasswordErrors(collectZodErrors(parsed.error))
       return
     }
+    setPasswordErrors({})
     try {
       await api.patch('/auth/change-password', passwords)
       toast.success('Password changed. Please log in again.')
@@ -171,8 +185,20 @@ export default function ProfilePage() {
           <h2 className="text-xl font-black text-zinc-950">Personal Information</h2>
           <form onSubmit={saveProfile} className="mt-5 grid gap-4 lg:grid-cols-2">
             <label className="block">
-              <span className="label">Full Name</span>
-              <input className="input mt-1 h-11" value={form.full_name} onChange={(e) => setForm((c) => ({ ...c, full_name: e.target.value }))} required />
+              <span className="label">Full Name <span className="text-red-500">*</span></span>
+              <input
+                className={`input mt-1 h-11 ${formErrors.full_name ? 'border-red-500 bg-red-50' : ''}`}
+                value={form.full_name}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^A-Za-z ]/g, '')
+                  setForm((c) => ({ ...c, full_name: val }))
+                  if (formErrors.full_name) setFormErrors((c) => ({ ...c, full_name: undefined }))
+                }}
+                onBlur={() => { if (!form.full_name.trim()) setFormErrors((c) => ({ ...c, full_name: 'Name is required' })) }}
+                placeholder="e.g. Ravi Kumar"
+                required
+              />
+              {formErrors.full_name && <span className="mt-1 block text-xs font-bold text-red-600">{formErrors.full_name}</span>}
             </label>
             <label className="block">
               <span className="label">Email <span className="text-zinc-400 font-bold">(cannot be changed)</span></span>
@@ -183,12 +209,15 @@ export default function ProfilePage() {
               <div className="mt-1 flex">
                 <span className="grid h-11 place-items-center rounded-l-md border border-r-0 border-zinc-300 bg-zinc-100 px-3 font-bold text-zinc-500">+91</span>
                 <input
-                  className="input h-11 rounded-l-none"
+                  className={`input h-11 rounded-l-none ${formErrors.phone ? 'border-red-500 bg-red-50' : ''}`}
                   value={form.phone}
-                  onChange={(e) => setForm((c) => ({ ...c, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                  onChange={(e) => { setForm((c) => ({ ...c, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })); if (formErrors.phone) setFormErrors((c) => ({ ...c, phone: undefined })) }}
+                  onBlur={() => { if (form.phone && !/^[6-9]\d{9}$/.test(form.phone)) setFormErrors((c) => ({ ...c, phone: 'Enter a valid 10-digit Indian mobile number' })) }}
                   placeholder="10-digit mobile number"
+                  maxLength={10}
                 />
               </div>
+              {formErrors.phone && <span className="mt-1 block text-xs font-bold text-red-600">{formErrors.phone}</span>}
             </label>
             <div className="lg:col-span-2">
               <button disabled={saving} className="inline-flex h-11 items-center gap-2 rounded-md bg-sigfleet px-5 font-black text-white disabled:opacity-60">
@@ -212,33 +241,55 @@ export default function ProfilePage() {
           </div>
           {showPassword && (
             <form onSubmit={changePassword} className="mt-5 grid gap-4 lg:grid-cols-2">
-              <input
-                className="input h-11 lg:col-span-2"
-                type="password"
-                placeholder="Current password"
-                value={passwords.current_password}
-                onChange={(e) => setPasswords((c) => ({ ...c, current_password: e.target.value }))}
-                required
-              />
+              <div className="lg:col-span-2">
+                <label className="text-sm font-bold text-zinc-700">Current Password <span className="text-red-500">*</span></label>
+                <div className="relative mt-1">
+                  <input
+                    className={`input h-11 pr-10 ${passwordErrors.current_password ? 'border-red-500 bg-red-50' : ''}`}
+                    type={showCurrent ? 'text' : 'password'}
+                    placeholder="Current password"
+                    value={passwords.current_password}
+                    onChange={(e) => { setPasswords((c) => ({ ...c, current_password: e.target.value })); if (passwordErrors.current_password) setPasswordErrors((c) => ({ ...c, current_password: undefined })) }}
+                  />
+                  <button type="button" onClick={() => setShowCurrent((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400">
+                    {showCurrent ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+                {passwordErrors.current_password && <span className="mt-1 block text-xs font-bold text-red-600">{passwordErrors.current_password}</span>}
+              </div>
               <div>
-                <input
-                  className="input h-11"
-                  type="password"
-                  placeholder="New password"
-                  value={passwords.new_password}
-                  onChange={(e) => setPasswords((c) => ({ ...c, new_password: e.target.value }))}
-                  required
-                />
+                <label className="text-sm font-bold text-zinc-700">New Password <span className="text-red-500">*</span></label>
+                <div className="relative mt-1">
+                  <input
+                    className={`input h-11 pr-10 ${passwordErrors.new_password ? 'border-red-500 bg-red-50' : ''}`}
+                    type={showNew ? 'text' : 'password'}
+                    placeholder="New password"
+                    value={passwords.new_password}
+                    onChange={(e) => { setPasswords((c) => ({ ...c, new_password: e.target.value })); if (passwordErrors.new_password) setPasswordErrors((c) => ({ ...c, new_password: undefined })) }}
+                  />
+                  <button type="button" onClick={() => setShowNew((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400">
+                    {showNew ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+                {passwordErrors.new_password && <span className="mt-1 block text-xs font-bold text-red-600">{passwordErrors.new_password}</span>}
                 <PasswordStrengthMeter password={passwords.new_password} />
               </div>
-              <input
-                className="input h-11"
-                type="password"
-                placeholder="Confirm new password"
-                value={passwords.confirm_new_password}
-                onChange={(e) => setPasswords((c) => ({ ...c, confirm_new_password: e.target.value }))}
-                required
-              />
+              <div>
+                <label className="text-sm font-bold text-zinc-700">Confirm New Password <span className="text-red-500">*</span></label>
+                <div className="relative mt-1">
+                  <input
+                    className={`input h-11 pr-10 ${passwordErrors.confirm_new_password ? 'border-red-500 bg-red-50' : ''}`}
+                    type={showConfirm ? 'text' : 'password'}
+                    placeholder="Confirm new password"
+                    value={passwords.confirm_new_password}
+                    onChange={(e) => { setPasswords((c) => ({ ...c, confirm_new_password: e.target.value })); if (passwordErrors.confirm_new_password) setPasswordErrors((c) => ({ ...c, confirm_new_password: undefined })) }}
+                  />
+                  <button type="button" onClick={() => setShowConfirm((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400">
+                    {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+                {passwordErrors.confirm_new_password && <span className="mt-1 block text-xs font-bold text-red-600">{passwordErrors.confirm_new_password}</span>}
+              </div>
               <button className="h-11 rounded-md bg-zinc-950 px-5 font-black text-white lg:col-span-2 w-fit">
                 Update Password
               </button>

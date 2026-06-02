@@ -68,7 +68,7 @@ export default function WalletPage() {
             <table className="min-w-full text-left text-sm">
               <thead className="border-b border-zinc-200 text-xs uppercase text-zinc-500"><tr><th className="py-3">Date</th><th>Description</th><th>Type</th><th className="text-right">Amount</th><th className="text-right">Balance After</th></tr></thead>
               <tbody className="divide-y divide-zinc-100">
-                {visible.map((txn) => <tr key={txn.id}><td className="py-4 font-bold">{formatDate(txn.created_at)}</td><td className="pr-6 font-bold text-zinc-700">{txn.description}</td><td className="capitalize text-zinc-500">{txn.transaction_type}</td><td className={`text-right font-black ${txn.transaction_type === 'credit' ? 'text-emerald-700' : 'text-red-700'}`}>{txn.transaction_type === 'credit' ? '+' : '-'}{moneyLabel(txn.amount)}</td><td className="text-right font-bold">{moneyLabel(txn.balance_after)}</td></tr>)}
+                {visible.map((txn) => <tr key={txn.id}><td className="py-4 font-bold">{formatDate(txn.created_at)}</td><td className="pr-6 font-bold text-zinc-700">{txn.description}</td><td><TransactionBadge txn={txn} /></td><td className={`text-right font-black ${txn.transaction_type === 'credit' ? 'text-emerald-700' : 'text-red-700'}`}>{txn.transaction_type === 'credit' ? '+' : '-'}{moneyLabel(txn.amount)}</td><td className="text-right font-bold">{moneyLabel(txn.balance_after)}</td></tr>)}
               </tbody>
             </table>
             {!visible.length && <div className="grid min-h-52 place-items-center text-center font-black text-zinc-500">No transactions found</div>}
@@ -128,4 +128,13 @@ function AddMoneyModal({ open, onOpenChange, onAdded }) {
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleDateString() : '-'
+}
+
+function TransactionBadge({ txn }) {
+  const description = txn.description?.toLowerCase() || ''
+  const isRefund = description.includes('refund')
+  const isCompensation = description.includes('fine') || description.includes('compensation')
+  const label = txn.transaction_type === 'debit' ? 'Paid' : isCompensation ? 'Compensation' : isRefund ? 'Refund' : 'Added'
+  const tone = txn.transaction_type === 'debit' ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'
+  return <span className={`inline-flex rounded-full px-2 py-1 text-xs font-black ${tone}`}>{label}</span>
 }

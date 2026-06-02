@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Bell, CalendarDays, Car as Vehicle, ChevronRight, Heart, Route, Wallet } from 'lucide-react'
 import { Helmet } from 'react-helmet-async'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { differenceInCalendarDays, formatDistanceToNow, parseISO } from 'date-fns'
 import api from '../../services/api'
 import { useAuthStore } from '../../context/AuthContext'
@@ -20,32 +20,31 @@ const nav = [
 
 export default function DashboardPage() {
   const { user } = useAuthStore()
+  const navigate = useNavigate()
   const [profile, setProfile] = useState(null)
   const [bookings, setBookings] = useState([])
   const [activeBookings, setActiveBookings] = useState([])
   const [wishlistCount, setWishlistCount] = useState(0)
-  const [notifications, setNotifications] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
       setLoading(true)
       try {
-        const [profileResponse, bookingsResponse, activeResponse, wishlistResponse, notificationsResponse] = await Promise.all([
+        // 3 parallel calls — profile, all bookings (for count + upcoming), wishlist count
+        // Active bookings are derived from the same bookings response (no extra call needed)
+        // Notifications are handled by NotificationBell — no duplicate fetch here
+        const [profileResponse, bookingsResponse, wishlistResponse] = await Promise.all([
           api.get('/users/profile').catch(() => ({ data: {} })),
-          // Fetch all non-cancelled bookings for the count and upcoming list
           api.get('/bookings/', { params: { as_role: 'customer', limit: 50 } }).catch(() => ({ data: { bookings: [] } })),
-          // Fetch active bookings specifically — never miss them regardless of total count
-          api.get('/bookings/', { params: { as_role: 'customer', status: 'active', limit: 10 } }).catch(() => ({ data: { bookings: [] } })),
-          // Wishlist count
           api.get('/wishlist/').catch(() => ({ data: { vehicles: [] } })),
-          api.get('/notifications', { params: { limit: 5 } }).catch(() => ({ data: { notifications: [] } })),
         ])
         setProfile(profileResponse.data ?? {})
-        setBookings(bookingsResponse.data?.bookings || [])
-        setActiveBookings(activeResponse.data?.bookings || [])
+        const allBookings = bookingsResponse.data?.bookings || []
+        setBookings(allBookings)
+        // Derive active bookings from the same response — no second /bookings/ call
+        setActiveBookings(allBookings.filter((b) => b.status === 'active'))
         setWishlistCount((wishlistResponse.data?.vehicles || []).length)
-        setNotifications(notificationsResponse.data?.notifications || [])
       } catch {
         // silently fail — page shows empty state
       } finally {
@@ -82,10 +81,10 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Stat icon={CalendarDays} label="My Bookings" value={totalBookings} to="/customer/bookings" />
             <Stat icon={Vehicle} label="Active Trip" value={active.length} to={activeBookingId ? `/customer/track/${activeBookingId}` : '/customer/bookings'} />
-            <Stat icon={Wallet} label="Wallet Balance" value={moneyLabel(profile?.wallet_balance || 0)} to="/customer/wallet" action="Add Money" />
+            <Stat icon={Wallet} label="Wallet Balance" value={moneyLabel(profile?.wallet_balance || 0)} to="/customer/wallet" action="+ Add Money" onAction={(event) => { event.preventDefault(); event.stopPropagation(); navigate('/customer/wallet') }} />
             <Stat icon={Heart} label="Wishlist" value={wishlistCount} to="/customer/wishlist" />
           </section>
 
@@ -95,12 +94,6 @@ export default function DashboardPage() {
 
           <DashboardSection title="Upcoming Rentals">
             {upcoming.length ? upcoming.map((booking) => <UpcomingRental key={booking.id} booking={booking} />) : <p className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-8 text-center font-black text-zinc-500">No upcoming bookings.</p>}
-          </DashboardSection>
-
-          <DashboardSection title="Recent Activity">
-            <div className="grid gap-3">
-              {notifications.length ? notifications.map((item) => <ActivityItem key={item._id || item.id} item={item} />) : bookings.slice(0, 5).map((booking) => <ActivityItem key={booking.id} item={{ title: `${booking.booking_ref || 'Booking'} ${booking.status}`, created_at: booking.updated_at || booking.created_at }} />)}
-            </div>
           </DashboardSection>
         </div>
       )}
@@ -132,9 +125,9 @@ function KycStatus({ status }) {
   return <Link to="/customer/kyc" className="rounded-md bg-amber-50 px-4 py-3 text-sm font-black text-amber-800">Complete KYC to start booking vehicles →</Link>
 }
 
-function Stat({ icon: Icon, label, value, to, action }) {
-  const body = <article className="relative rounded-lg border border-zinc-200 bg-white p-5 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-lg"><Icon className="text-[#E31837]" /><p className="mt-4 text-sm font-black text-zinc-500">{label}</p><p className="mt-1 text-3xl font-black">{value}</p>{action && <p className="mt-2 text-sm font-black text-[#E31837]">{action}</p>}<ChevronRight className="absolute bottom-4 right-4 text-zinc-300" size={18} /></article>
-  return to ? <Link to={to}>{body}</Link> : body
+function Stat({ icon: Icon, label, value, to, action, onAction }) {
+  const body = <article className="flex h-[190px] flex-col justify-between overflow-hidden rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-md"><div className="flex items-center justify-between"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50"><Icon className="text-red-600" size={20} /></div><ChevronRight size={16} className="text-gray-400" /></div><div><p className="mt-2 text-2xl font-bold text-gray-900">{value}</p><p className="mt-0.5 text-sm text-gray-500">{label}</p>{action ? <button onClick={onAction} className="mt-1 h-5 text-xs font-medium text-red-600 hover:underline">{action}</button> : <span className="mt-1 block h-5 text-xs">&nbsp;</span>}</div></article>
+  return to ? <Link to={to} className="block h-full">{body}</Link> : body
 }
 
 function DashboardSection({ title, children }) {

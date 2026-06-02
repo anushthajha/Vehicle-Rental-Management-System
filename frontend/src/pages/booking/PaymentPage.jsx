@@ -30,10 +30,13 @@ export default function PaymentPage() {
 
   // Card fields
   const [card, setCard] = useState({ number: '', expiry: '', cvv: '', name: '' })
+  const [cardErrors, setCardErrors] = useState({})
   // UPI field
   const [upiId, setUpiId] = useState('')
+  const [upiError, setUpiError] = useState('')
   // Net banking
   const [bank, setBank] = useState('')
+  const [bankError, setBankError] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -66,25 +69,48 @@ export default function PaymentPage() {
 
   // Validate payment details before showing confirm dialog
   function validateAndPay() {
+    let valid = true
+
     if (method === 'card') {
+      const errors = {}
       const digits = card.number.replace(/\D/g, '')
-      if (digits.length < 16) { toast.error('Enter a valid 16-digit card number'); return }
-      if (!card.expiry.match(/^\d{2}\/\d{2}$/)) { toast.error('Enter expiry as MM/YY'); return }
-      if (card.cvv.length < 3) { toast.error('Enter a valid CVV (3-4 digits)'); return }
-      if (!card.name.trim()) { toast.error('Enter the cardholder name'); return }
+      if (digits.length < 16) { errors.number = 'Enter a valid 16-digit card number'; valid = false }
+      if (!card.expiry.match(/^\d{2}\/\d{2}$/)) {
+        errors.expiry = 'Enter expiry as MM/YY'; valid = false
+      } else {
+        const [mm, yy] = card.expiry.split('/').map(Number)
+        const now = new Date()
+        const expYear = 2000 + yy
+        const expMonth = mm - 1
+        if (mm < 1 || mm > 12) { errors.expiry = 'Month must be 01–12'; valid = false }
+        else if (new Date(expYear, expMonth + 1, 1) <= now) { errors.expiry = 'Card has expired'; valid = false }
+      }
+      if (card.cvv.length < 3) { errors.cvv = 'CVV must be 3–4 digits'; valid = false }
+      if (!card.name.trim()) { errors.name = 'Cardholder name is required'; valid = false }
+      setCardErrors(errors)
     }
+
     if (method === 'upi') {
-      if (!upiId.trim() || !upiId.includes('@')) { toast.error('Enter a valid UPI ID (e.g. name@upi)'); return }
+      if (!upiId.trim()) { setUpiError('UPI ID is required'); valid = false }
+      else if (!upiId.includes('@')) { setUpiError('Enter a valid UPI ID (e.g. name@paytm)'); valid = false }
+      else if (!/^[\w.\-+]+@[\w]+$/.test(upiId.trim())) { setUpiError('Invalid UPI ID format'); valid = false }
+      else setUpiError('')
     }
+
     if (method === 'netbanking') {
-      if (!bank) { toast.error('Please select your bank'); return }
+      if (!bank) { setBankError('Please select your bank'); valid = false }
+      else setBankError('')
     }
+
     if (method === 'wallet' && !walletOk) {
       toast.error(`Insufficient wallet balance. Add ₹${formatMoney(deficit)} first.`)
-      return
+      valid = false
     }
-    setDialogState('confirm')
-    setDialogOpen(true)
+
+    if (valid) {
+      setDialogState('confirm')
+      setDialogOpen(true)
+    }
   }
 
   async function addMoney() {
@@ -194,48 +220,53 @@ export default function PaymentPage() {
                   <div>
                     <label className="text-xs font-bold text-zinc-500">Card Number <span className="text-red-500">*</span></label>
                     <input
-                      className="input mt-1 h-11"
+                      className={`input mt-1 h-11 ${cardErrors.number ? 'border-red-500 bg-red-50' : ''}`}
                       value={card.number.replace(/\D/g, '').slice(0, 16).replace(/(.{4})/g, '$1 ').trim()}
-                      onChange={(e) => setCard((c) => ({ ...c, number: e.target.value }))}
+                      onChange={(e) => { setCard((c) => ({ ...c, number: e.target.value })); setCardErrors((c) => ({ ...c, number: undefined })) }}
                       placeholder="1234 5678 9012 3456"
                       maxLength={19}
                     />
+                    {cardErrors.number && <p className="mt-1 text-xs font-bold text-red-600">{cardErrors.number}</p>}
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs font-bold text-zinc-500">Expiry (MM/YY) <span className="text-red-500">*</span></label>
                       <input
-                        className="input mt-1 h-11"
+                        className={`input mt-1 h-11 ${cardErrors.expiry ? 'border-red-500 bg-red-50' : ''}`}
                         value={card.expiry}
                         onChange={(e) => {
                           let v = e.target.value.replace(/\D/g, '').slice(0, 4)
                           if (v.length > 2) v = v.slice(0, 2) + '/' + v.slice(2)
                           setCard((c) => ({ ...c, expiry: v }))
+                          setCardErrors((c) => ({ ...c, expiry: undefined }))
                         }}
                         placeholder="MM/YY"
                         maxLength={5}
                       />
+                      {cardErrors.expiry && <p className="mt-1 text-xs font-bold text-red-600">{cardErrors.expiry}</p>}
                     </div>
                     <div>
                       <label className="text-xs font-bold text-zinc-500">CVV <span className="text-red-500">*</span></label>
                       <input
-                        className="input mt-1 h-11"
+                        className={`input mt-1 h-11 ${cardErrors.cvv ? 'border-red-500 bg-red-50' : ''}`}
                         type="password"
                         value={card.cvv}
-                        onChange={(e) => setCard((c) => ({ ...c, cvv: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
+                        onChange={(e) => { setCard((c) => ({ ...c, cvv: e.target.value.replace(/\D/g, '').slice(0, 4) })); setCardErrors((c) => ({ ...c, cvv: undefined })) }}
                         placeholder="•••"
                         maxLength={4}
                       />
+                      {cardErrors.cvv && <p className="mt-1 text-xs font-bold text-red-600">{cardErrors.cvv}</p>}
                     </div>
                   </div>
                   <div>
                     <label className="text-xs font-bold text-zinc-500">Cardholder Name <span className="text-red-500">*</span></label>
                     <input
-                      className="input mt-1 h-11"
+                      className={`input mt-1 h-11 ${cardErrors.name ? 'border-red-500 bg-red-50' : ''}`}
                       value={card.name}
-                      onChange={(e) => setCard((c) => ({ ...c, name: e.target.value }))}
+                      onChange={(e) => { setCard((c) => ({ ...c, name: e.target.value })); setCardErrors((c) => ({ ...c, name: undefined })) }}
                       placeholder="Name as on card"
                     />
+                    {cardErrors.name && <p className="mt-1 text-xs font-bold text-red-600">{cardErrors.name}</p>}
                   </div>
                   <p className="text-xs text-zinc-400">🔒 This is a simulated payment — no real card is charged.</p>
                 </div>
@@ -247,11 +278,12 @@ export default function PaymentPage() {
                   <div>
                     <label className="text-xs font-bold text-zinc-500">UPI ID <span className="text-red-500">*</span></label>
                     <input
-                      className="input mt-1 h-11"
+                      className={`input mt-1 h-11 ${upiError ? 'border-red-500 bg-red-50' : ''}`}
                       value={upiId}
-                      onChange={(e) => setUpiId(e.target.value.trim())}
+                      onChange={(e) => { setUpiId(e.target.value.trim()); setUpiError('') }}
                       placeholder="yourname@upi  (e.g. 9876543210@paytm)"
                     />
+                    {upiError && <p className="mt-1 text-xs font-bold text-red-600">{upiError}</p>}
                   </div>
                   <div className="rounded-md bg-zinc-50 p-3 text-xs font-bold text-zinc-500">
                     Supported: PhonePe, Google Pay, Paytm, BHIM, and all UPI apps.
@@ -265,12 +297,17 @@ export default function PaymentPage() {
                   <p className="text-sm font-black text-zinc-700">Net Banking</p>
                   <div>
                     <label className="text-xs font-bold text-zinc-500">Select Bank <span className="text-red-500">*</span></label>
-                    <select className="input mt-1 h-11" value={bank} onChange={(e) => setBank(e.target.value)}>
+                    <select
+                      className={`input mt-1 h-11 ${bankError ? 'border-red-500 bg-red-50' : ''}`}
+                      value={bank}
+                      onChange={(e) => { setBank(e.target.value); setBankError('') }}
+                    >
                       <option value="">— Choose your bank —</option>
                       {['SBI', 'HDFC Bank', 'ICICI Bank', 'Axis Bank', 'Kotak Mahindra Bank', 'Punjab National Bank', 'Bank of Baroda', 'Canara Bank', 'Union Bank of India', 'IndusInd Bank', 'Yes Bank', 'IDFC First Bank', 'Federal Bank', 'Other'].map((b) => (
                         <option key={b} value={b}>{b}</option>
                       ))}
                     </select>
+                    {bankError && <p className="mt-1 text-xs font-bold text-red-600">{bankError}</p>}
                   </div>
                   <div className="rounded-md bg-zinc-50 p-3 text-xs font-bold text-zinc-500">
                     You will be redirected to your bank's secure portal to complete payment.

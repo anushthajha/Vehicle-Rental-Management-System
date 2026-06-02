@@ -272,7 +272,7 @@ function RoleModal({ user, onClose, onSaved }) {
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
       <div className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl">
         <h3 className="text-lg font-black">Change Role</h3>
-        <select className="input mt-4" value={role} onChange={(event) => setRole(event.target.value)}><option value="customer">Customer</option><option value="vehicle_manager">Vehicle Manager</option><option value="admin">Admin</option></select>
+        <select className="input mt-4" value={role} onChange={(event) => setRole(event.target.value)}><option value="customer">Customer</option><option value="vehicle_manager">Vehicle Manager</option></select>
         <div className="mt-5 flex justify-end gap-2"><button onClick={onClose} className="rounded-md border border-zinc-200 px-4 py-2 font-black">Cancel</button><button onClick={save} className="rounded-md bg-[#E31837] px-4 py-2 font-black text-white">Save</button></div>
       </div>
     </div>

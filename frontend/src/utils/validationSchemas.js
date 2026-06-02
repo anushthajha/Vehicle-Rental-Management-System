@@ -10,11 +10,9 @@ const passwordRule = z.string()
 export const registerSchema = z.object({
   full_name: z.string()
     .trim()
-    .min(4, 'Name must be greater than 3 letters')
+    .min(2, 'Name must be at least 2 characters')
     .max(100, 'Name is too long')
-    .regex(/[A-Za-z]/, 'Name must contain letters')
-    .regex(/^[A-Za-z][A-Za-z .'-]*$/, 'Name can contain only letters, spaces, dot, apostrophe, or hyphen')
-    .refine((value) => !/^\d+$/.test(value), 'Name cannot be only numbers'),
+    .regex(/^[A-Za-z ]+$/, 'Name can only contain letters and spaces'),
   email: z.string().trim().email('Enter a valid email'),
   phone: z.string()
     .transform((value) => value.replace(/^\+91/, '').replace(/\D/g, ''))
@@ -81,6 +79,40 @@ export const kycSchema = z.object({
   dl_back_image: z.any().refine(Boolean, 'Driving license back is required'),
   aadhar_front_image: z.any().refine(Boolean, 'Aadhaar front is required'),
   aadhar_back_image: z.any().refine(Boolean, 'Aadhaar back is required'),
+})
+
+export const resetPasswordSchema = z.object({
+  new_password: passwordRule,
+  confirm_password: z.string().min(1, 'Please confirm your password'),
+}).refine((data) => data.new_password === data.confirm_password, {
+  message: 'Passwords do not match',
+  path: ['confirm_password'],
+})
+
+export const profileUpdateSchema = z.object({
+  full_name: z.string().trim()
+    .min(2, 'Name must be at least 2 characters')
+    .max(100, 'Name is too long')
+    .regex(/^[A-Za-z ]+$/, 'Name can only contain letters and spaces'),
+  phone: z.string()
+    .transform((v) => v.replace(/\D/g, ''))
+    .pipe(z.string().regex(/^([6-9]\d{9})?$/, 'Enter a valid 10-digit Indian mobile number')),
+})
+
+export const changePasswordSchema = z.object({
+  current_password: z.string().min(1, 'Current password is required'),
+  new_password: passwordRule,
+  confirm_new_password: z.string().min(1, 'Please confirm your new password'),
+}).refine((data) => data.new_password === data.confirm_new_password, {
+  message: 'Passwords do not match',
+  path: ['confirm_new_password'],
+})
+
+export const chauffeurSchema = z.object({
+  driver_name: z.string().trim().min(2, 'Driver name must be at least 2 characters').regex(/^[A-Za-z ]+$/, 'Name can only contain letters and spaces'),
+  driver_license_number: z.string().trim().min(8, 'License number must be at least 8 characters').regex(/^[A-Z0-9-]+$/i, 'Enter a valid license number'),
+  driver_phone: z.string().transform((v) => v.replace(/\D/g, '')).pipe(z.string().length(10, 'Phone must be exactly 10 digits').regex(/^[6-9]\d{9}$/, 'Enter a valid Indian mobile number')),
+  driver_experience: z.coerce.number().min(1, 'Experience must be at least 1 year').max(50, 'Experience cannot exceed 50 years'),
 })
 
 export const bankDetailsSchema = z.object({

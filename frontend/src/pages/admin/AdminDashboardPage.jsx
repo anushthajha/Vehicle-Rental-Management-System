@@ -46,9 +46,11 @@ function StatCard({ title, value, subtitle, icon: Icon, trend = 'up', to }) {
 
 function ChartCard({ title, children }) {
   return (
-    <section className="h-80 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+    <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm overflow-hidden">
       <h2 className="mb-4 text-base font-black text-zinc-950">{title}</h2>
-      {children}
+      <div className="h-56">
+        {children}
+      </div>
     </section>
   )
 }
@@ -124,7 +126,7 @@ export default function AdminDashboardPage() {
         <StatCard title="Coupons" value="Manage" subtitle="Promotions" icon={TicketPercent} trend="up" to="/admin/coupons" />
       </section>
 
-      <section className="grid gap-5 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm xl:grid-cols-[1fr_1.1fr_0.9fr]">
+      <section className="grid gap-5 overflow-hidden rounded-lg border border-zinc-200 bg-white p-5 shadow-sm xl:grid-cols-[1fr_1.1fr_0.9fr]">
         <div>
           <p className="text-sm font-black uppercase text-[#E31837]">Revenue Statistics</p>
           <h2 className="mt-1 text-2xl font-black">Platform revenue</h2>
@@ -135,13 +137,13 @@ export default function AdminDashboardPage() {
             <Metric label="Manager payouts" value={formatMoney(totalManagerPayouts)} />
           </div>
         </div>
-        <div className="h-56">
-          <ResponsiveContainer width="100%" height={224}>
-            <LineChart data={revenue}><Tooltip /><Line type="monotone" dataKey="platform_fee" stroke="#E31837" strokeWidth={3} dot={false} /><Line type="monotone" dataKey="manager_payouts" stroke="#111827" strokeWidth={2} dot={false} /></LineChart>
+        <div className="h-56 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={revenue}><CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip /><Line type="monotone" dataKey="platform_fee" stroke="#E31837" strokeWidth={3} dot={false} /><Line type="monotone" dataKey="manager_payouts" stroke="#111827" strokeWidth={2} dot={false} /></LineChart>
           </ResponsiveContainer>
         </div>
-        <div className="h-56">
-          <ResponsiveContainer width="100%" height={224}>
+        <div className="h-56 overflow-hidden">
+          <ResponsiveContainer width="100%" height="100%">
             <PieChart><Pie data={revenueBreakdown.length ? revenueBreakdown : [{ name: 'No revenue', value: 1 }]} dataKey="value" innerRadius={52} outerRadius={82}>{(revenueBreakdown.length ? revenueBreakdown : [{ name: 'No revenue' }]).map((entry, index) => <Cell key={entry.name} fill={colors[index % colors.length]} />)}</Pie><Tooltip /></PieChart>
           </ResponsiveContainer>
         </div>
@@ -149,22 +151,22 @@ export default function AdminDashboardPage() {
 
       <section className="grid gap-5 xl:grid-cols-2">
         <ChartCard title="Daily Bookings">
-          <ResponsiveContainer width="100%" height={280}>
+          <ResponsiveContainer width="100%" height="100%">
             <LineChart data={daily}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" hide /><YAxis allowDecimals={false} /><Tooltip /><Line type="monotone" dataKey="count" stroke="#E31837" strokeWidth={3} dot={false} /></LineChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="Monthly Revenue">
-          <ResponsiveContainer width="100%" height={280}>
+          <ResponsiveContainer width="100%" height="100%">
             <BarChart data={revenue}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" /><YAxis /><Tooltip /><Bar dataKey="platform_fee" stackId="a" fill="#E31837" /><Bar dataKey="manager_payouts" stackId="a" fill="#111827" /></BarChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="Booking Status">
-          <ResponsiveContainer width="100%" height={280}>
-            <PieChart><Pie data={statusData} dataKey="value" innerRadius={60} outerRadius={95} paddingAngle={3}>{statusData.map((entry, index) => <Cell key={entry.name} fill={colors[index % colors.length]} />)}</Pie><Tooltip /></PieChart>
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart><Pie data={statusData} dataKey="value" innerRadius={50} outerRadius={80} paddingAngle={3}>{statusData.map((entry, index) => <Cell key={entry.name} fill={colors[index % colors.length]} />)}</Pie><Tooltip /></PieChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="New Users">
-          <ResponsiveContainer width="100%" height={280}>
+          <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={users}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" /><YAxis allowDecimals={false} /><Tooltip /><Area type="monotone" dataKey="users" fill="#FEE2E2" stroke="#E31837" strokeWidth={3} /></AreaChart>
           </ResponsiveContainer>
         </ChartCard>

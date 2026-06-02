@@ -1,61 +1,72 @@
+/**
+ * Auth Architecture (tab-isolated):
+ *
+ * - Access token  → Zustand memory only (lost on refresh, recovered via cookie)
+ * - Refresh token → HttpOnly cookie set by backend (never readable by JS)
+ * - User object   → sessionStorage (tab-isolated, survives F5 within same tab)
+ *
+ * This means two tabs can be logged in as two different users simultaneously.
+ * Logging out in one tab does NOT affect the other tab.
+ */
+
 import React, { createContext, useContext, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { create } from 'zustand'
 import api from '../services/api'
 
-const STORAGE_KEY = 'sigfleet_auth'
+const SESSION_USER_KEY = 'sigfleet_user'   // sessionStorage — tab-isolated
 
+// ─── Zustand store ────────────────────────────────────────────────────────────
 export const useAuthStore = create((set, get) => ({
   user: null,
-  accessToken: null,
-  refreshToken: null,
+  accessToken: null,   // memory only — never written to any storage
   isLoading: true,
 
-  setUser: (user) => set({ user }),
-
-  setTokens: ({ accessToken, refreshToken }) => {
-    const nextState = {
-      accessToken: accessToken ?? get().accessToken,
-      refreshToken: refreshToken ?? get().refreshToken,
-    }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState))
-    set(nextState)
+  setUser: (user) => {
+    // Persist user object to sessionStorage so F5 doesn't lose the name/role
+    if (user) sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify(user))
+    else sessionStorage.removeItem(SESSION_USER_KEY)
+    set({ user })
   },
 
+  setAccessToken: (accessToken) => {
+    set({ accessToken })
+  },
+
+  // Called on mount — restore user from sessionStorage if present
   hydrateFromStorage: () => {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) {
-      set({ isLoading: false })
-      return
+    const raw = sessionStorage.getItem(SESSION_USER_KEY)
+    if (raw) {
+      try {
+        const user = JSON.parse(raw)
+        set({ user })
+      } catch {
+        sessionStorage.removeItem(SESSION_USER_KEY)
+      }
     }
-    try {
-      const parsed = JSON.parse(raw)
-      set({
-        accessToken: parsed.accessToken || null,
-        refreshToken: parsed.refreshToken || null,
-      })
-    } catch {
-      localStorage.removeItem(STORAGE_KEY)
-      set({ isLoading: false })
-    }
+    // isLoading stays true until /auth/me confirms the token is still valid
   },
 
-  // Synchronous logout — clears state immediately, then fires API call in background
   logout: () => {
-    const rt = get().refreshToken
-    // Step 1: Clear localStorage synchronously
-    localStorage.removeItem(STORAGE_KEY)
-    // Step 2: Clear Zustand state synchronously
-    set({ user: null, accessToken: null, refreshToken: null, isLoading: false })
-    // Step 3: Fire-and-forget backend call (don't block navigation)
-    if (rt) {
-      api.post('/auth/logout', { refresh_token: rt }).catch(() => {})
+    const token = get().accessToken
+    // Clear state and sessionStorage immediately
+    sessionStorage.removeItem(SESSION_USER_KEY)
+    set({ user: null, accessToken: null, isLoading: false })
+    // Tell backend to clear the HttpOnly cookie + blacklist the access token
+    if (token) {
+      api.post('/auth/logout', {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => {})
+    } else {
+      // Even without an access token, hit logout to clear the cookie
+      api.post('/auth/logout', {}).catch(() => {})
     }
   },
 
   setLoading: (isLoading) => set({ isLoading }),
 }))
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 const AuthContext = createContext(null)
 
 function decodeJwt(token) {
@@ -68,23 +79,22 @@ function decodeJwt(token) {
   }
 }
 
+// ─── Provider ─────────────────────────────────────────────────────────────────
 export function AuthProvider({ children }) {
   const navigate = useNavigate()
   const authState = useAuthStore()
-  const { accessToken, refreshToken, setTokens, setUser, logout, hydrateFromStorage, setLoading } = authState
+  const { accessToken, setAccessToken, setUser, logout, hydrateFromStorage, setLoading } = authState
 
-  // Step 1: Hydrate tokens from localStorage on mount
+  // Step 1: Restore user from sessionStorage on mount (instant — no flicker)
   useEffect(() => {
     hydrateFromStorage()
   }, [hydrateFromStorage])
 
-  // Step 2: Set up axios interceptors for auth header + 401 token refresh
+  // Step 2: Axios interceptors — attach access token + handle 401 refresh
   useEffect(() => {
     const requestInterceptor = api.interceptors.request.use((config) => {
       const token = useAuthStore.getState().accessToken
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`
-      }
+      if (token) config.headers.Authorization = `Bearer ${token}`
       return config
     })
 
@@ -92,33 +102,28 @@ export function AuthProvider({ children }) {
       (response) => response,
       async (error) => {
         const original = error.config
-        const storedRefreshToken = useAuthStore.getState().refreshToken
-
-        // Attempt token refresh on 401, but only once per request
         if (
           error.response?.status === 401 &&
-          storedRefreshToken &&
           !original?._retry &&
           !original?.url?.includes('/auth/refresh') &&
           !original?.url?.includes('/auth/logout')
         ) {
           original._retry = true
           try {
-            const response = await api.post('/auth/refresh', { refresh_token: storedRefreshToken })
+            // Cookie is sent automatically — no body needed
+            const response = await api.post('/auth/refresh', {})
             const newAccessToken = response.data?.access_token
             if (newAccessToken) {
-              setTokens({ accessToken: newAccessToken })
+              setAccessToken(newAccessToken)
               original.headers = original.headers || {}
               original.headers.Authorization = `Bearer ${newAccessToken}`
               return api(original)
             }
           } catch {
-            // Refresh failed — log out and redirect
             logout()
             navigate('/auth/login', { replace: true })
           }
         }
-
         return Promise.reject(error)
       },
     )
@@ -127,54 +132,39 @@ export function AuthProvider({ children }) {
       api.interceptors.request.eject(requestInterceptor)
       api.interceptors.response.eject(responseInterceptor)
     }
-  }, [logout, navigate, setTokens])
+  }, [logout, navigate, setAccessToken])
 
-  // Step 3: Fetch /auth/me ONCE on mount (or when accessToken first appears)
-  // Use a ref to prevent re-runs caused by store updates triggering the dependency
+  // Step 3: On mount, call /auth/refresh to get a fresh access token from the cookie
+  // This is the key step — the HttpOnly cookie is sent automatically
   const rehydratedRef = useRef(false)
 
   useEffect(() => {
-    // Only run once — prevent the dependency loop where setUser triggers re-render
-    // which changes authState reference, which re-runs this effect
     if (rehydratedRef.current) return
     rehydratedRef.current = true
 
     async function rehydrate() {
-      const token = useAuthStore.getState().accessToken
-      if (!token) {
-        setLoading(false)
-        return
-      }
       try {
-        const response = await api.get('/auth/me')
-        setUser(response.data)
-      } catch (err) {
-        const status = err?.response?.status
-        if (status === 401) {
-          // Token is invalid/expired — try refresh before giving up
-          const storedRefresh = useAuthStore.getState().refreshToken
-          if (storedRefresh) {
-            try {
-              const refreshResponse = await api.post('/auth/refresh', { refresh_token: storedRefresh })
-              const newAccessToken = refreshResponse.data?.access_token
-              if (newAccessToken) {
-                setTokens({ accessToken: newAccessToken })
-                const meResponse = await api.get('/auth/me', {
-                  headers: { Authorization: `Bearer ${newAccessToken}` },
-                })
-                setUser(meResponse.data)
-                return // success via refresh
-              }
-            } catch {
-              // Refresh also failed — clear everything
-            }
-          }
-          localStorage.removeItem(STORAGE_KEY)
-          useAuthStore.setState({ user: null, accessToken: null, refreshToken: null })
+        // Try to get a new access token using the HttpOnly refresh cookie
+        const refreshResponse = await api.post('/auth/refresh', {})
+        const newAccessToken = refreshResponse.data?.access_token
+        if (newAccessToken) {
+          setAccessToken(newAccessToken)
+          // Now fetch the user profile with the fresh token
+          const meResponse = await api.get('/auth/me', {
+            headers: { Authorization: `Bearer ${newAccessToken}` },
+          })
+          setUser(meResponse.data)
+        } else {
+          // No token returned — not logged in
+          sessionStorage.removeItem(SESSION_USER_KEY)
+          useAuthStore.setState({ user: null })
         }
-        // For network errors (backend down, timeout, etc.) — do NOT clear tokens.
-        // The user is still logged in; the backend was just temporarily unreachable.
-        // isLoading will be set to false in finally, and the app will work once backend is back.
+      } catch {
+        // Cookie missing or expired — user is not logged in
+        // Don't clear sessionStorage here — network errors shouldn't log out
+        // Only clear if it was a 401 (genuinely not authenticated)
+        sessionStorage.removeItem(SESSION_USER_KEY)
+        useAuthStore.setState({ user: null, accessToken: null })
       } finally {
         setLoading(false)
       }
@@ -183,33 +173,31 @@ export function AuthProvider({ children }) {
     rehydrate()
 
     const fallback = setTimeout(() => {
-      if (useAuthStore.getState().isLoading) {
-        setLoading(false)
-      }
+      if (useAuthStore.getState().isLoading) setLoading(false)
     }, 5000)
 
     return () => clearTimeout(fallback)
-  }, [accessToken, setLoading, setUser]) // accessToken in deps so it re-runs if token changes (e.g. after refresh)
+  }, [setAccessToken, setLoading, setUser])
 
-  // Step 4: Proactive token refresh 5 minutes before expiry
+  // Step 4: Proactive access token refresh 5 minutes before expiry
   useEffect(() => {
     const decoded = decodeJwt(accessToken)
-    if (!decoded?.exp || !refreshToken) return undefined
+    if (!decoded?.exp) return undefined
     const refreshAt = decoded.exp * 1000 - Date.now() - 5 * 60 * 1000
-    if (refreshAt <= 0) return undefined // already expired or about to expire
+    if (refreshAt <= 0) return undefined
 
     const timeout = window.setTimeout(async () => {
       try {
-        const response = await api.post('/auth/refresh', { refresh_token: refreshToken })
+        const response = await api.post('/auth/refresh', {})
         const newToken = response.data?.access_token
-        if (newToken) setTokens({ accessToken: newToken })
+        if (newToken) setAccessToken(newToken)
       } catch {
         logout()
       }
     }, refreshAt)
 
     return () => window.clearTimeout(timeout)
-  }, [accessToken, refreshToken, logout, setTokens])
+  }, [accessToken, logout, setAccessToken])
 
   const value = useMemo(() => ({ ...authState, decodeJwt }), [authState])
 
@@ -217,12 +205,7 @@ export function AuthProvider({ children }) {
 }
 
 export function redirectPathForRole(role) {
-  const destinations = {
-    customer: '/customer/dashboard',
-    vehicle_manager: '/manager/dashboard',
-    admin: '/admin/dashboard',
-  }
-  return destinations[role] || '/'
+  return { customer: '/customer/dashboard', vehicle_manager: '/manager/dashboard', admin: '/admin/dashboard' }[role] || '/'
 }
 
 export function useAuth() {

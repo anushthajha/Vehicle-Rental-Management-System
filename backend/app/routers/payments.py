@@ -16,6 +16,7 @@ from app.utils.auth import get_current_active_user
 
 
 router = APIRouter(prefix="/payments", tags=["payments"])
+wallet_router = APIRouter(prefix="/wallet", tags=["wallet"])
 
 
 class WalletTopUpRequest(BaseModel):
@@ -100,6 +101,17 @@ async def get_wallet(
     return {"balance": money(wallet.balance), "transactions": [_transaction_payload(txn) for txn in txns], "total": total, "page": page, "pages": pages, "has_next": page < pages}
 
 
+@wallet_router.get("")
+async def get_wallet_alias(
+    transaction_type: str = Query(default="all", pattern="^(all|credit|debit)$"),
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=100),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await get_wallet(transaction_type, page, limit, current_user, db)
+
+
 @router.post("/wallet/add", status_code=status.HTTP_201_CREATED)
 async def add_wallet_money(payload: WalletTopUpRequest, current_user: User = Depends(get_current_active_user), db: AsyncSession = Depends(get_db)):
     wallet = await get_or_create_wallet(db, current_user.id)
@@ -108,6 +120,11 @@ async def add_wallet_money(payload: WalletTopUpRequest, current_user: User = Dep
     await db.commit()
     await db.refresh(txn)
     return {"new_balance": money(wallet.balance), "transaction_id": txn.id}
+
+
+@wallet_router.post("/add", status_code=status.HTTP_201_CREATED)
+async def add_wallet_money_alias(payload: WalletTopUpRequest, current_user: User = Depends(get_current_active_user), db: AsyncSession = Depends(get_db)):
+    return await add_wallet_money(payload, current_user, db)
 
 
 @router.post("/wallet/pay-booking")

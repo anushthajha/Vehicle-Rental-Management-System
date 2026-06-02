@@ -21,7 +21,7 @@ export default function VerifyOtpPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { setTokens, setUser } = useAuthStore()
+  const { setAccessToken, setUser } = useAuthStore()
 
   // Resolve email from router state or query param
   const email = location.state?.email || searchParams.get('email') || ''
@@ -71,7 +71,7 @@ export default function VerifyOtpPage() {
     try {
       const response = await api.post('/auth/verify-otp', { email, otp })
       const data = response.data
-      setTokens({ accessToken: data.access_token, refreshToken: data.refresh_token })
+      setAccessToken(data.access_token)
       setUser(data.user)
       setSuccess(true)
       toast.success('Email verified! Welcome to SigFleet.')

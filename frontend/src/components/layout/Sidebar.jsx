@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   Users,
@@ -37,6 +37,7 @@ const ROLE_LINKS = {
     { to: '/manager/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/manager/vehicles', label: 'Vehicles', icon: Vehicle },
     { to: '/manager/bookings', label: 'Assignments', icon: ClipboardList },
+    { to: '/manager/support', label: 'Support Tickets', icon: Headphones },
     { to: '/manager/statistics', label: 'Reports', icon: BarChart3 },
     { to: '/manager/profile', label: 'Settings', icon: Settings },
   ],
@@ -80,10 +81,14 @@ export default function Sidebar({ onCloseMobile }) {
     <aside className="flex h-full w-full flex-col bg-zinc-950 text-white">
       {/* Brand Logo Header */}
       <div className="flex h-16 items-center border-b border-zinc-800/80 px-5">
-        <div>
+        <Link
+          to="/"
+          onClick={onCloseMobile}
+          className="block cursor-pointer transition hover:opacity-80"
+        >
           <SigFleetLogo textClassName="text-white" />
           <p className="text-[10px] font-black uppercase tracking-widest text-[#E31837] mt-0.5 ml-11">{subtitle}</p>
-        </div>
+        </Link>
       </div>
 
       {/* User profile summary card inside sidebar — click to go to profile */}

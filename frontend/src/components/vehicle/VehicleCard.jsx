@@ -99,8 +99,8 @@ function VehicleCard({ car, viewMode = 'grid', onRemoved, datesSelected = false 
   }
 
   return (
-    <article className="group overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
-      <Link to={`/vehicles/${car.id}`} className="block">
+    <article className="group flex h-full min-h-[430px] overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
+      <Link to={`/vehicles/${car.id}`} className="flex h-full w-full flex-col">
         <div className="relative aspect-video overflow-hidden bg-zinc-100">
           <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-zinc-100 via-zinc-200 to-zinc-100" />
           <img src={image} alt={`${car.title} rental vehicle in ${car.location_city}`} loading="lazy" decoding="async" width="480" height="270" className="relative h-full w-full object-cover transition duration-500 group-hover:scale-105" />
@@ -111,18 +111,18 @@ function VehicleCard({ car, viewMode = 'grid', onRemoved, datesSelected = false 
             <Heart size={19} fill={saved ? 'currentColor' : 'none'} />
           </button>
         </div>
-        <div className="p-4">
-          <div className="flex items-center gap-3 text-sm font-bold text-zinc-600">
+        <div className="flex flex-1 flex-col p-4">
+          <div className="grid grid-cols-2 gap-2 text-sm font-bold text-zinc-600 sm:grid-cols-4">
             <span className="flex items-center gap-1"><Snowflake size={15} /> AC</span>
             <span>{titleCase(car.transmission)}</span>
             <span className="flex items-center gap-1"><Armchair size={15} /> {car.seats}</span>
             <span className="flex items-center gap-1">{car.fuel_type === 'electric' ? <Zap size={15} /> : <Fuel size={15} />} {titleCase(car.fuel_type)}</span>
           </div>
-          <h3 className="mt-3 font-display text-lg font-bold text-zinc-950">{car.title} <span className="text-zinc-500">{car.year}</span></h3>
+          <h3 className="mt-3 line-clamp-2 min-h-[3.5rem] font-display text-lg font-bold leading-7 text-zinc-950">{car.title} <span className="text-zinc-500">{car.year}</span></h3>
           <p className="mt-1 text-sm font-black text-zinc-700">{car.make} · {car.vehicle_type_name || titleCase(car.vehicle_type || car.category || 'Vehicle')}</p>
           <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-zinc-500"><MapPin size={15} /> {car.location_area || 'Central'}, {car.location_city}</p>
           <RatingLine car={car} />
-          <div className="mt-4 flex items-center justify-between gap-3">
+          <div className="mt-auto flex items-center justify-between gap-3 pt-4">
             <div>
               <p className="text-2xl font-black text-zinc-950">₹{formatMoney(car.price_per_day)}<span className="text-sm font-bold text-zinc-500">/day</span></p>
             </div>

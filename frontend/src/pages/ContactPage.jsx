@@ -130,13 +130,18 @@ export default function ContactPage() {
                 {errors.email && <p className="mt-1 text-xs font-bold text-red-600">{errors.email}</p>}
               </div>
               <div>
-                <input
-                  className={`input ${errors.phone ? 'border-red-500 bg-red-50' : ''}`}
-                  placeholder="Phone (optional)"
-                  value={form.phone}
-                  onChange={(e) => set('phone', e.target.value)}
-                  onBlur={() => { const e = validate(form); if (e.phone) setErrors((c) => ({ ...c, phone: e.phone })) }}
-                />
+                <div className="flex">
+                  <span className="grid h-11 place-items-center rounded-l-md border border-r-0 border-zinc-300 bg-zinc-100 px-3 text-sm font-bold text-zinc-500 select-none">+91</span>
+                  <input
+                    className={`input h-11 rounded-l-none ${errors.phone ? 'border-red-500 bg-red-50' : ''}`}
+                    placeholder="9876543210 (optional)"
+                    inputMode="numeric"
+                    value={form.phone}
+                    maxLength={10}
+                    onChange={(e) => set('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    onBlur={() => { const e = validate(form); if (e.phone) setErrors((c) => ({ ...c, phone: e.phone })) }}
+                  />
+                </div>
                 {errors.phone && <p className="mt-1 text-xs font-bold text-red-600">{errors.phone}</p>}
               </div>
               <select className="input" value={form.category} onChange={(e) => set('category', e.target.value)}>

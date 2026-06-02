@@ -537,6 +537,10 @@ async def search_cars(
             category_rows = (await db.execute(select(VehicleCategory.id).where(VehicleCategory.slug.in_(legacy_values)))).scalars().all()
             category_values = list(category_rows)
     type_values = _csv_values(vehicle_type or vehicle_type_id)
+    # Resolve slugs to IDs (same pattern as categories)
+    if type_values:
+        type_rows = (await db.execute(select(VehicleType.id).where((VehicleType.id.in_(type_values)) | (VehicleType.slug.in_(type_values))))).scalars().all()
+        type_values = list(type_rows) if type_rows else type_values
     brand_values = [item.lower() for item in _csv_values(brand)]
     transmission_values = _csv_values(transmission)
     fuel_values = _csv_values(fuel_type)

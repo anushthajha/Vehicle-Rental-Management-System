@@ -83,13 +83,39 @@ const initialForm = {
 }
 
 const schemas = [
-  z.object({ make: z.string().min(1), car_model: z.string().min(1), year: z.number(), registration_number: z.string().min(6), category_id: z.string().min(1), vehicle_type_id: z.string().optional(), transmission: z.string(), fuel_type: z.string(), seats: z.number().min(2) }),
-  z.object({ description: z.string().min(50).max(1000) }),
-  z.object({ location_city: z.string().min(1), location_area: z.string().min(2), location_address: z.string().min(10), location_lat: z.number(), location_lng: z.number() }),
-  z.object({ price_per_hour: z.number().min(20), price_per_day: z.number().min(100), included_km_per_day: z.number().min(0), extra_km_charge: z.number().min(0), min_trip_hours: z.number(), max_trip_days: z.number() }),
-  z.object({ photos: z.array(z.any()).min(1) }),
-  z.object({}), // Documents — RC is required but validated manually
-  z.object({}), // Review
+  z.object({
+    make: z.string().min(1, 'Make is required'),
+    car_model: z.string().min(1, 'Model is required'),
+    year: z.number().min(2000, 'Year must be 2000 or newer').max(2026, 'Year cannot be in the future'),
+    registration_number: z.string()
+      .min(8, 'Registration number must be at least 8 characters')
+      .max(15, 'Registration number too long')
+      .regex(/^[A-Z0-9-]+$/, 'Use uppercase letters, numbers, and hyphens only (e.g. KA01AB1234)'),
+    category_id: z.string().min(1, 'Please select a category'),
+    vehicle_type_id: z.string().optional(),
+    transmission: z.string().min(1),
+    fuel_type: z.string().min(1),
+    seats: z.number().min(1, 'Seats/riders is required'),
+  }),
+  z.object({ description: z.string().min(50, 'Description must be at least 50 characters').max(1000, 'Description too long') }),
+  z.object({
+    location_city: z.string().min(1, 'City is required'),
+    location_area: z.string().min(2, 'Area/locality must be at least 2 characters'),
+    location_address: z.string().min(10, 'Full address must be at least 10 characters'),
+    location_lat: z.number({ invalid_type_error: 'Pick a location on the map' }),
+    location_lng: z.number({ invalid_type_error: 'Pick a location on the map' }),
+  }),
+  z.object({
+    price_per_hour: z.number().min(20, 'Hourly price must be at least ₹20'),
+    price_per_day: z.number().min(100, 'Daily price must be at least ₹100'),
+    included_km_per_day: z.number().min(0, 'Cannot be negative'),
+    extra_km_charge: z.number().min(0, 'Cannot be negative'),
+    min_trip_hours: z.number(),
+    max_trip_days: z.number(),
+  }),
+  z.object({ photos: z.array(z.any()).min(1, 'Upload at least 1 photo') }),
+  z.object({}),
+  z.object({}),
 ]
 
 export const useCarWizardStore = create(persist((set) => ({
@@ -130,6 +156,7 @@ function LocationPicker({ form, updateForm }) {
 export default function AddVehiclePage({ editMode = false, carId = null, initialData = null }) {
   const { step, setStep, form, updateForm, reset } = useCarWizardStore()
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [isSubmitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const { categories, vehicleTypes } = useVehicleCategories()
@@ -137,9 +164,7 @@ export default function AddVehiclePage({ editMode = false, carId = null, initial
   const stepNames = ['Basic Info', 'Features', 'Location', 'Pricing', 'Photos', 'Documents', 'Review']
 
   useEffect(() => {
-    if (initialData) {
-      updateForm(initialData)
-    }
+    if (initialData) updateForm(initialData)
   }, [initialData, updateForm])
 
   useEffect(() => {
@@ -150,9 +175,13 @@ export default function AddVehiclePage({ editMode = false, carId = null, initial
   function validateStep(nextStep = step) {
     const parsed = schemas[nextStep].safeParse(activeForm)
     if (!parsed.success) {
+      const errors = {}
+      parsed.error.issues.forEach((issue) => { errors[issue.path[0]] = issue.message })
+      setFieldErrors(errors)
       setError(parsed.error.issues[0]?.message || 'Please complete this step.')
       return false
     }
+    setFieldErrors({})
     setError('')
     return true
   }
@@ -203,21 +232,33 @@ export default function AddVehiclePage({ editMode = false, carId = null, initial
         </div>
         <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
           <aside className="rounded-lg border border-zinc-200 bg-white p-3 shadow-sm">
-            {stepNames.map((name, index) => (
-              <button key={name} onClick={() => setStep(index)} className={`flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-sm font-bold ${index === step ? 'bg-sigfleet text-white' : 'text-zinc-600 hover:bg-zinc-50'}`}>
-                <span className={`grid h-6 w-6 place-items-center rounded-full text-xs ${index < step ? 'bg-emerald-600 text-white' : 'bg-zinc-100 text-zinc-600'}`}>{index < step ? <Check size={14} /> : index + 1}</span>
-                {name}
-              </button>
-            ))}
+            {stepNames.map((name, index) => {
+              // Only allow going back to previous steps or staying on current
+              // Cannot skip ahead without completing current step
+              const canNavigate = index <= step
+              return (
+                <button
+                  key={name}
+                  onClick={() => {
+                    if (canNavigate) setStep(index)
+                    else toast.error('Please complete the current step first')
+                  }}
+                  className={`flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-sm font-bold ${index === step ? 'bg-sigfleet text-white' : canNavigate ? 'text-zinc-600 hover:bg-zinc-50' : 'text-zinc-300 cursor-not-allowed'}`}
+                >
+                  <span className={`grid h-6 w-6 place-items-center rounded-full text-xs ${index < step ? 'bg-emerald-600 text-white' : index === step ? 'bg-white/20 text-white' : 'bg-zinc-100 text-zinc-400'}`}>{index < step ? <Check size={14} /> : index + 1}</span>
+                  {name}
+                </button>
+              )
+            })}
           </aside>
           <section className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
             {error && <div className="mb-5 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div>}
             {submitted ? <SubmittedState /> : (
               <>
-                {step === 0 && <BasicStep form={activeForm} updateForm={updateForm} categories={categories} vehicleTypes={vehicleTypes} />}
-                {step === 1 && <FeatureStep form={activeForm} updateForm={updateForm} />}
-                {step === 2 && <LocationStep form={activeForm} updateForm={updateForm} />}
-                {step === 3 && <PricingStep form={activeForm} updateForm={updateForm} />}
+                {step === 0 && <BasicStep form={activeForm} updateForm={updateForm} categories={categories} vehicleTypes={vehicleTypes} fieldErrors={fieldErrors} clearError={(k) => setFieldErrors((e) => ({ ...e, [k]: undefined }))} />}
+                {step === 1 && <FeatureStep form={activeForm} updateForm={updateForm} fieldErrors={fieldErrors} />}
+                {step === 2 && <LocationStep form={activeForm} updateForm={updateForm} fieldErrors={fieldErrors} clearError={(k) => setFieldErrors((e) => ({ ...e, [k]: undefined }))} />}
+                {step === 3 && <PricingStep form={activeForm} updateForm={updateForm} fieldErrors={fieldErrors} clearError={(k) => setFieldErrors((e) => ({ ...e, [k]: undefined }))} />}
                 {step === 4 && <PhotosStep form={activeForm} updateForm={updateForm} editMode={editMode} />}
                 {step === 5 && <DocumentsStep form={activeForm} updateForm={updateForm} />}
                 {step === 6 && <ReviewStep form={activeForm} setStep={setStep} />}
@@ -277,26 +318,19 @@ function buildCarPayload(form) {
   }
 }
 
-function BasicStep({ form, updateForm, categories, vehicleTypes }) {
+function BasicStep({ form, updateForm, categories, vehicleTypes, fieldErrors = {}, clearError = () => {} }) {
   const suggestions = MODEL_SUGGESTIONS[form.make] || []
-
-  // Determine selected vehicle type slug
   const selectedType = vehicleTypes.find((t) => t.id === form.vehicle_type_id)
   const isBike = selectedType?.slug === 'bike'
   const isTraveller = selectedType?.slug === 'traveller'
-
-  // Filter categories based on vehicle type
   const BIKE_CATEGORY_SLUGS = ['sport-bike', 'cruiser', 'scooter', 'adventure']
   const TRAVELLER_CATEGORY_SLUGS = ['tempo-traveller', 'mini-bus', 'muv']
   const CAR_CATEGORY_SLUGS = ['hatchback', 'sedan', 'suv', 'luxury', 'electric', 'muv', 'convertible']
-
   const filteredCategories = categories.filter((c) => {
     if (isBike) return BIKE_CATEGORY_SLUGS.includes(c.slug)
     if (isTraveller) return TRAVELLER_CATEGORY_SLUGS.includes(c.slug)
     return CAR_CATEGORY_SLUGS.includes(c.slug)
   })
-
-  // When vehicle type changes, reset category_id if it doesn't fit
   function handleTypeChange(vehicle_type_id) {
     const newType = vehicleTypes.find((t) => t.id === vehicle_type_id)
     const newIsBike = newType?.slug === 'bike'
@@ -306,11 +340,7 @@ function BasicStep({ form, updateForm, categories, vehicleTypes }) {
     const catStillValid = currentCat && validSlugs.includes(currentCat.slug)
     updateForm({ vehicle_type_id, category_id: catStillValid ? form.category_id : '' })
   }
-
-  const fuelOptions = isBike
-    ? ['petrol', 'electric']
-    : ['petrol', 'diesel', 'electric', 'hybrid', 'cng']
-
+  const fuelOptions = isBike ? ['petrol', 'electric'] : ['petrol', 'diesel', 'electric', 'hybrid', 'cng']
   const seatOptions = isBike ? [1, 2] : isTraveller ? [9, 10, 12, 14, 17, 20] : [2, 4, 5, 6, 7, 8]
   const seatLabel = isBike ? 'Riders' : isTraveller ? 'Capacity (seats)' : 'Seats'
 
@@ -318,28 +348,79 @@ function BasicStep({ form, updateForm, categories, vehicleTypes }) {
     <div>
       <StepTitle icon={Vehicle} title="Basic Info" />
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Make"><input list="brands" value={form.make} onChange={(e) => updateForm({ make: e.target.value })} className="input" /><datalist id="brands">{BRANDS.map((brand) => <option key={brand} value={brand} />)}</datalist></Field>
-        <Field label="Vehicle Model"><input list="models" value={form.car_model} onChange={(e) => updateForm({ car_model: e.target.value })} className="input" /><datalist id="models">{suggestions.map((model) => <option key={model} value={model} />)}</datalist></Field>
-        <Field label="Year"><select value={form.year} onChange={(e) => updateForm({ year: Number(e.target.value) })} className="input">{Array.from({ length: 15 }, (_, i) => 2024 - i).map((year) => <option key={year}>{year}</option>)}</select></Field>
-        <Field label="Registration Number"><input value={form.registration_number} onChange={(e) => updateForm({ registration_number: e.target.value.toUpperCase() })} className="input" placeholder="KA01AB1234" /></Field>
-      </div>
-      <div className="mt-5">
-        <p className="label">Color</p>
-        <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-8">{COLOR_PRESETS.map((color) => <button key={color} onClick={() => updateForm({ color })} className={`rounded-md border px-3 py-2 text-sm font-bold ${form.color === color ? 'border-sigfleet text-sigfleet' : 'border-zinc-200 text-zinc-600'}`}>{color}</button>)}</div>
+        <div>
+          <Field label="Make">
+            <select
+              value={form.make}
+              onChange={(e) => { updateForm({ make: e.target.value, car_model: '' }); clearError('make') }}
+              className={`input ${fieldErrors.make ? 'border-red-500 bg-red-50' : ''}`}
+            >
+              <option value="">— Select make —</option>
+              {BRANDS.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
+            </select>
+          </Field>
+          {fieldErrors.make && <p className="mt-1 text-xs font-bold text-red-600">{fieldErrors.make}</p>}
+        </div>
+        <div>
+          <Field label="Vehicle Model">
+            <select
+              value={form.car_model}
+              onChange={(e) => { updateForm({ car_model: e.target.value }); clearError('car_model') }}
+              className={`input ${fieldErrors.car_model ? 'border-red-500 bg-red-50' : ''}`}
+            >
+              <option value="">— Select or type model —</option>
+              {suggestions.map((model) => <option key={model} value={model}>{model}</option>)}
+            </select>
+            {!suggestions.length && (
+              <input
+                value={form.car_model}
+                onChange={(e) => { updateForm({ car_model: e.target.value }); clearError('car_model') }}
+                className={`input mt-2 ${fieldErrors.car_model ? 'border-red-500 bg-red-50' : ''}`}
+                placeholder="Type model name"
+              />
+            )}
+          </Field>
+          {fieldErrors.car_model && <p className="mt-1 text-xs font-bold text-red-600">{fieldErrors.car_model}</p>}
+        </div>
+        <div>
+          <Field label="Year">
+            <select value={form.year} onChange={(e) => { updateForm({ year: Number(e.target.value) }); clearError('year') }} className={`input ${fieldErrors.year ? 'border-red-500' : ''}`}>
+              {Array.from({ length: 27 }, (_, i) => 2026 - i).map((year) => <option key={year}>{year}</option>)}
+            </select>
+          </Field>
+          {fieldErrors.year && <p className="mt-1 text-xs font-bold text-red-600">{fieldErrors.year}</p>}
+        </div>
+        <div>
+          <Field label="Registration Number">
+            <input
+              value={form.registration_number}
+              onChange={(e) => { updateForm({ registration_number: e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '') }); clearError('registration_number') }}
+              className={`input ${fieldErrors.registration_number ? 'border-red-500 bg-red-50' : ''}`}
+              placeholder="KA01AB1234"
+              maxLength={15}
+            />
+          </Field>
+          {fieldErrors.registration_number
+            ? <p className="mt-1 text-xs font-bold text-red-600">{fieldErrors.registration_number}</p>
+            : <p className="mt-1 text-xs text-zinc-400">Format: State code + district + series + number (e.g. KA01AB1234)</p>
+          }
+        </div>
       </div>
 
-      {/* Vehicle Type — shown first so category filters correctly */}
+      <div className="mt-5">
+        <p className="label">Color</p>
+        <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-8">
+          {COLOR_PRESETS.map((color) => <button key={color} onClick={() => updateForm({ color })} className={`rounded-md border px-3 py-2 text-sm font-bold ${form.color === color ? 'border-sigfleet text-sigfleet' : 'border-zinc-200 text-zinc-600'}`}>{color}</button>)}
+        </div>
+      </div>
+
       <div className="mt-5">
         <p className="label mb-2">Vehicle Type</p>
         <div className="flex flex-wrap gap-2">
           {vehicleTypes.map((t) => {
             const emoji = t.slug === 'bike' ? '🏍️' : t.slug === 'traveller' ? '🚌' : '🚗'
             return (
-              <button
-                key={t.id}
-                onClick={() => handleTypeChange(t.id)}
-                className={`rounded-md border px-4 py-2 text-sm font-black transition ${form.vehicle_type_id === t.id ? 'border-sigfleet bg-red-50 text-sigfleet' : 'border-zinc-200 text-zinc-600 hover:border-zinc-400'}`}
-              >
+              <button key={t.id} onClick={() => handleTypeChange(t.id)} className={`rounded-md border px-4 py-2 text-sm font-black transition ${form.vehicle_type_id === t.id ? 'border-sigfleet bg-red-50 text-sigfleet' : 'border-zinc-200 text-zinc-600 hover:border-zinc-400'}`}>
                 {emoji} {t.name}
               </button>
             )
@@ -347,32 +428,48 @@ function BasicStep({ form, updateForm, categories, vehicleTypes }) {
         </div>
       </div>
 
-      <SelectorGrid label="Category" options={filteredCategories.map((item) => ({ value: item.id, label: item.name }))} value={form.category_id} onChange={(category_id) => updateForm({ category_id })} />
-      {!isBike && (
-        <CardOptions label="Transmission" options={['manual', 'automatic']} value={form.transmission} onChange={(transmission) => updateForm({ transmission })} />
-      )}
+      <div className="mt-5">
+        <SelectorGrid label="Category" options={filteredCategories.map((item) => ({ value: item.id, label: item.name }))} value={form.category_id} onChange={(category_id) => { updateForm({ category_id }); clearError('category_id') }} />
+        {fieldErrors.category_id && <p className="mt-1 text-xs font-bold text-red-600">{fieldErrors.category_id}</p>}
+      </div>
+
+      {!isBike && <CardOptions label="Transmission" options={['manual', 'automatic']} value={form.transmission} onChange={(transmission) => updateForm({ transmission })} />}
       <CardOptions label="Fuel Type" options={fuelOptions} value={form.fuel_type} onChange={(fuel_type) => updateForm({ fuel_type })} />
       <CardOptions label={seatLabel} options={seatOptions} value={form.seats} onChange={(seats) => updateForm({ seats: Number(seats) })} />
     </div>
   )
 }
 
-function FeatureStep({ form, updateForm }) {
+function FeatureStep({ form, updateForm, fieldErrors = {} }) {
   const features = [
     ['has_ac', 'AC', Snowflake], ['has_music_system', 'Music System', Music], ['has_gps_tracker', 'GPS Tracker', Navigation],
     ['has_keyless_entry', 'Keyless Entry', Shield], ['has_sunroof', 'Sunroof', Sun], ['has_child_seat', 'Child Seat', Armchair],
     ['has_luggage_carrier', 'Luggage Carrier', Upload],
   ]
+  const descLen = form.description.length
+  const descOk = descLen >= 50
   return (
     <div>
       <StepTitle icon={Gauge} title="Features & Description" />
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{features.map(([key, label, Icon]) => (
-        <button key={key} onClick={() => updateForm({ [key]: !form[key] })} className={`flex items-center gap-3 rounded-md border p-4 text-left font-bold ${form[key] ? 'border-sigfleet bg-red-50 text-sigfleet' : 'border-zinc-200 text-zinc-700'}`}>
-          <Icon size={22} /> {label}
-        </button>
-      ))}</div>
-      <Field label="Description" className="mt-6"><textarea value={form.description} onChange={(e) => updateForm({ description: e.target.value })} maxLength={1000} rows={6} className="input" /></Field>
-      <div className="mt-2 flex items-center justify-between text-xs font-semibold text-zinc-500"><span>Minimum 50 characters</span><span>{form.description.length}/1000</span></div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {features.map(([key, label, Icon]) => (
+          <button key={key} onClick={() => updateForm({ [key]: !form[key] })} className={`flex items-center gap-3 rounded-md border p-4 text-left font-bold ${form[key] ? 'border-sigfleet bg-red-50 text-sigfleet' : 'border-zinc-200 text-zinc-700'}`}>
+            <Icon size={22} /> {label}
+          </button>
+        ))}
+      </div>
+      <div className="mt-6">
+        <Field label="Description *">
+          <textarea value={form.description} onChange={(e) => updateForm({ description: e.target.value })} maxLength={1000} rows={6} className={`input ${fieldErrors.description ? 'border-red-500 bg-red-50' : ''}`} placeholder="Describe your vehicle — cleanliness, parking, recent service, comfort, luggage space, pickup instructions..." />
+        </Field>
+        <div className="mt-1 flex items-center justify-between text-xs font-semibold">
+          <span className={descOk ? 'text-emerald-600' : 'text-red-600'}>
+            {descOk ? '✓ Minimum met' : `${50 - descLen} more characters needed`}
+          </span>
+          <span className="text-zinc-400">{descLen}/1000</span>
+        </div>
+        {fieldErrors.description && <p className="mt-1 text-xs font-bold text-red-600">{fieldErrors.description}</p>}
+      </div>
       <details className="mt-4 rounded-md border border-zinc-200 p-4 text-sm text-zinc-600">
         <summary className="cursor-pointer font-bold text-zinc-900">Good description tips</summary>
         <p className="mt-3">Mention cleanliness, parking access, recent service, comfort, luggage space, and pickup instructions.</p>
@@ -381,37 +478,83 @@ function FeatureStep({ form, updateForm }) {
   )
 }
 
-function LocationStep({ form, updateForm }) {
+function LocationStep({ form, updateForm, fieldErrors = {}, clearError = () => {} }) {
   return (
     <div>
       <StepTitle icon={MapPin} title="Location" />
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="City"><select value={form.location_city} onChange={(e) => { const center = cityCenter(e.target.value); updateForm({ location_city: e.target.value, location_lat: center[0], location_lng: center[1] }) }} className="input">{CITIES.map(([city, state]) => <option key={city} value={city}>{city}, {state}</option>)}</select></Field>
-        <Field label="Area/Locality"><input value={form.location_area} onChange={(e) => updateForm({ location_area: e.target.value })} className="input" /></Field>
+        <div>
+          <Field label="City">
+            <select value={form.location_city} onChange={(e) => { const center = cityCenter(e.target.value); updateForm({ location_city: e.target.value, location_lat: center[0], location_lng: center[1] }); clearError('location_city') }} className="input">
+              {CITIES.map(([city, state]) => <option key={city} value={city}>{city}, {state}</option>)}
+            </select>
+          </Field>
+        </div>
+        <div>
+          <Field label="Area/Locality">
+            <input value={form.location_area} onChange={(e) => { updateForm({ location_area: e.target.value }); clearError('location_area') }} className={`input ${fieldErrors.location_area ? 'border-red-500 bg-red-50' : ''}`} placeholder="e.g. Koramangala, Indiranagar" />
+          </Field>
+          {fieldErrors.location_area && <p className="mt-1 text-xs font-bold text-red-600">{fieldErrors.location_area}</p>}
+        </div>
       </div>
-      <Field label="Full address" className="mt-4"><textarea value={form.location_address} onChange={(e) => updateForm({ location_address: e.target.value })} rows={3} className="input" /></Field>
+      <div className="mt-4">
+        <Field label="Full address">
+          <textarea value={form.location_address} onChange={(e) => { updateForm({ location_address: e.target.value }); clearError('location_address') }} rows={3} className={`input ${fieldErrors.location_address ? 'border-red-500 bg-red-50' : ''}`} placeholder="Building name, street, landmark, city, PIN" />
+        </Field>
+        {fieldErrors.location_address && <p className="mt-1 text-xs font-bold text-red-600">{fieldErrors.location_address}</p>}
+      </div>
       <LocationPicker form={form} updateForm={updateForm} />
       <p className="mt-3 text-sm font-semibold text-zinc-500">Exact address only shared with confirmed customers.</p>
     </div>
   )
 }
 
-function PricingStep({ form, updateForm }) {
+function PricingStep({ form, updateForm, fieldErrors = {}, clearError = () => {} }) {
   const earnings = useMemo(() => Math.round(Number(form.price_per_day || 0) * 15 * 0.85), [form.price_per_day])
   function setHourly(value) {
     const hourly = Number(value)
     updateForm({ price_per_hour: hourly, price_per_day: Number(form.price_per_day) || hourly * 18 })
+    clearError('price_per_hour')
   }
   return (
     <div>
       <StepTitle icon={IndianRupee} title="Pricing" />
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Price per hour"><input type="number" min="20" value={form.price_per_hour} onChange={(e) => setHourly(e.target.value)} className="input" /></Field>
-        <Field label="Price per day"><input type="number" value={form.price_per_day} onChange={(e) => updateForm({ price_per_day: Number(e.target.value) })} className="input" /></Field>
-        <Field label="Security deposit"><input type="number" value={form.security_deposit} onChange={(e) => updateForm({ security_deposit: Number(e.target.value) })} className="input" /></Field>
-        <Field label="Included KM per day"><input type="number" value={form.included_km_per_day} onChange={(e) => updateForm({ included_km_per_day: Number(e.target.value) })} className="input" /></Field>
-        <Field label="Extra KM charge"><input type="number" value={form.extra_km_charge} onChange={(e) => updateForm({ extra_km_charge: Number(e.target.value) })} className="input" /></Field>
-        <Field label="Minimum trip duration"><select value={form.min_trip_hours} onChange={(e) => updateForm({ min_trip_hours: Number(e.target.value) })} className="input">{[2, 4, 8, 12, 24].map((hours) => <option key={hours} value={hours}>{hours}h</option>)}</select></Field>
+        <div>
+          <Field label="Price per hour (₹) *">
+            <input type="number" min="20" value={form.price_per_hour} onChange={(e) => setHourly(e.target.value)} className={`input ${fieldErrors.price_per_hour ? 'border-red-500 bg-red-50' : ''}`} />
+          </Field>
+          {fieldErrors.price_per_hour && <p className="mt-1 text-xs font-bold text-red-600">{fieldErrors.price_per_hour}</p>}
+        </div>
+        <div>
+          <Field label="Price per day (₹) *">
+            <input type="number" min="100" value={form.price_per_day} onChange={(e) => { updateForm({ price_per_day: Number(e.target.value) }); clearError('price_per_day') }} className={`input ${fieldErrors.price_per_day ? 'border-red-500 bg-red-50' : ''}`} />
+          </Field>
+          {fieldErrors.price_per_day && <p className="mt-1 text-xs font-bold text-red-600">{fieldErrors.price_per_day}</p>}
+        </div>
+        <div>
+          <Field label="Security deposit (₹)">
+            <input type="number" min="0" value={form.security_deposit} onChange={(e) => updateForm({ security_deposit: Number(e.target.value) })} className="input" />
+          </Field>
+          <p className="mt-1 text-xs text-zinc-400">Refunded after trip completion</p>
+        </div>
+        <div>
+          <Field label="Included KM per day">
+            <input type="number" min="0" value={form.included_km_per_day} onChange={(e) => { updateForm({ included_km_per_day: Number(e.target.value) }); clearError('included_km_per_day') }} className={`input ${fieldErrors.included_km_per_day ? 'border-red-500 bg-red-50' : ''}`} />
+          </Field>
+          {fieldErrors.included_km_per_day && <p className="mt-1 text-xs font-bold text-red-600">{fieldErrors.included_km_per_day}</p>}
+        </div>
+        <div>
+          <Field label="Extra KM charge (₹/km)">
+            <input type="number" min="0" value={form.extra_km_charge} onChange={(e) => { updateForm({ extra_km_charge: Number(e.target.value) }); clearError('extra_km_charge') }} className={`input ${fieldErrors.extra_km_charge ? 'border-red-500 bg-red-50' : ''}`} />
+          </Field>
+          {fieldErrors.extra_km_charge && <p className="mt-1 text-xs font-bold text-red-600">{fieldErrors.extra_km_charge}</p>}
+        </div>
+        <Field label="Minimum trip duration">
+          <select value={form.min_trip_hours} onChange={(e) => updateForm({ min_trip_hours: Number(e.target.value) })} className="input">
+            {[2, 4, 8, 12, 24].map((hours) => <option key={hours} value={hours}>{hours}h</option>)}
+          </select>
+        </Field>
       </div>
       <div className="mt-6 rounded-md border border-zinc-200 p-4">
         <p className="label">Maximum trip duration: {form.max_trip_days} days</p>
@@ -520,11 +663,67 @@ function DocumentsStep({ form, updateForm }) {
 
         {form.offer_chauffeur && (
           <div className="mt-5 grid gap-4 md:grid-cols-2">
-            <Field label="Driver Name"><input value={form.driver_name} onChange={(e) => updateForm({ driver_name: e.target.value })} className="input" placeholder="Full name" /></Field>
-            <Field label="Driver License Number"><input value={form.driver_license_number} onChange={(e) => updateForm({ driver_license_number: e.target.value })} className="input" placeholder="DL-XXXXXXXXXX" /></Field>
-            <Field label="Driver Phone"><input type="tel" value={form.driver_phone} onChange={(e) => updateForm({ driver_phone: e.target.value })} className="input" placeholder="+91 9876543210" /></Field>
-            <Field label="Experience (years)"><input type="number" min="0" max="50" value={form.driver_experience} onChange={(e) => updateForm({ driver_experience: e.target.value })} className="input" placeholder="5" /></Field>
-            <FileField label="Driver License Upload" field="driver_license_file" />
+            <div>
+              <Field label="Driver Name *">
+                <input
+                  value={form.driver_name}
+                  onChange={(e) => updateForm({ driver_name: e.target.value })}
+                  className={`input ${form.offer_chauffeur && form.driver_name && !/^[A-Za-z ]{2,}$/.test(form.driver_name) ? 'border-red-500 bg-red-50' : ''}`}
+                  placeholder="Full name"
+                />
+              </Field>
+              {form.offer_chauffeur && form.driver_name && !/^[A-Za-z ]{2,}$/.test(form.driver_name) && (
+                <p className="mt-1 text-xs font-bold text-red-600">Name must be at least 2 characters (letters only)</p>
+              )}
+            </div>
+            <div>
+              <Field label="Driver License Number *">
+                <input
+                  value={form.driver_license_number}
+                  onChange={(e) => updateForm({ driver_license_number: e.target.value.toUpperCase() })}
+                  className={`input ${form.offer_chauffeur && form.driver_license_number && form.driver_license_number.length < 8 ? 'border-red-500 bg-red-50' : ''}`}
+                  placeholder="DL-0420110012345"
+                />
+              </Field>
+              {form.offer_chauffeur && form.driver_license_number && form.driver_license_number.length < 8 && (
+                <p className="mt-1 text-xs font-bold text-red-600">License number must be at least 8 characters</p>
+              )}
+            </div>
+            <div>
+              <Field label="Driver Phone *">
+                <div className="flex">
+                  <span className="grid h-11 place-items-center rounded-l-md border border-r-0 border-zinc-300 bg-zinc-100 px-3 font-bold text-zinc-500">+91</span>
+                  <input
+                    type="tel"
+                    value={form.driver_phone.replace(/\D/g, '').slice(0, 10)}
+                    onChange={(e) => updateForm({ driver_phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                    className={`input h-11 rounded-l-none ${form.offer_chauffeur && form.driver_phone && !/^[6-9]\d{9}$/.test(form.driver_phone) ? 'border-red-500 bg-red-50' : ''}`}
+                    placeholder="9876543210"
+                    maxLength={10}
+                  />
+                </div>
+              </Field>
+              {form.offer_chauffeur && form.driver_phone && !/^[6-9]\d{9}$/.test(form.driver_phone) && (
+                <p className="mt-1 text-xs font-bold text-red-600">Enter a valid 10-digit Indian mobile number</p>
+              )}
+            </div>
+            <div>
+              <Field label="Experience (years) *">
+                <input
+                  type="number"
+                  min="1"
+                  max="50"
+                  value={form.driver_experience}
+                  onChange={(e) => updateForm({ driver_experience: e.target.value })}
+                  className={`input ${form.offer_chauffeur && form.driver_experience && (Number(form.driver_experience) < 1 || Number(form.driver_experience) > 50) ? 'border-red-500 bg-red-50' : ''}`}
+                  placeholder="e.g. 5"
+                />
+              </Field>
+              {form.offer_chauffeur && form.driver_experience && (Number(form.driver_experience) < 1 || Number(form.driver_experience) > 50) && (
+                <p className="mt-1 text-xs font-bold text-red-600">Experience must be between 1 and 50 years</p>
+              )}
+            </div>
+            <FileField label="Driver License Upload *" field="driver_license_file" />
             <FileField label="Driver Photo (optional)" field="driver_photo" accept="image/jpeg,image/png" />
           </div>
         )}

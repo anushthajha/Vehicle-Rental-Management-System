@@ -1,7 +1,7 @@
 import math
 import random
 import string
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -86,7 +86,7 @@ class RejectRequest(BaseModel):
 
 
 class CancelRequest(BaseModel):
-    reason: str = Field(min_length=2, max_length=500)
+    reason: str | None = Field(default=None, max_length=500)
 
 
 class StartTripRequest(BaseModel):
@@ -204,6 +204,135 @@ async def _payment_for(db: AsyncSession, booking_id: str) -> Payment:
     if payment is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment not found")
     return payment
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def cancellation_refund_policy(pickup_datetime: datetime) -> tuple[Decimal, float]:
+    hours_until_pickup = (_as_utc(pickup_datetime) - datetime.now(timezone.utc)).total_seconds() / 3600
+    if hours_until_pickup >= 48:
+        return Decimal("1.00"), hours_until_pickup
+    if hours_until_pickup >= 24:
+        return Decimal("0.75"), hours_until_pickup
+    if hours_until_pickup >= 12:
+        return Decimal("0.50"), hours_until_pickup
+    if hours_until_pickup > 0:
+        return Decimal("0.25"), hours_until_pickup
+    return Decimal("0.00"), hours_until_pickup
+
+
+async def cancellation_preview(booking: Booking, db: AsyncSession) -> dict:
+    car = await _load_car(db, booking.vehicle_id)
+    payment = await db.scalar(select(Payment).where(Payment.booking_id == booking.id))
+    refund_pct, hours_until_pickup = cancellation_refund_policy(booking.pickup_datetime)
+    paid_amount = Decimal(str(payment.amount)) if payment and payment.status == "paid" else Decimal("0.00")
+    booking_refund = (paid_amount * refund_pct).quantize(Decimal("0.01"))
+    security_refund = Decimal(str(booking.security_deposit_amount or 0)) if payment and payment.status == "paid" else Decimal("0.00")
+    total_refund = (booking_refund + security_refund).quantize(Decimal("0.01"))
+    return {
+        "booking_id": booking.id,
+        "booking_ref": booking.booking_ref,
+        "vehicle_title": car.title if car else "Vehicle",
+        "pickup_datetime": booking.pickup_datetime.strftime("%d %b %Y, %I:%M %p"),
+        "hours_until_pickup": round(hours_until_pickup, 1),
+        "amount_paid": money(paid_amount),
+        "security_deposit": money(security_refund),
+        "booking_refund": money(booking_refund),
+        "security_deposit_refund": money(security_refund),
+        "refund_percentage": money(refund_pct * 100),
+        "refund_amount": money(total_refund),
+    }
+
+
+async def perform_cancellation(
+    booking_id: str,
+    current_user: User,
+    reason: str | None,
+    db: AsyncSession,
+) -> dict:
+    booking = await _booking_with_access(str(booking_id), current_user, db)
+    if booking.customer_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the customer can cancel their own booking")
+    if booking.status in {"cancelled", "completed", "rejected"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Booking is already {booking.status}")
+    if booking.status == "active":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot cancel a trip that has already started")
+
+    preview = await cancellation_preview(booking, db)
+    total_refund = Decimal(str(preview["refund_amount"]))
+    booking_refund = Decimal(str(preview["booking_refund"]))
+    security_refund = Decimal(str(preview["security_deposit_refund"]))
+
+    booking.status = "cancelled"
+    booking.cancellation_reason = reason or "Cancelled by customer"
+    booking.cancelled_by = current_user.id
+    booking.cancelled_at = datetime.utcnow()
+    booking.refund_amount = total_refund
+    booking.refund_status = "processed" if total_refund > 0 else "not_applicable"
+
+    wallet = None
+    if total_refund > 0:
+        wallet = await get_or_create_wallet(db, booking.customer_id)
+        wallet.balance = Decimal(str(wallet.balance)) + total_refund
+        add_wallet_transaction(
+            db,
+            booking.customer_id,
+            "credit",
+            total_refund,
+            wallet.balance,
+            f"Refund for cancelled booking {booking.booking_ref}",
+            booking.id,
+        )
+
+    car = await _load_car(db, booking.vehicle_id)
+    customer = await db.scalar(select(User).where(User.id == booking.customer_id))
+    manager = await db.scalar(select(User).where(User.id == booking.manager_id))
+    await db.commit()
+    await sync_vehicle_availability(db, car.id)
+    await db.commit()
+
+    for user in [customer, manager]:
+        if user:
+            await create_notification(
+                user.id,
+                "Booking cancelled",
+                f"Booking {booking.booking_ref} cancelled. ₹{money(total_refund):,.0f} refunded to wallet.",
+                "booking",
+                action_url=f"/dashboard/bookings/{booking.id}",
+                meta={
+                    "booking_id": booking.id,
+                    "refund_amount": money(total_refund),
+                    "booking_refund": money(booking_refund),
+                    "security_deposit_refund": money(security_refund),
+                },
+            )
+            try:
+                send_booking_cancelled_email.delay(user.email, booking_email_payload(booking, car), money(total_refund))
+            except Exception:
+                pass
+
+    return {
+        "message": "Booking cancelled successfully",
+        "booking_ref": booking.booking_ref,
+        "vehicle_title": car.title,
+        "refund_amount": money(total_refund),
+        "refund_percentage": preview["refund_percentage"],
+        "refund_status": booking.refund_status,
+        "new_wallet_balance": money(wallet.balance) if wallet else None,
+        "cancellation_policy": {
+            "hours_until_pickup": preview["hours_until_pickup"],
+            "refund_percentage": preview["refund_percentage"],
+            "breakdown": {
+                "booking_refund": money(booking_refund),
+                "security_deposit_refund": money(security_refund),
+                "total_refund": money(total_refund),
+            },
+        },
+    }
 
 
 def _booking_payload(booking: Booking, car: Vehicle, image: str | None, counterparty: User | None = None, payment: Payment | None = None) -> dict:
@@ -329,8 +458,8 @@ async def create_booking(
     manager = await db.scalar(select(User).where(User.id == car.manager_id))
     image = await _primary_image(db, car.id)
 
-    if car.auto_accept_bookings and manager:
-        await mark_payment_paid(db, booking, payment, car, current_user, manager)
+    # Do NOT auto-pay here — always let the customer go through the payment page
+    # to choose their payment method (Card / UPI / Net Banking / Wallet)
 
     await db.commit()
     await sync_vehicle_availability(db, car.id)
@@ -411,90 +540,7 @@ async def reject_booking(booking_id: str, payload: RejectRequest, current_user: 
 
 @router.post("/{booking_id}/cancel")
 async def cancel_booking(booking_id: str, payload: CancelRequest, current_user: User = Depends(require_customer), db: AsyncSession = Depends(get_db)):
-    """
-    Customer cancellation policy:
-    - Cancel >= 24 hours before pickup  → full refund (free cancellation)
-    - Cancel < 24 hours before pickup   → 10% cancellation charge (90% refund)
-    - Cancel after trip started (active) → no refund
-    """
-    booking = await _booking_with_access(booking_id, current_user, db)
-    if booking.customer_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the customer can cancel their own booking")
-    if booking.status in {"cancelled", "completed", "rejected"}:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Booking cannot be cancelled")
-    if booking.status == "active":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot cancel a trip that has already started")
-
-    payment = await db.scalar(select(Payment).where(Payment.booking_id == booking.id))
-    refund = Decimal("0.00")
-    cancellation_charge = Decimal("0.00")
-    policy_applied = "no_charge"
-
-    if payment and payment.status == "paid":
-        hours_to_pickup = (booking.pickup_datetime - datetime.utcnow()).total_seconds() / 3600
-        paid_amount = Decimal(str(payment.amount))
-
-        if hours_to_pickup >= 24:
-            # Free cancellation — full refund
-            refund = paid_amount
-            policy_applied = "full_refund"
-        else:
-            # Late cancellation — 10% charge, 90% refund
-            cancellation_charge = (paid_amount * Decimal("0.10")).quantize(Decimal("0.01"))
-            refund = (paid_amount - cancellation_charge).quantize(Decimal("0.01"))
-            policy_applied = "late_cancellation_10pct"
-
-    booking.status = "cancelled"
-    booking.cancellation_reason = payload.reason
-    booking.cancelled_by = current_user.id
-    booking.cancelled_at = datetime.utcnow()
-    booking.refund_amount = refund.quantize(Decimal("0.01"))
-    booking.refund_status = "processed" if refund > 0 else "not_applicable"
-
-    if refund > 0:
-        wallet = await get_or_create_wallet(db, booking.customer_id)
-        wallet.balance = Decimal(str(wallet.balance)) + refund
-        desc = f"Full refund for cancelled booking {booking.booking_ref}" if policy_applied == "full_refund" else f"Partial refund (90%) for late cancellation {booking.booking_ref}"
-        add_wallet_transaction(db, booking.customer_id, "credit", refund, wallet.balance, desc, booking.id)
-
-    car = await _load_car(db, booking.vehicle_id)
-    customer = await db.scalar(select(User).where(User.id == booking.customer_id))
-    manager = await db.scalar(select(User).where(User.id == booking.manager_id))
-    await db.commit()
-    await sync_vehicle_availability(db, car.id)
-    await db.commit()
-
-    # Notifications
-    charge_note = f" A cancellation charge of ₹{money(cancellation_charge)} was applied." if cancellation_charge > 0 else ""
-    for user in [customer, manager]:
-        if user:
-            await create_notification(
-                user.id,
-                "Booking cancelled",
-                f"{booking.booking_ref} was cancelled by customer.{charge_note} Refund: ₹{money(refund)}.",
-                "booking",
-                action_url=f"/dashboard/bookings/{booking.id}",
-                meta={"booking_id": booking.id, "refund_amount": money(refund), "cancellation_charge": money(cancellation_charge)},
-            )
-            try:
-                send_booking_cancelled_email.delay(user.email, booking_email_payload(booking, car), money(refund))
-            except Exception:
-                pass
-
-    return {
-        "status": booking.status,
-        "refund_amount": money(refund),
-        "cancellation_charge": money(cancellation_charge),
-        "policy_applied": policy_applied,
-        "refund_status": booking.refund_status,
-        "message": (
-            f"Booking cancelled. Full refund of ₹{money(refund)} credited to your wallet."
-            if policy_applied == "full_refund"
-            else f"Booking cancelled. ₹{money(cancellation_charge)} cancellation charge applied. ₹{money(refund)} refunded to your wallet."
-            if refund > 0
-            else "Booking cancelled. No refund applicable."
-        ),
-    }
+    return await perform_cancellation(booking_id, current_user, payload.reason, db)
 
 
 @router.post("/{booking_id}/manager-cancel")
@@ -523,8 +569,7 @@ async def manager_cancel_booking(booking_id: str, payload: CancelRequest, curren
         paid_amount = Decimal(str(payment.amount))
         # Full refund to customer
         refund = paid_amount
-        # Fine = max(₹500, 10% of booking amount)
-        fine = max(Decimal("500.00"), (paid_amount * Decimal("0.10")).quantize(Decimal("0.01")))
+        fine = (paid_amount * Decimal("0.10")).quantize(Decimal("0.01"))
 
     booking.status = "cancelled"
     booking.cancellation_reason = f"[Manager cancelled] {payload.reason}"
@@ -532,6 +577,8 @@ async def manager_cancel_booking(booking_id: str, payload: CancelRequest, curren
     booking.cancelled_at = datetime.utcnow()
     booking.refund_amount = refund.quantize(Decimal("0.01"))
     booking.refund_status = "processed" if refund > 0 else "not_applicable"
+    if fine > 0:
+        booking.manager_earnings = max(Decimal("0.00"), Decimal(str(booking.manager_earnings)) - fine)
 
     # Credit full refund + fine to customer wallet
     if refund > 0 or fine > 0:

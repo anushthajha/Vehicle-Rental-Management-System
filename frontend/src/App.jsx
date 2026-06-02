@@ -1,92 +1,106 @@
 import React, { lazy, Suspense } from 'react'
+
+function lazyWithDelay(importFn, delayMs = 500) {
+  return lazy(() =>
+    Promise.all([
+      importFn(),
+      new Promise((resolve) => setTimeout(resolve, delayMs)),
+    ]).then(([module]) => module)
+  )
+}
+
 import { Toaster } from 'react-hot-toast'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AdminRoute, CustomerRoute, LoggedOutRoute, PrivateRoute, VehicleManagerRoute } from './components/RouteGuards'
-import { AuthProvider } from './context/AuthContext'
+import { AuthProvider, useAuth } from './context/AuthContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import ChatbotWidget from './components/chatbot/ChatbotWidget'
 
-const HomePage = lazy(() => import('./pages/HomePage'))
-const VehicleListingPage = lazy(() => import('./pages/VehicleListingPage'))
-const VehicleDetailPage = lazy(() => import('./pages/VehicleDetailPage'))
-const CityPage = lazy(() => import('./pages/CityPage'))
-const WishlistPage = lazy(() => import('./pages/WishlistPage'))
-const LoginPage = lazy(() => import('./pages/auth/LoginPage'))
-const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'))
-const VerifyOtpPage = lazy(() => import('./pages/auth/VerifyOtpPage'))
-const ForgotPasswordPage = lazy(() => import('./pages/auth/ForgotPasswordPage'))
-const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'))
-const DashboardPage = lazy(() => import('./pages/user/DashboardPage'))
-const RentalHistoryPage = lazy(() => import('./pages/user/RentalHistoryPage'))
-const TrackRentalPage = lazy(() => import('./pages/user/TrackRentalPage'))
-const ProfilePage = lazy(() => import('./pages/user/ProfilePage'))
-const KYCPage = lazy(() => import('./pages/user/KYCPage'))
-const MyBookingsPage = lazy(() => import('./pages/booking/MyBookingsPage'))
-const BookingDetailsPage = lazy(() => import('./pages/booking/BookingDetailsPage'))
-const WalletPage = lazy(() => import('./pages/user/WalletPage'))
-const NotificationsPage = lazy(() => import('./pages/user/NotificationsPage'))
-const ReviewsPage = lazy(() => import('./pages/user/ReviewsPage'))
-const SupportPage = lazy(() => import('./pages/user/SupportPage'))
-const ManagerLayout = lazy(() => import('./pages/manager/ManagerLayout'))
-const ManagerDashboardPage = lazy(() => import('./pages/manager/ManagerDashboardPage'))
-const ManagerVehiclesPage = lazy(() => import('./pages/manager/ManagerVehiclesPage'))
-const AddVehiclePage = lazy(() => import('./pages/manager/AddVehiclePage'))
-const EditVehiclePage = lazy(() => import('./pages/manager/EditVehiclePage'))
-const ManagerBookingsPage = lazy(() => import('./pages/manager/ManagerBookingsPage'))
-const InspectionPage = lazy(() => import('./pages/manager/InspectionPage'))
-const ActiveTripsPage = lazy(() => import('./pages/manager/ActiveTripsPage'))
-const ManagerEarningsPage = lazy(() => import('./pages/manager/ManagerEarningsPage'))
-const ManagerProfilePage = lazy(() => import('./pages/manager/ManagerProfilePage'))
-const PayoutsPage = lazy(() => import('./pages/manager/PayoutsPage'))
-const ManagerAvailabilityPage = lazy(() => import('./pages/manager/ManagerAvailabilityPage'))
-const ManagerStatisticsPage = lazy(() => import('./pages/manager/ManagerStatisticsPage'))
-const BookingConfirmPage = lazy(() => import('./pages/booking/BookingConfirmPage'))
-const PaymentPage = lazy(() => import('./pages/booking/PaymentPage'))
-const BookingSuccessPage = lazy(() => import('./pages/booking/BookingSuccessPage'))
-const WriteReviewPage = lazy(() => import('./pages/booking/WriteReviewPage'))
-const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'))
-const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'))
-const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage'))
-const AdminVehicleManagersPage = lazy(() => import('./pages/admin/AdminVehicleManagersPage'))
-const CreateManagerPage = lazy(() => import('./pages/admin/CreateManagerPage'))
-const AdminVehiclesPage = lazy(() => import('./pages/admin/AdminVehiclesPage'))
-const AdminManageVehiclesPage = lazy(() => import('./pages/admin/AdminManageVehiclesPage'))
-const AdminCategoriesPage = lazy(() => import('./pages/admin/AdminCategoriesPage'))
-const AdminKYCPage = lazy(() => import('./pages/admin/AdminKYCPage'))
-const AdminSupportPage = lazy(() => import('./pages/admin/AdminSupportPage'))
-const AdminCouponsPage = lazy(() => import('./pages/admin/AdminCouponsPage'))
-const AdminBookingsPage = lazy(() =>
+const HomePage = lazyWithDelay(() => import('./pages/HomePage'))
+const VehicleListingPage = lazyWithDelay(() => import('./pages/VehicleListingPage'))
+const VehicleDetailPage = lazyWithDelay(() => import('./pages/VehicleDetailPage'))
+const CityPage = lazyWithDelay(() => import('./pages/CityPage'))
+const WishlistPage = lazyWithDelay(() => import('./pages/WishlistPage'))
+const LoginPage = lazyWithDelay(() => import('./pages/auth/LoginPage'))
+const RegisterPage = lazyWithDelay(() => import('./pages/auth/RegisterPage'))
+const VerifyOtpPage = lazyWithDelay(() => import('./pages/auth/VerifyOtpPage'))
+const ForgotPasswordPage = lazyWithDelay(() => import('./pages/auth/ForgotPasswordPage'))
+const ResetPasswordPage = lazyWithDelay(() => import('./pages/auth/ResetPasswordPage'))
+const DashboardPage = lazyWithDelay(() => import('./pages/user/DashboardPage'))
+const RentalHistoryPage = lazyWithDelay(() => import('./pages/user/RentalHistoryPage'))
+const TrackRentalPage = lazyWithDelay(() => import('./pages/user/TrackRentalPage'))
+const ProfilePage = lazyWithDelay(() => import('./pages/user/ProfilePage'))
+const KYCPage = lazyWithDelay(() => import('./pages/user/KYCPage'))
+const MyBookingsPage = lazyWithDelay(() => import('./pages/booking/MyBookingsPage'))
+const BookingDetailsPage = lazyWithDelay(() => import('./pages/booking/BookingDetailsPage'))
+const WalletPage = lazyWithDelay(() => import('./pages/user/WalletPage'))
+const NotificationsPage = lazyWithDelay(() => import('./pages/user/NotificationsPage'))
+const ReviewsPage = lazyWithDelay(() => import('./pages/user/ReviewsPage'))
+const SupportPage = lazyWithDelay(() => import('./pages/user/SupportPage'))
+const ManagerLayout = lazyWithDelay(() => import('./pages/manager/ManagerLayout'))
+const ManagerDashboardPage = lazyWithDelay(() => import('./pages/manager/ManagerDashboardPage'))
+const ManagerVehiclesPage = lazyWithDelay(() => import('./pages/manager/ManagerVehiclesPage'))
+const AddVehiclePage = lazyWithDelay(() => import('./pages/manager/AddVehiclePage'))
+const EditVehiclePage = lazyWithDelay(() => import('./pages/manager/EditVehiclePage'))
+const ManagerBookingsPage = lazyWithDelay(() => import('./pages/manager/ManagerBookingsPage'))
+const InspectionPage = lazyWithDelay(() => import('./pages/manager/InspectionPage'))
+const ActiveTripsPage = lazyWithDelay(() => import('./pages/manager/ActiveTripsPage'))
+const ManagerEarningsPage = lazyWithDelay(() => import('./pages/manager/ManagerEarningsPage'))
+const ManagerProfilePage = lazyWithDelay(() => import('./pages/manager/ManagerProfilePage'))
+const PayoutsPage = lazyWithDelay(() => import('./pages/manager/PayoutsPage'))
+const ManagerAvailabilityPage = lazyWithDelay(() => import('./pages/manager/ManagerAvailabilityPage'))
+const ManagerStatisticsPage = lazyWithDelay(() => import('./pages/manager/ManagerStatisticsPage'))
+const BookingConfirmPage = lazyWithDelay(() => import('./pages/booking/BookingConfirmPage'))
+const PaymentPage = lazyWithDelay(() => import('./pages/booking/PaymentPage'))
+const BookingSuccessPage = lazyWithDelay(() => import('./pages/booking/BookingSuccessPage'))
+const WriteReviewPage = lazyWithDelay(() => import('./pages/booking/WriteReviewPage'))
+const AdminLayout = lazyWithDelay(() => import('./pages/admin/AdminLayout'))
+const AdminDashboardPage = lazyWithDelay(() => import('./pages/admin/AdminDashboardPage'))
+const AdminUsersPage = lazyWithDelay(() => import('./pages/admin/AdminUsersPage'))
+const AdminVehicleManagersPage = lazyWithDelay(() => import('./pages/admin/AdminVehicleManagersPage'))
+const CreateManagerPage = lazyWithDelay(() => import('./pages/admin/CreateManagerPage'))
+const AdminVehiclesPage = lazyWithDelay(() => import('./pages/admin/AdminVehiclesPage'))
+const AdminManageVehiclesPage = lazyWithDelay(() => import('./pages/admin/AdminManageVehiclesPage'))
+const AdminCategoriesPage = lazyWithDelay(() => import('./pages/admin/AdminCategoriesPage'))
+const AdminKYCPage = lazyWithDelay(() => import('./pages/admin/AdminKYCPage'))
+const AdminSupportPage = lazyWithDelay(() => import('./pages/admin/AdminSupportPage'))
+const AdminCouponsPage = lazyWithDelay(() => import('./pages/admin/AdminCouponsPage'))
+const AdminBookingsPage = lazyWithDelay(() =>
   import('./pages/admin/AdminDataPages').then((m) => ({ default: m.AdminBookingsPage }))
 )
-const AdminPaymentsPage = lazy(() =>
+const AdminPaymentsPage = lazyWithDelay(() =>
   import('./pages/admin/AdminDataPages').then((m) => ({ default: m.AdminPaymentsPage }))
 )
-const AdminPayoutsPage = lazy(() =>
+const AdminPayoutsPage = lazyWithDelay(() =>
   import('./pages/admin/AdminDataPages').then((m) => ({ default: m.AdminPayoutsPage }))
 )
-const AdminSettingsPage = lazy(() =>
+const AdminSettingsPage = lazyWithDelay(() =>
   import('./pages/admin/AdminDataPages').then((m) => ({ default: m.AdminSettingsPage }))
 )
-const HowItWorksPage = lazy(() => import('./pages/HowItWorksPage'))
-const SafetyPage = lazy(() => import('./pages/SafetyPage'))
-const InsurancePage = lazy(() => import('./pages/InsurancePage'))
-const AboutPage = lazy(() => import('./pages/AboutPage'))
-const ContactPage = lazy(() => import('./pages/ContactPage'))
-const TermsPage = lazy(() =>
+const HowItWorksPage = lazyWithDelay(() => import('./pages/HowItWorksPage'))
+const SafetyPage = lazyWithDelay(() => import('./pages/SafetyPage'))
+const InsurancePage = lazyWithDelay(() => import('./pages/InsurancePage'))
+const AboutPage = lazyWithDelay(() => import('./pages/AboutPage'))
+const ContactPage = lazyWithDelay(() => import('./pages/ContactPage'))
+const TermsPage = lazyWithDelay(() =>
   import('./pages/LegalPages').then((m) => ({ default: m.TermsPage }))
 )
-const PrivacyPage = lazy(() =>
+const PrivacyPage = lazyWithDelay(() =>
   import('./pages/LegalPages').then((m) => ({ default: m.PrivacyPage }))
 )
-const RefundPage = lazy(() =>
+const RefundPage = lazyWithDelay(() =>
   import('./pages/LegalPages').then((m) => ({ default: m.RefundPage }))
 )
-const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
-const UnauthorizedPage = lazy(() => import('./pages/UnauthorizedPage'))
+const NotFoundPage = lazyWithDelay(() => import('./pages/NotFoundPage'))
+const UnauthorizedPage = lazyWithDelay(() => import('./pages/UnauthorizedPage'))
 
 function PageLoader() {
   return (
     <main className="grid min-h-screen place-items-center bg-[#F9FAFB]">
-      <div className="h-11 w-11 animate-spin rounded-full border-4 border-zinc-200 border-t-[#E31837]" />
+      <div className="text-center">
+        <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-zinc-200 border-t-[#E31837]" />
+        <p className="mt-4 text-sm font-black text-zinc-400 animate-pulse">Loading...</p>
+      </div>
     </main>
   )
 }
@@ -181,6 +195,7 @@ export default function App() {
                   <Route path="vehicles/:carId/edit" element={<EditVehiclePage />} />
                   <Route path="bookings" element={<ManagerBookingsPage />} />
                   <Route path="inspect/:bookingId" element={<InspectionPage />} />
+                  <Route path="support" element={<AdminSupportPage />} />
                   <Route path="availability" element={<ManagerAvailabilityPage />} />
                   <Route path="statistics" element={<ManagerStatisticsPage />} />
                   <Route path="trips/active" element={<ActiveTripsPage />} />
@@ -234,8 +249,15 @@ export default function App() {
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </Suspense>
+          <CustomerChatbot />
         </AuthProvider>
       </BrowserRouter>
     </ErrorBoundary>
   )
+}
+
+function CustomerChatbot() {
+  const { user } = useAuth()
+  if (!user || user.role !== 'customer') return null
+  return <ChatbotWidget />
 }

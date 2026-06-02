@@ -57,9 +57,9 @@ export default function WishlistPage() {
           </div>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {vehicles.map((car) => (
-            <div key={car.id} className={`transition duration-200 ${removing[car.id] ? 'scale-95 opacity-0' : 'opacity-100'}`}>
+            <div key={car.id} className={`h-full transition duration-200 ${removing[car.id] ? 'scale-95 opacity-0' : 'opacity-100'}`}>
               <VehicleCard car={{ ...car, is_saved: true }} onRemoved={onRemoved} />
             </div>
           ))}

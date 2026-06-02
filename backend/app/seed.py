@@ -274,6 +274,48 @@ async def seed_vehicles(db: AsyncSession):
         log("vehicles", skipped=True)
         return
     image_base = "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=900&q=80"
+    # Vehicle-specific images mapped by model name
+    VEHICLE_IMAGES = {
+        "Swift": "https://images.unsplash.com/photo-1609521263047-f8f205293f24?w=800",
+        "Creta": "https://images.unsplash.com/photo-1619767886558-efdc259cde1a?w=800",
+        "Nexon EV": "https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=800",
+        "3 Series": "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800",
+        "Innova Crysta": "https://images.unsplash.com/photo-1549317661-bd32c8ce0afa?w=800",
+        "City": "https://images.unsplash.com/photo-1606611013016-969c19ba27bb?w=800",
+        "Baleno": "https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?w=800",
+        "GLC": "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=800",
+        "Safari": "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800",
+        "ZS EV": "https://images.unsplash.com/photo-1593941707882-a5bba14938c7?w=800",
+        "i20": "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800",
+        "Slavia": "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800",
+        "Q5": "https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=800",
+        "Seltos": "https://images.unsplash.com/photo-1619767886558-efdc259cde1a?w=800",
+        "XUV700": "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800",
+        "Glanza": "https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?w=800",
+        "Amaze": "https://images.unsplash.com/photo-1606611013016-969c19ba27bb?w=800",
+        "Taigun": "https://images.unsplash.com/photo-1549317661-bd32c8ce0afa?w=800",
+        "Tiago EV": "https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=800",
+        "Ertiga": "https://images.unsplash.com/photo-1549317661-bd32c8ce0afa?w=800",
+        "Verna": "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800",
+        "Compass": "https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?w=800",
+        "Cayenne": "https://images.unsplash.com/photo-1503736334956-4c8f8e92946d?w=800",
+        "Kwid": "https://images.unsplash.com/photo-1609521263047-f8f205293f24?w=800",
+        "Magnite": "https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?w=800",
+        "Atto 3": "https://images.unsplash.com/photo-1593941707882-a5bba14938c7?w=800",
+        "Fortuner": "https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?w=800",
+        "Jimny": "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800",
+        "Cooper Convertible": "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=800",
+        "Thar": "https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?w=800",
+        "Dzire": "https://images.unsplash.com/photo-1606611013016-969c19ba27bb?w=800",
+        "Venue": "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800",
+        "Punch": "https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?w=800",
+    }
+
+    def get_vehicle_image(model_name):
+        for key, url in VEHICLE_IMAGES.items():
+            if key in model_name:
+                return url
+        return image_base
     records = list(enumerate(missing, start=(await count_rows(db, Vehicle)) + 1))
 
     def factory(row):
@@ -315,7 +357,7 @@ async def seed_vehicles(db: AsyncSession):
             total_trips=0,
             created_at=NOW - timedelta(days=80 - index),
         )
-        image = VehicleImage(vehicle_id=vehicle_id, image_url=image_base, is_primary=True, order_index=0)
+        image = VehicleImage(vehicle_id=vehicle_id, image_url=get_vehicle_image(model), is_primary=True, order_index=0)
         return [vehicle, image]
 
     await commit_records(db, "vehicles", records, factory)

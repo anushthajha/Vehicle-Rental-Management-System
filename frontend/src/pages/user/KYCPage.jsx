@@ -25,10 +25,18 @@ export default function KYCPage() {
         setForm({ dl_number: response.data.record.dl_number || '', aadhar_number: response.data.record.aadhar_number || '' })
       }
     } catch (err) {
-      if (err.status === 404 || err.response?.status === 404) {
+      const status = err?.response?.status || err?.status
+      if (status === 404) {
+        // No KYC record yet — normal for new users
         setKyc({ status: 'not_submitted', record: null })
+      } else if (status === 401) {
+        // Token not ready yet (navigating back) — retry once after a short delay
+        setTimeout(() => loadStatus(), 800)
+        return
       } else {
-        toast.error('Failed to load KYC status. Please refresh.')
+        // Only show error for genuine server errors
+        setKyc({ status: 'not_submitted', record: null })
+        toast.error('Could not load KYC status. Please try again.')
       }
     } finally {
       setLoading(false)

@@ -30,7 +30,7 @@ from app.tasks.email_tasks import (
     send_vehicle_approved_email,
     send_vehicle_rejected_email,
 )
-from app.utils.auth import get_password_hash, require_admin, validate_password_strength
+from app.utils.auth import get_password_hash, require_admin, require_staff, validate_password_strength
 from app.utils.validators import validate_phone
 
 
@@ -1271,7 +1271,7 @@ async def list_support(
     priority: str | None = None,
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=100),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_staff),
     db: AsyncSession = Depends(get_db),
 ):
     conditions = []
@@ -1317,7 +1317,7 @@ async def list_support(
 
 
 @router.post("/support/{ticket_id}/reply")
-async def support_reply(ticket_id: str, payload: SupportReplyRequest, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+async def support_reply(ticket_id: str, payload: SupportReplyRequest, admin: User = Depends(require_staff), db: AsyncSession = Depends(get_db)):
     ticket = await db.scalar(select(SupportTicket).where(SupportTicket.id == ticket_id))
     if ticket is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
@@ -1340,7 +1340,7 @@ async def support_reply(ticket_id: str, payload: SupportReplyRequest, admin: Use
 
 
 @router.patch("/support/{ticket_id}/status")
-async def support_status(ticket_id: str, payload: StatusRequest, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+async def support_status(ticket_id: str, payload: StatusRequest, admin: User = Depends(require_staff), db: AsyncSession = Depends(get_db)):
     if payload.status not in {"open", "in_progress", "resolved", "closed"}:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid support status")
     ticket = await db.scalar(select(SupportTicket).where(SupportTicket.id == ticket_id))
@@ -1354,7 +1354,7 @@ async def support_status(ticket_id: str, payload: StatusRequest, admin: User = D
 
 
 @router.patch("/support/{ticket_id}/priority")
-async def support_priority(ticket_id: str, payload: PriorityRequest, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+async def support_priority(ticket_id: str, payload: PriorityRequest, admin: User = Depends(require_staff), db: AsyncSession = Depends(get_db)):
     ticket = await db.scalar(select(SupportTicket).where(SupportTicket.id == ticket_id))
     if ticket is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
@@ -1566,13 +1566,19 @@ async def update_user_status(user_id: str, payload: UpdateUserStatusRequest, adm
     }
 
 class UpdateUserRoleRequest(BaseModel):
-    role: str = Field(pattern="^(customer|vehicle_manager|admin)$")
+    role: str = Field(pattern="^(customer|vehicle_manager)$")
 
 @router.put("/users/{user_id}/role")
 async def update_user_role(user_id: str, payload: UpdateUserRoleRequest, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
     user = await db.scalar(select(User).where(User.id == user_id))
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    # Cannot change your own role
+    if user.id == admin.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot change your own role")
+    # Cannot change another admin's role
+    if user.role == "admin":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot change another admin's role")
     
     if user.role == "vehicle_manager" and payload.role == "customer":
         from app.models.booking import Booking

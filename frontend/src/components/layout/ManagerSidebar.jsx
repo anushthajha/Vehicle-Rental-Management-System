@@ -1,5 +1,5 @@
 import React from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { BarChart3, CalendarDays, Car as Vehicle, ClipboardList, Gauge, Headphones, Plus, UserRound, Wallet } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
@@ -21,10 +21,11 @@ function initials(name = 'Vehicle Manager') {
 
 export default function ManagerSidebar() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   return (
     <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col bg-[#1E3A5F] text-white lg:flex">
       <div className="border-b border-white/10 p-5">
-        <div className="text-2xl font-black tracking-tight">SigFleet</div>
+        <div onClick={() => navigate('/')} className="cursor-pointer text-2xl font-black tracking-tight transition hover:opacity-80">SigFleet</div>
         <p className="mt-1 text-xs font-black uppercase text-teal-200">Manager Console</p>
       </div>
       <div className="m-4 rounded-md bg-white/10 p-4">

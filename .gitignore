@@ -1,18 +1,110 @@
-node_modules/
-.env
-.venv/
-venv/
-__pycache__/
-dist/
-build/
-.DS_Store
+# Python
 __pycache__/
 *.py[cod]
+*$py.class
+.Python
+.pytest_cache/
+.pyre/
+.pytype/
+.pytest_cache/
+
+# Virtual environments
 .venv/
-node_modules/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# Python packaging
+build/
 dist/
+*.egg-info/
+*.egg
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# pyenv
+.python-version
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# npm / frontend
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+.pnpm-debug.log
+.vite/
+
+# Vite / React / frontend build
+public/build/
+*.local
+*.env.local
+*.env.*.local
+
+# logs
+logs/
+*.log
+debug.log*
+lerna-debug.log*
+
+# dotenv files
 .env
-.env.*
-.env
-.env
+.env.*.local
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Docker
+docker-compose.override.yml
+docker-compose.*.yml
+**/Dockerfile.*
+*.dockerfile
+docker-compose*.yml
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Misc
+.idea/
+*.swp
+*.swo
+*.tmp
+*.bak
+*.orig
+*.rej
+*.class
+*.cache
+*.temp
+*.DB
+*.sqlite3
+*.db

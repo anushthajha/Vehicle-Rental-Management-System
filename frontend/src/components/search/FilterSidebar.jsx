@@ -50,9 +50,9 @@ function FilterSidebar({ filters, setFilters, vehicles = [], histogram = [], onC
   useEffect(() => {
     const timer = window.setTimeout(() => {
       if (qDraft !== (filters.q || '')) patch({ q: qDraft })
-    }, 300)
+    }, 400)
     return () => window.clearTimeout(timer)
-  }, [filters.q, qDraft])
+  }, [qDraft])
 
   function patch(changes) {
     setFilters((current) => ({ ...current, ...changes }))
@@ -78,7 +78,7 @@ function FilterSidebar({ filters, setFilters, vehicles = [], histogram = [], onC
           </FilterSection>
         )}
 
-        <FilterSection title="Text Search">
+        <FilterSection title="Search">
           <input
             className="input h-11"
             value={qDraft}

@@ -310,7 +310,7 @@ export default function VehicleListingPage() {
           ) : viewMode === 'map' ? (
             <SearchMap vehicles={vehicles} selectedCar={selectedMapCar} onSelect={setSelectedMapCar} onBoundsChange={setMapBounds} />
           ) : (
-            <div className={viewMode === 'grid' ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-3' : 'space-y-4'}>
+            <div className={viewMode === 'grid' ? 'grid auto-rows-fr gap-4 sm:grid-cols-2 xl:grid-cols-3' : 'space-y-4'}>
               {vehicles.map((car, index) => (
                 <VehicleCard key={`${car.id}-${index}`} car={car} viewMode={viewMode} datesSelected={Boolean(searchParams.get('pickup_date') && searchParams.get('return_date'))} />
               ))}
@@ -444,13 +444,18 @@ function SearchMap({ vehicles, selectedCar, onSelect, onBoundsChange }) {
 }
 
 function MapBoundsReporter({ onBoundsChange }) {
+  const debounceRef = React.useRef(null)
   useMapEvents({
     moveend(event) {
-      const map = event.target
-      const center = map.getCenter()
-      const bounds = map.getBounds()
-      const radius = Math.max(3, Math.min(50, center.distanceTo(bounds.getNorthEast()) / 1000))
-      onBoundsChange({ lat: center.lat.toFixed(6), lng: center.lng.toFixed(6), radius: radius.toFixed(1) })
+      // Debounce map pan — wait 500ms after user stops moving before firing search
+      clearTimeout(debounceRef.current)
+      debounceRef.current = setTimeout(() => {
+        const map = event.target
+        const center = map.getCenter()
+        const bounds = map.getBounds()
+        const radius = Math.max(3, Math.min(50, center.distanceTo(bounds.getNorthEast()) / 1000))
+        onBoundsChange({ lat: center.lat.toFixed(6), lng: center.lng.toFixed(6), radius: radius.toFixed(1) })
+      }, 500)
     },
   })
   return null

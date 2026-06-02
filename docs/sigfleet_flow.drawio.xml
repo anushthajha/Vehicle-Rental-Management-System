@@ -1,0 +1,397 @@
+<mxfile host="app.diagrams.net" modified="2026-05-31T00:00:00.000Z" agent="draw.io" version="21.0.0">
+  <diagram id="sigfleet-flow" name="Project Workflow">
+    <mxGraphModel dx="1900" dy="1100" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" background="#1a1a2e" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- TITLE -->
+        <mxCell id="title" value="PROJECT WORKFLOW" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=28;fontStyle=1;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="400" y="20" width="500" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ===== ACTOR / HOME PAGE ===== -->
+        <mxCell id="actor" value="Actor" style="text;html=1;align=center;verticalAlign=top;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="50" y="430" width="50" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="actor_icon" value="" style="shape=mxgraph.signs.nature.man,woman;fillColor=#FFFFFF;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="55" y="395" width="40" height="35" as="geometry" />
+        </mxCell>
+
+        <!-- HOME PAGE -->
+        <mxCell id="homepage" value="HOME PAGE" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#F59E0B;fontStyle=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="130" y="395" width="120" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_actor_home" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#FFFFFF;" edge="1" source="actor_icon" target="homepage" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- HOME PAGE PUBLIC ACTIONS (no login required) -->
+        <mxCell id="home_browse" value="Browse Vehicles (Public)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#F59E0B;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="100" y="290" width="140" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_home_browse" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#F59E0B;" edge="1" source="homepage" target="home_browse" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="hb1" value="Search by City / Category" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=8;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="260" y="272" width="150" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="hb2" value="View Vehicle Details &amp; Reviews" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=8;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="260" y="288" width="170" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="hb3" value="Filter by Price / Fuel / Seats" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=8;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="260" y="304" width="160" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="hb4" value="Check Availability by Date" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=8;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="260" y="320" width="150" height="16" as="geometry" />
+        </mxCell>
+
+        <!-- LOGIN -->
+        <mxCell id="login" value="LOGIN" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F59E0B;strokeColor=#D97706;fontStyle=1;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="290" y="395" width="80" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_home_login" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#FFFFFF;" edge="1" source="homepage" target="login" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- OTP VERIFICATION -->
+        <mxCell id="otp_box" value="OTP Email&#xa;Verification" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#F59E0B;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="140" y="480" width="100" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_home_otp" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#F59E0B;dashed=1;" edge="1" source="homepage" target="otp_box" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="register_label" value="REGISTER&#xa;(New User)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#F59E0B;fontSize=9;fontColor=#F59E0B;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="140" y="530" width="80" height="35" as="geometry" />
+        </mxCell>
+
+        <!-- DECISION DIAMOND: IS ADMIN? -->
+        <mxCell id="decision" value="ROLE?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#F59E0B;strokeColor=#D97706;fontStyle=1;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="400" y="385" width="90" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_login_decision" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#FFFFFF;" edge="1" source="login" target="decision" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ===== ADMIN BRANCH (Top) ===== -->
+        <mxCell id="admin_label" value="Admin" style="label;whiteSpace=wrap;html=1;fillColor=#EF4444;strokeColor=none;fontStyle=1;fontSize=10;fontColor=#FFFFFF;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="520" y="200" width="70" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_decision_admin" value="Admin" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#EF4444;fontColor=#EF4444;fontSize=9;" edge="1" source="decision" target="admin_label" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="admin_dash" value="ADMIN&#xa;DASHBOARD" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#3B82F6;fontStyle=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="620" y="193" width="110" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_admin_dash" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#EF4444;" edge="1" source="admin_label" target="admin_dash" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Admin Sub-features: Manage Vehicles -->
+        <mxCell id="admin_vehicles" value="Manage Vehicles" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#3B82F6;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="770" y="120" width="110" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_ad_vehicles" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#3B82F6;" edge="1" source="admin_dash" target="admin_vehicles" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Admin: Manage Users -->
+        <mxCell id="admin_users" value="Manage Users &amp; Managers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#3B82F6;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="770" y="155" width="150" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_ad_users" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#3B82F6;" edge="1" source="admin_dash" target="admin_users" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Admin sub-actions for Manage Vehicles -->
+        <mxCell id="av1" value="Approve Vehicles" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="920" y="90" width="120" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="av1_icon" value="" style="shape=mxgraph.signs.tech.antenna_2;fillColor=#10B981;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="900" y="90" width="16" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="av2" value="Reject Vehicles" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="920" y="112" width="120" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="av2_icon" value="" style="shape=mxgraph.signs.warning.no_entry;fillColor=#EF4444;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="900" y="112" width="16" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="av3" value="Feature Vehicles" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="920" y="134" width="120" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="av3_icon" value="⭐" style="text;html=1;align=center;verticalAlign=middle;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="900" y="132" width="16" height="16" as="geometry" />
+        </mxCell>
+
+        <!-- Admin sub-actions for Manage Users -->
+        <mxCell id="au1" value="Create Vehicle Manager" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="940" y="150" width="140" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="au2" value="Promote / Demote / Suspend" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="940" y="168" width="160" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="au3" value="KYC Approve / Reject" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="940" y="186" width="140" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Admin: Support & Coupons -->
+        <mxCell id="admin_support" value="Support Tickets &amp; Coupons" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#3B82F6;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="770" y="190" width="150" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_ad_support" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#3B82F6;" edge="1" source="admin_dash" target="admin_support" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Admin: Analytics & Payouts -->
+        <mxCell id="admin_analytics" value="Analytics &amp; Payouts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#3B82F6;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="770" y="225" width="110" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_ad_analytics" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#3B82F6;" edge="1" source="admin_dash" target="admin_analytics" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ===== VEHICLE MANAGER BRANCH (Middle) ===== -->
+        <mxCell id="mgr_label" value="Vehicle Manager" style="label;whiteSpace=wrap;html=1;fillColor=#3B82F6;strokeColor=none;fontStyle=1;fontSize=10;fontColor=#FFFFFF;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="520" y="340" width="110" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_decision_mgr" value="Manager" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#3B82F6;fontColor=#3B82F6;fontSize=9;" edge="1" source="decision" target="mgr_label" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="mgr_dash" value="MANAGER&#xa;DASHBOARD" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#3B82F6;fontStyle=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="660" y="333" width="110" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_mgr_dash" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#3B82F6;" edge="1" source="mgr_label" target="mgr_dash" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Manager: My Vehicles -->
+        <mxCell id="mgr_vehicles" value="My Vehicles" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#3B82F6;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="800" y="290" width="90" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_mgr_v" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#3B82F6;" edge="1" source="mgr_dash" target="mgr_vehicles" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Manager: Bookings -->
+        <mxCell id="mgr_bookings" value="Bookings" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#3B82F6;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="800" y="325" width="90" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_mgr_b" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#3B82F6;" edge="1" source="mgr_dash" target="mgr_bookings" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Manager: Trips -->
+        <mxCell id="mgr_trips" value="Active Trips &amp; Inspection" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#3B82F6;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="800" y="360" width="140" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_mgr_t" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#3B82F6;" edge="1" source="mgr_dash" target="mgr_trips" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Manager: Earnings -->
+        <mxCell id="mgr_earnings" value="Earnings &amp; Payouts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#3B82F6;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="800" y="395" width="120" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_mgr_e" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#3B82F6;" edge="1" source="mgr_dash" target="mgr_earnings" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Manager sub-actions -->
+        <mxCell id="mv1" value="Add Vehicle" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="920" y="275" width="100" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="mv2" value="Edit / Delete Vehicle" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="920" y="293" width="120" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="mv3" value="Upload Images" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="920" y="311" width="100" height="18" as="geometry" />
+        </mxCell>
+
+        <mxCell id="mb1" value="Accept / Reject Booking" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="920" y="330" width="140" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="mb2" value="Cancel Booking (with fine)" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="920" y="348" width="150" height="18" as="geometry" />
+        </mxCell>
+
+        <mxCell id="mt1" value="Start Trip (Odometer)" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="960" y="363" width="130" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="mt2" value="End Trip (Odometer)" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="960" y="381" width="130" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="mt3" value="Vehicle Inspection (Damage)" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="960" y="399" width="160" height="18" as="geometry" />
+        </mxCell>
+
+        <mxCell id="me1" value="View Earnings" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="940" y="418" width="100" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="me2" value="Request Payout" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="940" y="436" width="100" height="18" as="geometry" />
+        </mxCell>
+
+        <!-- ===== CUSTOMER BRANCH (Bottom) ===== -->
+        <mxCell id="cust_label" value="Customer" style="label;whiteSpace=wrap;html=1;fillColor=#10B981;strokeColor=none;fontStyle=1;fontSize=10;fontColor=#FFFFFF;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="520" y="500" width="80" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_decision_cust" value="Customer" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#10B981;fontColor=#10B981;fontSize=9;" edge="1" source="decision" target="cust_label" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cust_dash" value="CUSTOMER&#xa;DASHBOARD" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D1FAE5;strokeColor=#10B981;fontStyle=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="630" y="493" width="110" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_cust_dash" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#10B981;" edge="1" source="cust_label" target="cust_dash" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Customer: Vehicles -->
+        <mxCell id="cust_vehicles" value="Vehicles" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D1FAE5;strokeColor=#10B981;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="770" y="460" width="80" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_cv" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#10B981;" edge="1" source="cust_dash" target="cust_vehicles" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Customer: Bookings -->
+        <mxCell id="cust_bookings" value="My Bookings" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D1FAE5;strokeColor=#10B981;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="770" y="495" width="90" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_cb" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#10B981;" edge="1" source="cust_dash" target="cust_bookings" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Customer: Wallet -->
+        <mxCell id="cust_wallet" value="Wallet &amp; Payments" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D1FAE5;strokeColor=#10B981;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="770" y="530" width="110" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_cw" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#10B981;" edge="1" source="cust_dash" target="cust_wallet" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Customer: KYC & Profile -->
+        <mxCell id="cust_kyc" value="KYC &amp; Profile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D1FAE5;strokeColor=#10B981;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="770" y="565" width="90" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_ck" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#10B981;" edge="1" source="cust_dash" target="cust_kyc" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Customer sub-actions: Vehicles -->
+        <mxCell id="cv1" value="Browse by City / Category / Price" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="880" y="448" width="190" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="cv2" value="Search &amp; Filter Vehicles" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="880" y="466" width="150" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="cv3" value="View Vehicle Details &amp; Reviews" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="880" y="484" width="180" height="18" as="geometry" />
+        </mxCell>
+
+        <!-- Customer sub-actions: Bookings -->
+        <mxCell id="cb1" value="Book Vehicle (Dates + Insurance + Chauffeur)" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="880" y="500" width="240" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="cb2" value="Pay (Card / UPI / Net Banking / Wallet)" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="880" y="518" width="220" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="cb3" value="Track Active Trip" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="880" y="536" width="120" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="cb4" value="Cancel Booking (Refund Policy)" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="880" y="554" width="180" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="cb5" value="Write Review (after trip)" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="880" y="572" width="150" height="18" as="geometry" />
+        </mxCell>
+
+        <!-- Customer sub-actions: Wallet -->
+        <mxCell id="cw1" value="Add Money (₹100 – ₹10,000)" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="900" y="530" width="170" height="18" as="geometry" />
+        </mxCell>
+
+        <!-- Customer sub-actions: KYC -->
+        <mxCell id="ck1" value="Upload DL + Aadhar" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="880" y="590" width="130" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="ck2" value="Wishlist / Support / Notifications" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="880" y="608" width="190" height="18" as="geometry" />
+        </mxCell>
+
+        <!-- ===== LOGOUT (Right side) ===== -->
+        <mxCell id="logout" value="LOGOUT" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1F2937;strokeColor=#6B7280;fontStyle=1;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="1150" y="385" width="80" height="35" as="geometry" />
+        </mxCell>
+
+        <!-- ===== FILTER ARROWS (like reference image) ===== -->
+        <mxCell id="filter_arrow" value="→ Filter By City / Category / Price / Date" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=8;fontColor=#9CA3AF;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="466" width="200" height="18" as="geometry" />
+        </mxCell>
+
+        <!-- ===== BOOKING STATUS FLOW (small) ===== -->
+        <mxCell id="status_title" value="Booking Status Flow:" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#9CA3AF;fontStyle=3;" vertex="1" parent="1">
+          <mxGeometry x="50" y="560" width="140" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="s1" value="Pending" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#F59E0B;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="50" y="585" width="60" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="s2" value="Confirmed" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#3B82F6;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="125" y="585" width="65" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="s3" value="Active" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D1FAE5;strokeColor=#10B981;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="205" y="585" width="50" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="s4" value="Completed" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0E7FF;strokeColor=#6366F1;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="270" y="585" width="65" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="s5" value="Cancelled" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#EF4444;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="350" y="585" width="65" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="es12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#9CA3AF;fontSize=8;" edge="1" source="s1" target="s2" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="es23" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#9CA3AF;fontSize=8;" edge="1" source="s2" target="s3" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="es34" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#9CA3AF;fontSize=8;" edge="1" source="s3" target="s4" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ===== TECH STACK FOOTER ===== -->
+        <mxCell id="tech_title" value="Tech Stack:" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#9CA3AF;fontStyle=3;" vertex="1" parent="1">
+          <mxGeometry x="50" y="640" width="80" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="tech_fe" value="React + Vite" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1F2937;strokeColor=#10B981;fontSize=8;fontColor=#10B981;" vertex="1" parent="1">
+          <mxGeometry x="50" y="665" width="75" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="tech_be" value="FastAPI" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1F2937;strokeColor=#8B5CF6;fontSize=8;fontColor=#8B5CF6;" vertex="1" parent="1">
+          <mxGeometry x="135" y="665" width="55" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="tech_db1" value="MySQL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1F2937;strokeColor=#3B82F6;fontSize=8;fontColor=#3B82F6;" vertex="1" parent="1">
+          <mxGeometry x="200" y="665" width="50" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="tech_db2" value="MongoDB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1F2937;strokeColor=#10B981;fontSize=8;fontColor=#10B981;" vertex="1" parent="1">
+          <mxGeometry x="260" y="665" width="60" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="tech_db3" value="Redis" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1F2937;strokeColor=#EF4444;fontSize=8;fontColor=#EF4444;" vertex="1" parent="1">
+          <mxGeometry x="330" y="665" width="45" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="tech_celery" value="Celery" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1F2937;strokeColor=#F59E0B;fontSize=8;fontColor=#F59E0B;" vertex="1" parent="1">
+          <mxGeometry x="385" y="665" width="50" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="tech_docker" value="Docker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1F2937;strokeColor=#6366F1;fontSize=8;fontColor=#6366F1;" vertex="1" parent="1">
+          <mxGeometry x="445" y="665" width="50" height="22" as="geometry" />
+        </mxCell>
+
+        <!-- BRAND -->
+        <mxCell id="brand" value="SIGFLEET" style="text;html=1;strokeColor=none;fillColor=none;align=right;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1;fontColor=#E31837;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="660" width="120" height="30" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

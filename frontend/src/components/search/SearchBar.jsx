@@ -13,7 +13,6 @@ export default function SearchBar({ className = '', compact = false }) {
   const navigate = useNavigate()
   const location = useLocation()
   const params = useMemo(() => new URLSearchParams(location.search), [location.search])
-  const [q, setQ] = useState(params.get('q') || '')
   const [city, setCity] = useState(params.get('city') || '')
   const [cityDraft, setCityDraft] = useState(params.get('city') || '')
   const [pickup, setPickup] = useState(parseDate(params.get('pickup_date') || params.get('start_date')))
@@ -21,10 +20,8 @@ export default function SearchBar({ className = '', compact = false }) {
 
   useEffect(() => {
     const nextCity = params.get('city')
-    const nextQ = params.get('q') || ''
     const nextStart = params.get('pickup_date') || params.get('start_date')
     const nextEnd = params.get('return_date') || params.get('end_date')
-    setQ(nextQ)
     if (nextCity) {
       setCity(nextCity)
       setCityDraft(nextCity)
@@ -49,9 +46,7 @@ export default function SearchBar({ className = '', compact = false }) {
     event.preventDefault()
     const keepExisting = location.pathname === '/vehicles'
     const query = new URLSearchParams(keepExisting ? location.search : '')
-    if (q.trim()) query.set('q', q.trim())
-    else query.delete('q')
-    // Only set city if user actually typed one
+    // Text search is handled by the filter sidebar — not here
     if (city.trim()) query.set('city', city.trim())
     else query.delete('city')
     if (pickup) query.set('pickup_date', pickup.toISOString())
@@ -66,28 +61,20 @@ export default function SearchBar({ className = '', compact = false }) {
 
   return (
     <form onSubmit={submit} className={`rounded-lg border border-zinc-200 bg-white p-3 shadow-sm ${className}`}>
-      <div className={`grid gap-3 ${compact ? 'lg:grid-cols-[1.2fr_.9fr_.9fr_.9fr_auto]' : 'lg:grid-cols-[1.3fr_.9fr_.9fr_.9fr_auto]'}`}>
-        <div>
-          <label className="label flex items-center gap-2"><Search size={16} /> Search</label>
-          <input
-            className="input mt-2 h-12"
-            value={q}
-            onChange={(event) => setQ(event.target.value)}
-            placeholder="Search vehicles, brands, models..."
-          />
-        </div>
+      <div className={`grid gap-3 ${compact ? 'lg:grid-cols-[1fr_1fr_1fr_auto]' : 'lg:grid-cols-[1fr_1fr_1fr_auto]'}`}>
         <div>
           <label className="label flex items-center gap-2"><MapPin size={16} /> City <span className="text-xs font-normal text-zinc-400">(optional — leave blank for all India)</span></label>
-          <input
-            className="input mt-2 h-12"
-            list="sigfleet-cities"
-            value={cityDraft}
-            onChange={(event) => setCityDraft(event.target.value)}
-            placeholder="e.g. Bengaluru, Mumbai, Delhi…"
-          />
-          <datalist id="sigfleet-cities">
-            {CITIES.map((item) => <option key={item} value={item} />)}
-          </datalist>
+          <div className="relative mt-2">
+            <select
+              className="input h-12 appearance-none pr-8"
+              value={cityDraft}
+              onChange={(event) => setCityDraft(event.target.value)}
+            >
+              <option value="">All India</option>
+              {CITIES.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+            <MapPin size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+          </div>
         </div>
         <div>
           <label className="label flex items-center gap-2"><CalendarDays size={16} /> Pickup</label>

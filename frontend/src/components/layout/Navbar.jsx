@@ -5,7 +5,7 @@ import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { ChevronDown, Heart, Menu, User, Wallet, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../services/api'
-import { useAuthStore } from '../../context/AuthContext'
+import { redirectPathForRole, useAuthStore } from '../../context/AuthContext'
 import NotificationBell from './NotificationBell'
 import SigFleetLogo from './SigFleetLogo'
 
@@ -50,7 +50,7 @@ export default function Navbar() {
   // Support ticket link — requires login
   const supportPath = user ? '/customer/support' : null
 
-  const dashboardPath = roleDashboards[role] || '/'
+  const dashboardPath = redirectPathForRole(role)
 
   const logoutAndGo = () => {
     logout()
@@ -91,6 +91,12 @@ export default function Navbar() {
           {user ? (
             <>
               <NotificationBell />
+              <button
+                onClick={() => navigate(dashboardPath)}
+                className={`text-sm font-black transition ${scrolled ? 'text-zinc-800 hover:text-[#E31837]' : 'text-white hover:text-white/80'}`}
+              >
+                Go to Dashboard →
+              </button>
               <DropdownMenu.Root>
                 <DropdownMenu.Trigger className={`flex min-h-11 items-center gap-2 rounded-full border px-2 py-1.5 ${scrolled ? 'border-zinc-200 bg-white text-zinc-900' : 'border-white/30 bg-white/15 text-white'}`}>
                   <span className="grid h-9 w-9 place-items-center rounded-full bg-[#E31837] text-sm font-black text-white">{initials(user.full_name)}</span>
@@ -111,11 +117,11 @@ export default function Navbar() {
                     </div>
                     {role === 'customer' && (
                       <>
-                        <MenuItem to="/customer/dashboard" icon={User}>My Dashboard</MenuItem>
+                        <MenuItem to="/customer/dashboard" icon={User}>Go to Dashboard</MenuItem>
                         <MenuItem to="/customer/bookings">My Bookings</MenuItem>
-                        <MenuItem to="/customer/rental-history">Rental History</MenuItem>
-                        <MenuItem to="/customer/track-rental">Track Rental</MenuItem>
-                        <MenuItem to="/dashboard/wallet" icon={Wallet}>Wallet (₹{Math.round(wallet).toLocaleString('en-IN')})</MenuItem>
+                        <MenuItem to="/customer/bookings/history">Rental History</MenuItem>
+                        <MenuItem to="/customer/track/latest">Track Rental</MenuItem>
+                        <MenuItem to="/customer/wallet" icon={Wallet}>Wallet (₹{Math.round(wallet).toLocaleString('en-IN')})</MenuItem>
                         <MenuItem to="/dashboard/kyc">KYC</MenuItem>
                       </>
                     )}
@@ -135,7 +141,8 @@ export default function Navbar() {
                       </>
                     )}
                     <div className="my-1 border-t border-zinc-100" />
-                    <MenuItem to="/dashboard/profile" icon={User}>Profile</MenuItem>
+                    <MenuItem to={role === 'vehicle_manager' ? '/manager/profile' : role === 'customer' ? '/customer/profile' : '/admin/dashboard'} icon={User}>My Profile</MenuItem>
+                    <MenuItem to={role === 'customer' ? '/customer/notifications' : '/dashboard/notifications'}>Notifications</MenuItem>
                     {role === 'customer' && <MenuItem to="/wishlist" icon={Heart}>Wishlist</MenuItem>}
                     <MenuItem to="/dashboard/support">Support</MenuItem>
                     <button onClick={logoutAndGo} className="w-full rounded-md px-3 py-2 text-left text-sm font-black text-[#E31837] hover:bg-red-50">Logout</button>
@@ -177,10 +184,10 @@ export default function Navbar() {
               )}
               {user ? (
                 <>
-                  <Link to="/dashboard/notifications" onClick={() => setDrawer(false)} className="flex items-center justify-between rounded-md px-3 py-3 font-black text-zinc-800">Notifications <span className="rounded-full bg-sigfleet px-2 py-0.5 text-xs text-white">{unread}</span></Link>
+                  <Link to={role === 'customer' ? '/customer/notifications' : '/dashboard/notifications'} onClick={() => setDrawer(false)} className="flex items-center justify-between rounded-md px-3 py-3 font-black text-zinc-800">Notifications <span className="rounded-full bg-sigfleet px-2 py-0.5 text-xs text-white">{unread}</span></Link>
                   <Link to={dashboardPath} onClick={() => setDrawer(false)} className="rounded-md px-3 py-3 font-black text-zinc-800">Dashboard</Link>
                   {role === 'customer' && <Link to="/customer/bookings" onClick={() => setDrawer(false)} className="rounded-md px-3 py-3 font-black text-zinc-800">My Bookings</Link>}
-                  <Link to="/dashboard/wallet" onClick={() => setDrawer(false)} className="rounded-md px-3 py-3 font-black text-zinc-800">Wallet (₹{Math.round(wallet).toLocaleString('en-IN')})</Link>
+                  <Link to={role === 'customer' ? '/customer/wallet' : '/dashboard/wallet'} onClick={() => setDrawer(false)} className="rounded-md px-3 py-3 font-black text-zinc-800">Wallet (₹{Math.round(wallet).toLocaleString('en-IN')})</Link>
                   {role === 'vehicle_manager' && <Link to="/manager/bookings" onClick={() => setDrawer(false)} className="rounded-md px-3 py-3 font-black text-zinc-800">Booking Requests</Link>}
                   <button onClick={logoutAndGo} className="rounded-md px-3 py-3 text-left font-black text-[#E31837]">Logout</button>
                 </>

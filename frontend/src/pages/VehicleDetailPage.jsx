@@ -77,12 +77,19 @@ export default function VehicleDetailPage() {
 
   useEffect(() => {
     if (!car) return
+    // Reviews re-fetch when filter changes — correct
     api.get(`/reviews/car/${car.id}`, { params: { page: 1, limit: 5, rating: reviewFilter || undefined } }).then((response) => {
       setReviews(response.data)
       setReviewPage(1)
     })
-    api.get('/vehicles/', { params: { city: car.location_city, category_id: car.category_id, exclude: car.id, limit: 4 } }).then((response) => setSimilar(response.data.vehicles || []))
   }, [car, reviewFilter])
+
+  useEffect(() => {
+    if (!car) return
+    // Similar vehicles only need to load once per car — not on every review filter change
+    api.get('/vehicles/', { params: { city: car.location_city, category_id: car.category_id, exclude: car.id, limit: 4 } })
+      .then((response) => setSimilar(response.data.vehicles || []))
+  }, [car?.id])
 
   if (loading) {
     return <main className="grid min-h-screen place-items-center bg-zinc-50"><Loader2 className="animate-spin text-sigfleet" /></main>
@@ -347,20 +354,9 @@ function BookingWidget({ car, user, borderless = false }) {
         drop_location: withChauffeur ? (dropLocation.trim() || undefined) : undefined,
       })
       const data = response.data
-      // Auto-accepted bookings go straight to success; others go to payment
-      if (!data.requires_payment) {
-        sessionStorage.setItem('sigfleet_last_booking_success', JSON.stringify({
-          id: data.booking_id,
-          booking_ref: data.booking_ref,
-          car: { title: data.vehicle_name, primary_image_url: data.car_primary_image },
-          pickup_datetime: pickup.toISOString(),
-          return_datetime: returnAt.toISOString(),
-          total_amount: data.price_breakdown?.total_amount || 0,
-        }))
-        navigate(`/booking/success?ref=${data.booking_ref}`)
-      } else {
-        navigate(`/booking/pay/${data.booking_id}`)
-      }
+      // Always go to payment page so user can choose their payment method
+      // (Card / UPI / Net Banking / Wallet)
+      navigate(`/booking/pay/${data.booking_id}`)
     } catch (err) {
       const detail = err.response?.data?.detail
       const msg = typeof detail === 'string' ? detail : detail?.message || 'Unable to create booking.'
@@ -423,11 +419,13 @@ function BookingWidget({ car, user, borderless = false }) {
   }, [car.id, pickup])
 
   useEffect(() => {
+    // Debounced availability check — 600ms prevents double-fire when pickup
+    // change also triggers returnAt to update (two state changes, one request)
     const timer = window.setTimeout(() => {
       api.get(`/vehicles/${car.id}/availability/check`, {
         params: { pickup_date: pickup.toISOString(), return_date: returnAt.toISOString(), insurance_plan: insurance },
       }).then((response) => setAvailability(response.data)).catch((err) => setAvailability({ available: false, reason: err.response?.data?.detail || 'Unable to check availability', price_breakdown: {} }))
-    }, 300)
+    }, 600)
     return () => window.clearTimeout(timer)
   }, [car.id, insurance, pickup, returnAt])
 

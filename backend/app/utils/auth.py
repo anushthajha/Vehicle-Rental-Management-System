@@ -145,6 +145,13 @@ async def require_admin(current_user: User = Depends(get_current_active_user)) -
     return current_user
 
 
+async def require_staff(current_user: User = Depends(get_current_active_user)) -> User:
+    """Allows admin or vehicle_manager — both can handle support tickets."""
+    if current_user.role not in ("admin", "vehicle_manager"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Staff access required.")
+    return current_user
+
+
 async def require_any_authenticated(current_user: User = Depends(get_current_active_user)) -> User:
     """Any logged-in user, any role."""
     return current_user

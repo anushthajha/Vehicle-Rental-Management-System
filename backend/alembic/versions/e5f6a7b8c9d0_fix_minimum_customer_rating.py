@@ -18,10 +18,13 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Rename minimum_guest_rating to minimum_customer_rating to match the model
-    op.alter_column("vehicles", "minimum_guest_rating", new_column_name="minimum_customer_rating", existing_type=sa.DECIMAL(precision=3, scale=2))
+    # Column was already created with correct name in init migration
+    # This rename is only needed if upgrading from an older schema
+    try:
+        op.alter_column("vehicles", "minimum_guest_rating", new_column_name="minimum_customer_rating", existing_type=sa.DECIMAL(precision=3, scale=2))
+    except Exception:
+        pass  # Column already has the correct name
 
 
 def downgrade() -> None:
-    # Revert the rename
-    op.alter_column("vehicles", "minimum_customer_rating", new_column_name="minimum_guest_rating", existing_type=sa.DECIMAL(precision=3, scale=2))
+    pass

@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     MINOR_DAMAGE_FEE: int = 2000
     MAJOR_DAMAGE_FEE: int = 10000
     TOTAL_LOSS_FEE: int = 50000
+    GEMINI_API_KEY: str = ""
+    OPENROUTER_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

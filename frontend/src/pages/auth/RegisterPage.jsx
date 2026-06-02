@@ -129,8 +129,14 @@ export default function RegisterPage() {
             <input
               name="full_name"
               value={form.full_name}
-              onChange={update}
+              onChange={(e) => {
+                // Only allow letters and spaces
+                const val = e.target.value.replace(/[^A-Za-z ]/g, '')
+                setForm((c) => ({ ...c, full_name: val }))
+                if (fieldErrors.full_name) setFieldErrors((c) => ({ ...c, full_name: undefined }))
+              }}
               required
+              placeholder="e.g. Ravi Kumar"
               className={`mt-2 w-full rounded-md border-zinc-300 ${fieldErrors.full_name ? 'border-red-500' : ''}`}
             />
           </label>
@@ -150,20 +156,41 @@ export default function RegisterPage() {
           </label>
         </FieldError>
 
-        <FieldError error={fieldErrors.phone}>
-          <label className="mt-4 block text-sm font-bold text-zinc-800">
-            Phone
+        <div className="mt-4">
+          <label className="block text-sm font-bold text-zinc-800">
+            Phone <span className="text-xs font-normal text-zinc-400">(10-digit Indian mobile)</span>
+          </label>
+          <div className="mt-2 flex">
+            <span className="grid h-11 place-items-center rounded-l-md border border-r-0 border-zinc-300 bg-zinc-100 px-3 text-sm font-bold text-zinc-500 select-none">+91</span>
             <input
               name="phone"
               type="tel"
-              placeholder="+91 9876543210"
+              inputMode="numeric"
               value={form.phone}
-              onChange={update}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, '').slice(0, 10)
+                setForm((c) => ({ ...c, phone: digits }))
+                if (fieldErrors.phone) setFieldErrors((c) => ({ ...c, phone: undefined }))
+              }}
+              onBlur={() => {
+                if (form.phone && !/^[6-9]\d{9}$/.test(form.phone)) {
+                  setFieldErrors((c) => ({ ...c, phone: 'Enter a valid 10-digit Indian mobile number starting with 6–9' }))
+                }
+              }}
+              maxLength={10}
+              placeholder="9876543210"
               required
-              className={`mt-2 w-full rounded-md border-zinc-300 ${fieldErrors.phone ? 'border-red-500' : ''}`}
+              className={`h-11 w-full rounded-r-md border border-zinc-300 px-3 text-sm outline-none focus:border-sigfleet focus:ring-1 focus:ring-sigfleet ${fieldErrors.phone ? 'border-red-500 bg-red-50' : ''}`}
             />
-          </label>
-        </FieldError>
+          </div>
+          <div className="mt-1 flex items-center justify-between">
+            {fieldErrors.phone
+              ? <span className="text-xs font-bold text-red-600">{fieldErrors.phone}</span>
+              : <span className="text-xs text-zinc-400">Do not include +91 — it's added automatically</span>
+            }
+            <span className={`text-xs font-bold ${form.phone.length === 10 ? 'text-emerald-600' : 'text-zinc-400'}`}>{form.phone.length}/10</span>
+          </div>
+        </div>
 
         <div className="mt-5 grid gap-2 text-sm font-bold text-zinc-800">
           <span>Register as</span>

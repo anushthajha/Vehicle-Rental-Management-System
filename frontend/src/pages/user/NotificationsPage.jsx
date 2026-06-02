@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Bell, CheckCheck, CreditCard, FileCheck2, Info, Loader2, MessageSquare, Settings, Tag, Trash2, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { formatDistanceToNow } from 'date-fns'
 import toast from 'react-hot-toast'
 import api from '../../services/api'
 import DashboardShell from './DashboardShell'
@@ -16,6 +15,30 @@ const TYPE_ICONS = {
   promotion: [Tag, 'bg-red-50 text-sigfleet'],
   review: [MessageSquare, 'bg-violet-50 text-violet-700'],
   manager: [Info, 'bg-cyan-50 text-cyan-700'],
+}
+
+function formatNotificationTime(timestamp) {
+  if (!timestamp) return ''
+  let date
+  if (typeof timestamp === 'string') {
+    const hasTimezone = timestamp.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(timestamp)
+    date = new Date(hasTimezone ? timestamp : `${timestamp}Z`)
+  } else {
+    date = new Date(timestamp)
+  }
+  if (Number.isNaN(date.getTime())) return 'just now'
+
+  const diffSecs = Math.max(Math.floor((Date.now() - date.getTime()) / 1000), 0)
+  const diffMins = Math.floor(diffSecs / 60)
+  const diffHours = Math.floor(diffMins / 60)
+  const diffDays = Math.floor(diffHours / 24)
+
+  if (diffSecs < 30) return 'just now'
+  if (diffSecs < 60) return `${diffSecs} seconds ago`
+  if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
+  return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 export default function NotificationsPage() {
@@ -90,9 +113,15 @@ export default function NotificationsPage() {
     }
   }
 
+  const hasUnread = items.some((item) => !item.is_read)
+
   const actions = (
     <div className="flex items-center gap-2">
-      <button onClick={markAll} className="inline-flex items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-black">
+      <button
+        onClick={markAll}
+        disabled={!hasUnread}
+        className={`inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-black ${hasUnread ? 'border-zinc-300 bg-white text-zinc-800' : 'border-zinc-200 bg-zinc-50 text-zinc-300 cursor-not-allowed'}`}
+      >
         <CheckCheck size={16} /> Mark all read
       </button>
       {items.length > 0 && (
@@ -157,7 +186,7 @@ function NotificationItem({ item, onClick, onDelete }) {
           <span className={`block ${item.is_read ? 'font-bold text-zinc-800' : 'font-black text-zinc-950'}`}>{item.title}</span>
           <span className="mt-1 block text-sm text-zinc-600">{item.message}</span>
           <span className="mt-1 block text-xs font-bold text-zinc-400">
-            {item.created_at ? formatDistanceToNow(new Date(item.created_at), { addSuffix: true }) : ''}
+            {formatNotificationTime(item.created_at)}
           </span>
         </span>
       </button>

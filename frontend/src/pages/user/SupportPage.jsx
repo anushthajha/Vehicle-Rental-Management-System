@@ -109,7 +109,16 @@ function TicketChat({ data, onReload }) {
 
   async function closeTicket() {
     await api.patch(`/support/tickets/${ticket.id}/close`)
-    toast.success('Ticket closed')
+    toast.success('Ticket closed — thank you for your feedback!')
+    onReload()
+  }
+
+  async function reopenTicket() {
+    // Send a message to reopen the ticket (status goes back to in_progress)
+    const form = new FormData()
+    form.append('message', 'I am not satisfied with the resolution. Please reopen this ticket.')
+    await api.post(`/support/tickets/${ticket.id}/messages`, form)
+    toast.success('Ticket reopened — staff will follow up')
     onReload()
   }
 
@@ -118,8 +127,24 @@ function TicketChat({ data, onReload }) {
       <header className="border-b border-zinc-100 p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div><h2 className="text-xl font-black">{ticket.subject}</h2><div className="mt-2 flex flex-wrap gap-2"><StatusBadge value={ticket.status} /><PriorityBadge value={ticket.priority} /><Badge>{ticket.category.replace('_', ' ')}</Badge></div></div>
-          {ticket.status !== 'closed' && <button onClick={closeTicket} className="rounded-md border border-red-200 px-4 py-2 font-black text-red-700">Close Ticket</button>}
+          <div className="flex gap-2">
+            {ticket.status === 'resolved' && (
+              <button onClick={closeTicket} className="rounded-md bg-emerald-600 px-4 py-2 font-black text-white hover:bg-emerald-700 transition">
+                ✓ Satisfied — Close Ticket
+              </button>
+            )}
+            {ticket.status === 'resolved' && (
+              <button onClick={reopenTicket} className="rounded-md border border-amber-300 bg-amber-50 px-4 py-2 font-black text-amber-800 hover:bg-amber-100 transition">
+                Not Satisfied — Reopen
+              </button>
+            )}
+          </div>
         </div>
+        {ticket.status === 'resolved' && (
+          <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">
+            ✓ Staff has marked this ticket as resolved. If you're satisfied, close the ticket. Otherwise, reply or click "Not Satisfied" to reopen.
+          </div>
+        )}
       </header>
       <div className="flex-1 space-y-4 overflow-y-auto bg-zinc-50 p-5">
         {data.messages.map((item) => <MessageBubble key={item._id} item={item} />)}

@@ -15,6 +15,7 @@ from app.routers import (
     auth,
     availability,
     bookings,
+    chatbot,
     coupons,
     inspections,
     vehicles,
@@ -35,6 +36,11 @@ from app.routers import (
 async def lifespan(app: FastAPI):
     await init_db()
     await connect_mongo()
+    if settings.OPENROUTER_API_KEY:
+        masked = "*" * 20 + settings.OPENROUTER_API_KEY[-6:]
+        print(f"✅ OpenRouter API key configured ({masked})")
+    else:
+        print("⚠️  WARNING: OPENROUTER_API_KEY not set — chatbot will not work")
     yield
     await close_redis()
     await disconnect_mongo()
@@ -51,10 +57,20 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost", "http://localhost:3000", "http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:5176", "http://localhost:5177"],
+    allow_origins=[
+        "http://localhost",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "http://localhost:5176",
+        "http://localhost:5177",
+        "http://localhost:8000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 app.add_middleware(OptionalAuthMiddleware)
 register_error_handlers(app)
@@ -78,6 +94,7 @@ async def api_root():
 
 for router in [
     auth.router,
+    chatbot.router,
     users.router,
     vehicles.router,
     vehicles.vehicles_router,
@@ -88,6 +105,7 @@ for router in [
     inspections.router,
     inspections.admin_router,
     payments.router,
+    payments.wallet_router,
     reviews.router,
     notifications.router,
     support.router,

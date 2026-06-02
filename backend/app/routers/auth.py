@@ -300,6 +300,7 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
 
 @router.post("/verify-otp")
 async def verify_otp_endpoint(payload: OtpVerifyRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    from fastapi.responses import JSONResponse
     email = payload.email.lower()
     result = await _verify_otp(email, payload.otp)
     if not result["valid"]:
@@ -320,12 +321,21 @@ async def verify_otp_endpoint(payload: OtpVerifyRequest, request: Request, db: A
     await create_session(user.id, request.headers.get("user-agent", ""), client_ip)
     await log_activity(user.id, "verify_otp", "user", user.id)
 
-    return {
+    response = JSONResponse(content={
         "access_token": access_token,
-        "refresh_token": refresh_token,
         "token_type": "bearer",
         "user": await _serialize_user(db, user),
-    }
+    })
+    response.set_cookie(
+        key="sf_refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=False,
+        samesite="strict",
+        max_age=30 * 24 * 3600,
+        path="/api/auth",
+    )
+    return response
 
 
 @router.post(
@@ -373,20 +383,20 @@ async def resend_otp(payload: EmailRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login", dependencies=[Depends(rate_limit("auth_login", 5, 60, "ip"))])
 async def login(payload: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    from fastapi.responses import JSONResponse
     user = await _find_user_by_email(db, payload.email)
     if user is None or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account suspended")
     if not user.is_verified:
-        # Send a fresh OTP and tell the frontend to redirect to verify page
         otp = _generate_otp()
         await _store_otp(user.email, otp)
         print(f"[DEV OTP] {user.email}: {otp}")
         try:
             await email_utils.send_otp_email(user.email, user.full_name, otp)
         except Exception:
-            pass  # Don't block login response if email fails
+            pass
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
@@ -403,17 +413,41 @@ async def login(payload: LoginRequest, request: Request, db: AsyncSession = Depe
 
     client_ip = request.client.host if request.client else ""
     await create_session(user.id, request.headers.get("user-agent", ""), client_ip)
-    return {
+
+    response = JSONResponse(content={
         "access_token": access_token,
-        "refresh_token": refresh_token,
         "token_type": "bearer",
         "user": await _serialize_user(db, user),
-    }
+    })
+    # Set refresh token as HttpOnly cookie — never accessible to JS
+    response.set_cookie(
+        key="sf_refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=False,          # Set True in production with HTTPS
+        samesite="strict",
+        max_age=30 * 24 * 3600,  # 30 days
+        path="/api/auth",
+    )
+    return response
 
 
 @router.post("/refresh")
-async def refresh(payload: RefreshRequest, db: AsyncSession = Depends(get_db)):
-    token_payload = await verify_token(payload.refresh_token)
+async def refresh(request: Request, db: AsyncSession = Depends(get_db)):
+    from fastapi.responses import JSONResponse
+    # Read refresh token from HttpOnly cookie (preferred) or body (fallback for old clients)
+    cookie_token = request.cookies.get("sf_refresh_token")
+    body_token = None
+    try:
+        body = await request.json()
+        body_token = body.get("refresh_token")
+    except Exception:
+        pass
+    token_str = cookie_token or body_token
+    if not token_str:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No refresh token provided")
+
+    token_payload = await verify_token(token_str)
     if token_payload.get("type") != "refresh":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
 
@@ -423,16 +457,33 @@ async def refresh(payload: RefreshRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
 
     access_token = create_access_token(_token_subject(user))
-    return {"access_token": access_token, "token_type": "bearer"}
+    # Rotate refresh token on each use
+    new_refresh_token = create_refresh_token(_token_subject(user))
+
+    response = JSONResponse(content={"access_token": access_token, "token_type": "bearer"})
+    response.set_cookie(
+        key="sf_refresh_token",
+        value=new_refresh_token,
+        httponly=True,
+        secure=False,
+        samesite="strict",
+        max_age=30 * 24 * 3600,
+        path="/api/auth",
+    )
+    return response
 
 
 @router.post("/logout")
-async def logout(token: str = Depends(oauth2_scheme)):
+async def logout(request: Request, token: str = Depends(oauth2_scheme)):
+    from fastapi.responses import JSONResponse
     payload = await verify_token(token)
     ttl = get_token_ttl_seconds(payload)
     if ttl > 0:
         await get_redis().set(f"blacklist:{payload['jti']}", "1", ex=ttl)
-    return {"message": "Logged out successfully."}
+    response = JSONResponse(content={"message": "Logged out successfully."})
+    # Clear the refresh token cookie
+    response.delete_cookie(key="sf_refresh_token", path="/api/auth")
+    return response
 
 
 @router.post(
@@ -461,6 +512,119 @@ async def forgot_password(payload: ForgotPasswordRequest, db: AsyncSession = Dep
             ) from exc
 
     return {"message": "If that email exists, a password reset link has been sent."}
+
+
+# ---------------------------------------------------------------------------
+# OTP-based password reset (3-step: email → OTP → new password)
+# ---------------------------------------------------------------------------
+
+class PasswordResetOtpRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetOtpVerifyRequest(BaseModel):
+    email: EmailStr
+    otp: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+
+
+class PasswordResetNewPasswordRequest(BaseModel):
+    email: EmailStr
+    otp: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+    new_password: str
+    confirm_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def password_is_strong(cls, value: str) -> str:
+        if not validate_password_strength(value):
+            raise ValueError(
+                "Password must be at least 8 characters and include lowercase, uppercase, number, and special character"
+            )
+        return value
+
+    @field_validator("confirm_password")
+    @classmethod
+    def passwords_match(cls, value: str, info) -> str:
+        if value != info.data.get("new_password"):
+            raise ValueError("Passwords do not match")
+        return value
+
+
+RESET_OTP_PREFIX = "pwd_reset_otp:"
+
+
+@router.post(
+    "/forgot-password-otp",
+    dependencies=[Depends(rate_limit("auth_forgot_password_otp", 3, 120, "ip"))],
+)
+async def forgot_password_otp(payload: PasswordResetOtpRequest, db: AsyncSession = Depends(get_db)):
+    """Step 1: Send a 6-digit OTP to the user's email for password reset."""
+    email = payload.email.lower()
+    user = await _find_user_by_email(db, email)
+    # Always return success to avoid email enumeration
+    if user and user.is_active:
+        otp = _generate_otp()
+        redis = get_redis()
+        data = json.dumps({"otp": otp, "attempts": 0, "sent_at": int(datetime.utcnow().timestamp())})
+        await redis.setex(f"{RESET_OTP_PREFIX}{email}", OTP_TTL, data)
+        print(f"[DEV RESET OTP] {email}: {otp}")
+        try:
+            await email_utils.send_otp_email(user.email, user.full_name, otp)
+        except Exception:
+            pass
+    return {"message": "If that email is registered, a 6-digit OTP has been sent."}
+
+
+@router.post("/forgot-password-otp/verify")
+async def verify_reset_otp(payload: PasswordResetOtpVerifyRequest):
+    """Step 2: Verify the OTP (without changing the password yet)."""
+    email = payload.email.lower()
+    redis = get_redis()
+    raw = await redis.get(f"{RESET_OTP_PREFIX}{email}")
+    if not raw:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP expired or not found. Please request a new one.")
+    data = json.loads(raw)
+    if data["attempts"] >= OTP_MAX_ATTEMPTS:
+        await redis.delete(f"{RESET_OTP_PREFIX}{email}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Too many incorrect attempts. Please request a new OTP.")
+    if data["otp"] != payload.otp:
+        data["attempts"] += 1
+        await redis.setex(f"{RESET_OTP_PREFIX}{email}", OTP_TTL, json.dumps(data))
+        remaining = OTP_MAX_ATTEMPTS - data["attempts"]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Incorrect code. {remaining} attempt{'s' if remaining != 1 else ''} left.",
+        )
+    # Mark OTP as verified (keep it so step 3 can confirm it's the same session)
+    data["verified"] = True
+    await redis.setex(f"{RESET_OTP_PREFIX}{email}", 600, json.dumps(data))
+    return {"message": "OTP verified. You can now set a new password."}
+
+
+@router.post("/forgot-password-otp/reset")
+async def reset_password_with_otp(payload: PasswordResetNewPasswordRequest, db: AsyncSession = Depends(get_db)):
+    """Step 3: Set new password after OTP has been verified."""
+    email = payload.email.lower()
+    redis = get_redis()
+    raw = await redis.get(f"{RESET_OTP_PREFIX}{email}")
+    if not raw:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Session expired. Please start over.")
+    data = json.loads(raw)
+    # Must be verified AND OTP must still match
+    if not data.get("verified") or data["otp"] != payload.otp:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired session. Please start over.")
+
+    user = await _find_user_by_email(db, email)
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Account not found.")
+
+    user.hashed_password = get_password_hash(payload.new_password)
+    await db.commit()
+    # Delete the OTP so it can't be reused
+    await redis.delete(f"{RESET_OTP_PREFIX}{email}")
+    # Force logout all existing sessions
+    await redis.set(f"force_logout:{user.id}", int(datetime.utcnow().timestamp()), ex=60 * 60 * 24 * 31)
+    return {"message": "Password reset successfully. You can now log in."}
 
 
 @router.post("/reset-password")

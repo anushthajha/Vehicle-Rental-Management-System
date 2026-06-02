@@ -12,7 +12,7 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
-  const { setTokens, setUser } = useAuthStore()
+  const { setAccessToken, setUser } = useAuthStore()
   const [form, setForm] = useState({ email: '', password: '' })
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -34,7 +34,7 @@ export default function LoginPage() {
     try {
       const response = await api.post('/auth/login', form)
       const data = response.data
-      setTokens({ accessToken: data.access_token, refreshToken: data.refresh_token })
+      setAccessToken(data.access_token)
       setUser(data.user)
       toast.success('Logged in successfully')
       const fromPath =
@@ -140,7 +140,11 @@ export default function LoginPage() {
         </label>
 
         <div className="mt-3 text-right">
-          <Link className="text-sm font-bold text-sigfleet" to="/auth/forgot-password">
+          <Link
+            className="text-sm font-bold text-sigfleet"
+            to="/auth/forgot-password"
+            state={{ email: form.email }}
+          >
             Forgot Password?
           </Link>
         </div>

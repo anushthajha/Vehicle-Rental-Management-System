@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal, Optional
 
 from bson import ObjectId
@@ -16,7 +16,7 @@ class NotificationDoc(BaseModel):
     is_read: bool = False
     action_url: Optional[str] = None
     meta: dict = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     class Config:
         populate_by_name = True

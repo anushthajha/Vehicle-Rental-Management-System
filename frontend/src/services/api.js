@@ -2,6 +2,7 @@ import axios from 'axios'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  withCredentials: true,   // Send HttpOnly cookies (refresh token) with every request
 })
 
 // Response interceptor — pass successful responses through unchanged.
