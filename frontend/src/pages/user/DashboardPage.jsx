@@ -4,6 +4,7 @@ import { Helmet } from 'react-helmet-async'
 import { Link, useNavigate } from 'react-router-dom'
 import { differenceInCalendarDays, formatDistanceToNow, parseISO } from 'date-fns'
 import api from '../../services/api'
+import DailyBriefBanner from '../../components/agent/DailyBriefBanner'
 import { useAuthStore } from '../../context/AuthContext'
 import { bookingDuration, formatDateTime, moneyLabel, statusClass } from '../../utils/bookingUtils'
 
@@ -71,6 +72,7 @@ export default function DashboardPage() {
       <Helmet><title>Customer Dashboard | SigFleet</title><meta name="robots" content="noindex" /></Helmet>
       {loading ? <div className="grid h-96 place-items-center"><div className="h-10 w-10 animate-spin rounded-full border-4 border-zinc-200 border-t-[#E31837]" /></div> : (
         <div className="space-y-6">
+          <DailyBriefBanner />
           <section className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>

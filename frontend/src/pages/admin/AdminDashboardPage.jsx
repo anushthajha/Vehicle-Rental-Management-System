@@ -18,6 +18,7 @@ import {
   YAxis,
 } from 'recharts'
 import { formatMoney, getAdmin, initials } from './adminApi'
+import DailyBriefBanner from '../../components/agent/DailyBriefBanner'
 
 const colors = ['#E31837', '#111827', '#16A34A', '#F59E0B', '#2563EB']
 
@@ -115,9 +116,10 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="space-y-6">
+      <DailyBriefBanner />
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard title="Total Users" value={data.users.total} subtitle={`${data.users.new_this_week} new this week`} icon={Users} to="/admin/users" />
-        <StatCard title="Vehicle Managers" value={data.vehicle_managers?.total || data.managers?.total || 0} subtitle={`${data.vehicle_managers?.new_this_month || 0} new this month`} icon={Users} to="/admin/users/managers" />
+        <StatCard title="Pending Managers" value={data.pending?.manager_approval_count || data.vehicle_managers?.pending || data.managers?.pending || 0} subtitle="Needs approval" icon={Users} trend={(data.pending?.manager_approval_count || data.vehicle_managers?.pending || data.managers?.pending || 0) ? 'up' : 'down'} to="/admin/users/managers" />
         <StatCard title="Total Vehicles" value={data.vehicles.total} subtitle={`${data.vehicles.approved} approved`} icon={Vehicle} to="/admin/vehicles" />
         <StatCard title="Active Bookings" value={data.bookings.active_now} subtitle={`${data.bookings.this_month} this month`} icon={WalletCards} to="/admin/bookings" />
         <StatCard title="Revenue Generated" value={formatMoney(data.revenue.total_revenue || data.revenue.total_all_time || 0)} subtitle={`${Number(data.revenue.revenue_growth_percent || 0).toFixed(1)}% this month`} icon={IndianRupee} trend={Number(data.revenue.revenue_growth_percent || 0) < 0 ? 'down' : 'up'} to="/admin/payments" />
@@ -177,6 +179,7 @@ export default function AdminDashboardPage() {
           <h2 className="text-base font-black">Pending Actions</h2>
           <div className="mt-4 grid gap-3">
             <Link className="rounded-md border border-zinc-200 p-4 font-black hover:border-[#E31837]" to="/admin/kyc">KYC Queue: {data.pending.kyc_count}</Link>
+            <Link className="rounded-md border border-zinc-200 p-4 font-black hover:border-[#E31837]" to="/admin/users/managers">Manager Approvals: {data.pending.manager_approval_count || 0}</Link>
             <Link className="rounded-md border border-zinc-200 p-4 font-black hover:border-[#E31837]" to="/admin/vehicles">Vehicle Approvals: {data.pending.car_approval_count}</Link>
             <Link className="rounded-md border border-zinc-200 p-4 font-black hover:border-[#E31837]" to="/admin/support">Support Tickets: {data.pending.support_tickets_count}</Link>
           </div>

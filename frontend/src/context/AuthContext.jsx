@@ -15,6 +15,13 @@ import { create } from 'zustand'
 import api from '../services/api'
 
 const SESSION_USER_KEY = 'sigfleet_user'   // sessionStorage — tab-isolated
+const DAILY_BRIEF_PREFIX = 'daily_brief_shown:'
+
+function clearDailyBriefSessionFlags() {
+  Object.keys(sessionStorage)
+    .filter((key) => key.startsWith(DAILY_BRIEF_PREFIX))
+    .forEach((key) => sessionStorage.removeItem(key))
+}
 
 // ─── Zustand store ────────────────────────────────────────────────────────────
 export const useAuthStore = create((set, get) => ({
@@ -51,6 +58,7 @@ export const useAuthStore = create((set, get) => ({
     const token = get().accessToken
     // Clear state and sessionStorage immediately
     sessionStorage.removeItem(SESSION_USER_KEY)
+    clearDailyBriefSessionFlags()
     set({ user: null, accessToken: null, isLoading: false })
     // Tell backend to clear the HttpOnly cookie + blacklist the access token
     if (token) {

@@ -11,6 +11,7 @@ from app.middleware.error_handler import register_error_handlers
 from app.mongodb import connect_mongo, disconnect_mongo
 from app.redis import close_redis
 from app.routers import (
+    agent,
     admin,
     auth,
     availability,
@@ -93,6 +94,7 @@ async def api_root():
 
 
 for router in [
+    agent.router,
     auth.router,
     chatbot.router,
     users.router,

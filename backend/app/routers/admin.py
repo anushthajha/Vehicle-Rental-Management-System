@@ -442,6 +442,12 @@ async def stats_overview(_: User = Depends(require_admin), db: AsyncSession = De
     new_managers_month = await db.scalar(
         select(func.count()).select_from(User).where(or_(User.role == "vehicle_manager", User.is_vehicle_manager.is_(True)), User.created_at >= month_start)
     ) or 0
+    pending_managers = await db.scalar(
+        select(func.count()).select_from(User).where(
+            or_(User.role == "vehicle_manager", User.is_vehicle_manager.is_(True)),
+            User.is_active.is_(False),
+        )
+    ) or 0
 
     car_rows = (await db.execute(select(Vehicle.is_approved, Vehicle.is_available, func.count()).group_by(Vehicle.is_approved, Vehicle.is_available))).all()
     vehicles = {"total": 0, "approved": 0, "pending_approval": 0, "inactive": 0}
@@ -477,8 +483,8 @@ async def stats_overview(_: User = Depends(require_admin), db: AsyncSession = De
 
     return {
         "users": {"total": total_users, "new_today": new_today, "new_this_week": new_week},
-        "vehicle_managers": {"total": total_managers, "new_this_month": new_managers_month},
-        "managers": {"total": total_managers, "new_this_month": new_managers_month},
+        "vehicle_managers": {"total": total_managers, "new_this_month": new_managers_month, "pending": pending_managers},
+        "managers": {"total": total_managers, "new_this_month": new_managers_month, "pending": pending_managers},
         "vehicles": vehicles,
         "bookings": {
             "total": total_bookings,
@@ -500,6 +506,7 @@ async def stats_overview(_: User = Depends(require_admin), db: AsyncSession = De
         "pending": {
             "kyc_count": pending_kyc,
             "car_approval_count": vehicles["pending_approval"],
+            "manager_approval_count": pending_managers,
             "support_tickets_count": open_tickets,
             "payout_requests_count": pending_payouts,
         },

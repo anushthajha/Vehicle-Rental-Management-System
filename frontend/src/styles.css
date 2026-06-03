@@ -27,6 +27,19 @@ body {
   box-sizing: border-box;
 }
 
+@keyframes shrink-width {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+.daily-brief-progress {
+  animation: shrink-width 8s linear forwards;
+}
+
 .input {
   width: 100%;
   min-height: 44px;

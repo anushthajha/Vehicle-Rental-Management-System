@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.agents.registration_agent import notify_admins_new_manager_registered
 from app.middleware.rate_limiter import rate_limit
 from app.models.payment import UserWallet
 from app.models.manager import ManagerProfile
@@ -275,6 +276,10 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
     await db.commit()
 
     if payload.role == "vehicle_manager":
+        try:
+            await notify_admins_new_manager_registered(user, db)
+        except Exception as exc:
+            print(f"[AUTH] Manager notification error: {exc}")
         # Managers don't need email OTP — they await admin approval
         await log_activity(user.id, "register", "user", user.id)
         return {"message": "Registration successful! Awaiting admin approval.", "pending_approval": True}
