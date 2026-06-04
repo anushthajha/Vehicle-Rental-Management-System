@@ -452,9 +452,22 @@ def _parse_quick_search(text: str) -> dict | None:
         return None
 
     category = None
-    for option in ("sedan", "suv", "hatchback", "ev", "electric", "luxury"):
-        if re.search(rf'\b{option}\b', preference_text):
-            category = "electric" if option == "ev" else option
+    category_patterns = (
+        ("sport-bike", r"\bsport\s*bike\b"),
+        ("adventure", r"\badventure\s*bike\b"),
+        ("bike", r"\b(?:bike|bikes|motorbike|motorcycle|two\s*wheeler|2\s*wheeler)\b"),
+        ("scooter", r"\b(?:scooter|scooty)\b"),
+        ("cruiser", r"\bcruiser\b"),
+        ("traveller", r"\b(?:traveller|traveler|tempo\s*traveller|tempo\s*traveler)\b"),
+        ("sedan", r"\bsedans?\b"),
+        ("suv", r"\bsuvs?\b"),
+        ("hatchback", r"\bhatchbacks?\b"),
+        ("electric", r"\b(?:ev|electric)\b"),
+        ("luxury", r"\bluxury\b"),
+    )
+    for option, pattern in category_patterns:
+        if re.search(pattern, preference_text):
+            category = option
             break
 
     budget_match = re.search(r'\b\d{3,6}\b', budget_text)
@@ -523,6 +536,16 @@ async def execute_tool(tool_name: str, params: dict, current_user: User, db: Asy
             "suvs": "suv",
             "hatchbacks": "hatchback",
             "bikes": "bike",
+            "motorbike": "bike",
+            "motorbikes": "bike",
+            "motorcycle": "bike",
+            "motorcycles": "bike",
+            "two wheeler": "bike",
+            "2 wheeler": "bike",
+            "scooty": "scooter",
+            "sport bike": "sport-bike",
+            "sportbike": "sport-bike",
+            "adventure bike": "adventure",
             "traveler": "traveller",
             "travelers": "traveller",
             "travellers": "traveller",

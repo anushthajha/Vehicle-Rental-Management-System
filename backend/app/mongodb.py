@@ -39,6 +39,10 @@ async def _create_indexes() -> None:
     await db.notifications.create_index([("user_id", 1), ("is_read", 1)])
     # agent_daily_briefs: one generated banner per user per IST day
     await db.agent_daily_briefs.create_index([("user_id", 1), ("date", 1)], unique=True)
+    # help_knowledge_chunks: Markdown-backed RAG chunks with local embeddings
+    await db.help_knowledge_chunks.create_index([("chunk_id", 1)], unique=True)
+    await db.help_knowledge_chunks.create_index([("roles", 1)])
+    await db.help_knowledge_chunks.create_index([("doc_id", 1)])
     # reviews: lookup by vehicle_id, booking_id; one review per booking/review_type pair
     await db.reviews.create_index([("vehicle_id", 1), ("created_at", -1)])
     try:

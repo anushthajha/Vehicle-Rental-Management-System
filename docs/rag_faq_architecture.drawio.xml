@@ -1,0 +1,119 @@
+<mxfile host="app.diagrams.net" modified="2026-06-04T00:00:00.000Z" agent="Codex" version="24.7.17" type="device">
+  <diagram id="sigfleet-rag-faq" name="SigFleet RAG FAQ Architecture">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="frontend" value="Frontend&#xa;HelpAssistantWidget.jsx&#xa;- question input&#xa;- conversation history&#xa;- source display" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="60" y="80" width="240" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="api" value="POST /api/help/ask&#xa;question + history&#xa;Authorization bearer token when logged in" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="380" y="80" width="260" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="router" value="Backend Help Router&#xa;backend/app/routers/help_assistant.py&#xa;- validates request&#xa;- resolves role&#xa;- routes live/RAG answers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="720" y="70" width="300" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="auth" value="Optional Auth Check&#xa;verify_token()&#xa;SQL users lookup&#xa;effective_role = DB role or guest" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1080" y="80" width="260" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="followup" value="Question Preparation&#xa;- resolve follow-up&#xa;- detect repeated question&#xa;- split compound prompts into subquestions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="720" y="260" width="300" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="liveDecision" value="Live Shortcut Decision&#xa;Does the question ask for supported live data?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="750" y="450" width="240" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="userCounts" value="Admin-Only User Counts&#xa;SQL users table&#xa;- total users&#xa;- customers&#xa;- managers&#xa;- admins&#xa;Non-admins receive refusal before count query" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1080" y="420" width="280" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="inventory" value="Public Inventory Counts&#xa;SQL vehicles table&#xa;- approved&#xa;- available&#xa;- city filtered&#xa;- car/bike/traveller type filtered" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1080" y="610" width="280" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="sync" value="Knowledge Base Sync&#xa;Load docs/help/*.md&#xa;Parse frontmatter roles&#xa;Chunk each ## section" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="380" y="420" width="260" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="docs" value="Markdown FAQ Docs&#xa;docs/help/*.md&#xa;- account&#xa;- customer&#xa;- manager&#xa;- admin&#xa;- navigation&#xa;- payments&#xa;- troubleshooting" style="shape=document;whiteSpace=wrap;html=1;boundedLbl=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="60" y="410" width="240" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="mongo" value="MongoDB&#xa;help_knowledge_chunks&#xa;- chunk_id&#xa;- roles&#xa;- content&#xa;- embedding&#xa;- source_path" style="shape=cylinder3d;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="380" y="650" width="260" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="retrieve" value="Role-Filtered Retrieval&#xa;Allowed roles:&#xa;guest only, or role + guest&#xa;Hash embedding question&#xa;Cosine score chunks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="720" y="670" width="300" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="confidence" value="Confidence Gate&#xa;top score >= MIN_CONFIDENCE?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="760" y="880" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="llm" value="Optional LLM Synthesis&#xa;OpenRouter / Gemini&#xa;Uses only retrieved authorized context" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1080" y="850" width="280" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="fallback" value="Deterministic Fallback&#xa;Low confidence: safe cannot-answer&#xa;LLM unavailable: top Markdown chunk" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="380" y="870" width="260" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="merge" value="Response Builder&#xa;- merge compound answers&#xa;- de-duplicate sources&#xa;- include role, confidence, retrieval, resolved_question" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="720" y="1040" width="300" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="return" value="Frontend Renders&#xa;Answer text&#xa;Source titles&#xa;Low-confidence label when needed" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="60" y="1030" width="240" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" edge="1" parent="1" source="frontend" target="api" style="endArrow=block;html=1;rounded=0;strokeWidth=2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="api" target="router" style="endArrow=block;html=1;rounded=0;strokeWidth=2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="router" target="auth" style="endArrow=block;html=1;rounded=0;strokeWidth=2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="auth" target="followup" style="endArrow=block;html=1;rounded=0;strokeWidth=2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="followup" target="liveDecision" style="endArrow=block;html=1;rounded=0;strokeWidth=2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="user count" edge="1" parent="1" source="liveDecision" target="userCounts" style="endArrow=block;html=1;rounded=0;strokeWidth=2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="inventory count" edge="1" parent="1" source="liveDecision" target="inventory" style="endArrow=block;html=1;rounded=0;strokeWidth=2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" value="normal FAQ" edge="1" parent="1" source="liveDecision" target="sync" style="endArrow=block;html=1;rounded=0;strokeWidth=2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" edge="1" parent="1" source="docs" target="sync" style="endArrow=block;html=1;rounded=0;strokeWidth=2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" edge="1" parent="1" source="sync" target="mongo" style="endArrow=block;html=1;rounded=0;strokeWidth=2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" edge="1" parent="1" source="mongo" target="retrieve" style="endArrow=block;html=1;rounded=0;strokeWidth=2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" edge="1" parent="1" source="retrieve" target="confidence" style="endArrow=block;html=1;rounded=0;strokeWidth=2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" value="high + key configured" edge="1" parent="1" source="confidence" target="llm" style="endArrow=block;html=1;rounded=0;strokeWidth=2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e14" value="low or LLM unavailable" edge="1" parent="1" source="confidence" target="fallback" style="endArrow=block;html=1;rounded=0;strokeWidth=2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e15" edge="1" parent="1" source="userCounts" target="merge" style="endArrow=block;html=1;rounded=0;strokeWidth=2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e16" edge="1" parent="1" source="inventory" target="merge" style="endArrow=block;html=1;rounded=0;strokeWidth=2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e17" edge="1" parent="1" source="llm" target="merge" style="endArrow=block;html=1;rounded=0;strokeWidth=2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e18" edge="1" parent="1" source="fallback" target="merge" style="endArrow=block;html=1;rounded=0;strokeWidth=2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e19" edge="1" parent="1" source="merge" target="return" style="endArrow=block;html=1;rounded=0;strokeWidth=2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

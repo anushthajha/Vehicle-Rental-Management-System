@@ -110,6 +110,7 @@ export default function NotificationBell() {
   }
 
   async function deleteAll() {
+    if (items.length === 0) return
     await api.delete('/notifications/all').catch(() => {})
     setItems([])
     setCount(0)
@@ -151,7 +152,17 @@ export default function NotificationBell() {
             }
           </div>
           <div className="grid grid-cols-2 border-t border-zinc-100 text-center text-sm font-black">
-            <button onClick={deleteAll} className="p-3 text-red-600 hover:bg-red-50 transition">Delete all</button>
+            <button
+              onClick={deleteAll}
+              disabled={items.length === 0}
+              className={`p-3 transition ${
+                items.length > 0
+                  ? 'text-red-600 hover:bg-red-50'
+                  : 'text-zinc-300 cursor-not-allowed'
+              }`}
+            >
+              Delete all
+            </button>
             <Link onClick={() => setOpen(false)} to="/dashboard/notifications" className="p-3 text-sigfleet">
               View all
             </Link>

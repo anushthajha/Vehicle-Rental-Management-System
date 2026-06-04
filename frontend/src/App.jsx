@@ -15,6 +15,7 @@ import { AdminRoute, CustomerRoute, LoggedOutRoute, PrivateRoute, VehicleManager
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import ChatbotWidget from './components/chatbot/ChatbotWidget'
+import HelpAssistantWidget from './components/help/HelpAssistantWidget'
 
 const HomePage = lazyWithDelay(() => import('./pages/HomePage'))
 const VehicleListingPage = lazyWithDelay(() => import('./pages/VehicleListingPage'))
@@ -249,6 +250,7 @@ export default function App() {
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </Suspense>
+          <HelpAssistantWidget />
           <CustomerChatbot />
         </AuthProvider>
       </BrowserRouter>

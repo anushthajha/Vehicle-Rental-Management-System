@@ -16,11 +16,17 @@ import api from '../services/api'
 
 const SESSION_USER_KEY = 'sigfleet_user'   // sessionStorage — tab-isolated
 const DAILY_BRIEF_PREFIX = 'daily_brief_shown:'
+const AUTO_RESTORE_AUTH = import.meta.env.VITE_AUTO_RESTORE_AUTH === 'true'
 
 function clearDailyBriefSessionFlags() {
   Object.keys(sessionStorage)
     .filter((key) => key.startsWith(DAILY_BRIEF_PREFIX))
     .forEach((key) => sessionStorage.removeItem(key))
+}
+
+function clearStoredSession() {
+  sessionStorage.removeItem(SESSION_USER_KEY)
+  clearDailyBriefSessionFlags()
 }
 
 // ─── Zustand store ────────────────────────────────────────────────────────────
@@ -57,8 +63,7 @@ export const useAuthStore = create((set, get) => ({
   logout: () => {
     const token = get().accessToken
     // Clear state and sessionStorage immediately
-    sessionStorage.removeItem(SESSION_USER_KEY)
-    clearDailyBriefSessionFlags()
+    clearStoredSession()
     set({ user: null, accessToken: null, isLoading: false })
     // Tell backend to clear the HttpOnly cookie + blacklist the access token
     if (token) {
@@ -93,9 +98,13 @@ export function AuthProvider({ children }) {
   const authState = useAuthStore()
   const { accessToken, setAccessToken, setUser, logout, hydrateFromStorage, setLoading } = authState
 
-  // Step 1: Restore user from sessionStorage on mount (instant — no flicker)
+  // Step 1: Restore the current tab's user if present.
+  // Fresh tabs do not auto-login from only the old HttpOnly cookie unless enabled.
   useEffect(() => {
-    hydrateFromStorage()
+    const hasTabSession = Boolean(sessionStorage.getItem(SESSION_USER_KEY))
+    if (AUTO_RESTORE_AUTH || hasTabSession) {
+      hydrateFromStorage()
+    }
   }, [hydrateFromStorage])
 
   // Step 2: Axios interceptors — attach access token + handle 401 refresh
@@ -142,13 +151,20 @@ export function AuthProvider({ children }) {
     }
   }, [logout, navigate, setAccessToken])
 
-  // Step 3: On mount, call /auth/refresh to get a fresh access token from the cookie
-  // This is the key step — the HttpOnly cookie is sent automatically
+  // Step 3: Refresh auth only for an active tab session, or when explicitly enabled.
+  // This keeps F5 refresh logged in without reviving old cookie-only sessions.
   const rehydratedRef = useRef(false)
 
   useEffect(() => {
     if (rehydratedRef.current) return
     rehydratedRef.current = true
+
+    const hasTabSession = Boolean(sessionStorage.getItem(SESSION_USER_KEY))
+    if (!AUTO_RESTORE_AUTH && !hasTabSession) {
+      useAuthStore.setState({ user: null, accessToken: null })
+      setLoading(false)
+      return undefined
+    }
 
     async function rehydrate() {
       try {

@@ -162,6 +162,9 @@ export default function VehicleDetailPage() {
           <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
           <Dialog.Content className="fixed inset-x-0 bottom-0 z-50 max-h-[94vh] overflow-y-auto rounded-t-2xl bg-white p-4 lg:hidden">
             <Dialog.Title className="sr-only">Booking</Dialog.Title>
+            <Dialog.Description className="sr-only">
+              Choose pickup and return times, insurance, and confirm this vehicle booking.
+            </Dialog.Description>
             <button onClick={() => setBookingOpen(false)} className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full bg-zinc-100"><X size={18} /></button>
             <BookingWidget car={car} user={user} borderless />
           </Dialog.Content>
@@ -173,6 +176,9 @@ export default function VehicleDetailPage() {
           <Dialog.Overlay className="fixed inset-0 z-50 bg-black/90" />
           <Dialog.Content className="fixed inset-4 z-50">
             <Dialog.Title className="sr-only">Vehicle photos</Dialog.Title>
+            <Dialog.Description className="sr-only">
+              Browse photos of this vehicle in a larger gallery.
+            </Dialog.Description>
             <button onClick={() => setLightboxOpen(false)} className="absolute right-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-full bg-white text-zinc-950"><X size={20} /></button>
             <ImageGallery items={galleryItems} startIndex={activeImage} showFullscreenButton={false} showPlayButton={false} />
           </Dialog.Content>
@@ -290,8 +296,12 @@ function CarHeader({ car }) {
 }
 
 function BookingWidget({ car, user, borderless = false }) {
+  const minTripHours = Math.max(2, Number(car.min_trip_hours || 4))
+  const maxTripHours = Math.max(minTripHours, Number(car.max_trip_days || 30) * 24)
+  const defaultPickup = addHours(new Date(), 24)
+  const defaultDurationHours = Math.min(Math.max(minTripHours, 24), maxTripHours)
   const [pickup, setPickup] = useState(addHours(new Date(), 24))
-  const [returnAt, setReturnAt] = useState(addHours(new Date(), 52))
+  const [returnAt, setReturnAt] = useState(addHours(defaultPickup, defaultDurationHours))
   const [insurance, setInsurance] = useState('standard')
   const [withChauffeur, setWithChauffeur] = useState(false)
   const [pickupLocation, setPickupLocation] = useState('')
@@ -309,6 +319,11 @@ function BookingWidget({ car, user, borderless = false }) {
   const price = availability.price_breakdown || {}
   const navigate = useNavigate()
   const isRestrictedRole = user && (user.role === 'vehicle_manager' || user.role === 'admin')
+  const isBike = car.vehicle_type === 'bike'
+
+  useEffect(() => {
+    if (isBike && withChauffeur) setWithChauffeur(false)
+  }, [isBike, withChauffeur])
 
   // Calculate days for chauffeur fee
   const numDays = Math.max(1, Math.ceil((returnAt - pickup) / (1000 * 60 * 60 * 24)))
@@ -329,7 +344,7 @@ function BookingWidget({ car, user, borderless = false }) {
     setBookingError('')
 
     // Validate location fields
-    if (withChauffeur) {
+    if (!isBike && withChauffeur) {
       if (!pickupLocation.trim()) {
         setBookingError('Please enter your pickup address for chauffeur service.')
         setSubmitting(false)
@@ -348,10 +363,10 @@ function BookingWidget({ car, user, borderless = false }) {
         pickup_datetime: pickup.toISOString(),
         return_datetime: returnAt.toISOString(),
         insurance_plan: insurance,
-        with_chauffeur: withChauffeur,
+        with_chauffeur: isBike ? false : withChauffeur,
         coupon_code: appliedCoupon?.code || undefined,
         pickup_location: pickupLocation.trim() || undefined,
-        drop_location: withChauffeur ? (dropLocation.trim() || undefined) : undefined,
+        drop_location: !isBike && withChauffeur ? (dropLocation.trim() || undefined) : undefined,
       })
       const data = response.data
       // Always go to payment page so user can choose their payment method
@@ -424,7 +439,14 @@ function BookingWidget({ car, user, borderless = false }) {
     const timer = window.setTimeout(() => {
       api.get(`/vehicles/${car.id}/availability/check`, {
         params: { pickup_date: pickup.toISOString(), return_date: returnAt.toISOString(), insurance_plan: insurance },
-      }).then((response) => setAvailability(response.data)).catch((err) => setAvailability({ available: false, reason: err.response?.data?.detail || 'Unable to check availability', price_breakdown: {} }))
+      }).then((response) => setAvailability(response.data)).catch((err) => {
+        const detail = err.response?.data?.detail
+        setAvailability({
+          available: false,
+          reason: typeof detail === 'string' ? detail : detail?.message || 'Unable to check availability',
+          price_breakdown: {},
+        })
+      })
     }, 600)
     return () => window.clearTimeout(timer)
   }, [car.id, insurance, pickup, returnAt])
@@ -434,13 +456,31 @@ function BookingWidget({ car, user, borderless = false }) {
     if (date < minPickup) {
       toast.error('Pickup must be at least 2 hours from now')
       setPickup(minPickup)
-      if (returnAt < addHours(minPickup, car.min_trip_hours || 4)) {
-        setReturnAt(addHours(minPickup, car.min_trip_hours || 4))
+      if (returnAt < addHours(minPickup, minTripHours) || returnAt > addHours(minPickup, maxTripHours)) {
+        setReturnAt(addHours(minPickup, Math.min(Math.max(minTripHours, 24), maxTripHours)))
       }
       return
     }
     setPickup(date)
-    if (returnAt < addHours(date, car.min_trip_hours || 4)) setReturnAt(addHours(date, car.min_trip_hours || 4))
+    if (returnAt < addHours(date, minTripHours) || returnAt > addHours(date, maxTripHours)) {
+      setReturnAt(addHours(date, Math.min(Math.max(minTripHours, 24), maxTripHours)))
+    }
+  }
+
+  function onReturn(date) {
+    const minReturn = addHours(pickup, minTripHours)
+    const maxReturn = addHours(pickup, maxTripHours)
+    if (date < minReturn) {
+      toast.error(`Trip must be at least ${minTripHours} hours`)
+      setReturnAt(minReturn)
+      return
+    }
+    if (date > maxReturn) {
+      toast.error(`Trip cannot exceed ${car.max_trip_days || 30} day${Number(car.max_trip_days || 30) === 1 ? '' : 's'}`)
+      setReturnAt(maxReturn)
+      return
+    }
+    setReturnAt(date)
   }
 
   const baseAmount = Number(price.base_amount || car.price_per_day * numDays || 0)
@@ -453,37 +493,44 @@ function BookingWidget({ car, user, borderless = false }) {
       </div>
       <div className="grid grid-cols-2 gap-2">
         <DatePicker selected={pickup} onChange={onPickup} showTimeSelect timeIntervals={30} excludeDates={unavailableDates} minDate={new Date()} dateFormat="dd MMM, h:mm aa" className="input h-11" />
-        <DatePicker selected={returnAt} onChange={setReturnAt} showTimeSelect timeIntervals={30} excludeDates={unavailableDates} minDate={addHours(pickup, car.min_trip_hours || 4)} dateFormat="dd MMM, h:mm aa" className="input h-11" />
+        <DatePicker selected={returnAt} onChange={onReturn} showTimeSelect timeIntervals={30} excludeDates={unavailableDates} minDate={addHours(pickup, minTripHours)} maxDate={addHours(pickup, maxTripHours)} dateFormat="dd MMM, h:mm aa" className="input h-11" />
       </div>
       {!availability.available && <div className="mt-3 rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">{availability.reason}. {availability.next_available_date && `Next available: ${new Date(availability.next_available_date).toLocaleString('en-IN')}`}</div>}
       {availability.available && <div className="mt-3 rounded-md bg-emerald-50 p-3 text-sm font-bold text-emerald-700">Available for this range.</div>}
 
       {/* Rental Type — Chauffeur Toggle */}
       <h3 className="mt-5 text-sm font-black uppercase text-zinc-500">Rental Type</h3>
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => setWithChauffeur(false)}
-          className={`rounded-lg border-2 p-3 text-left transition ${!withChauffeur ? 'border-sigfleet bg-red-50' : 'border-zinc-200 hover:border-zinc-300'}`}
-        >
-          <p className="font-black text-sm text-zinc-950">Self Drive</p>
-          <p className="text-xs font-bold text-zinc-500">Free</p>
-          <p className="text-xs text-zinc-400 mt-1">Drive yourself</p>
-        </button>
-        <button
-          type="button"
-          onClick={() => setWithChauffeur(true)}
-          className={`rounded-lg border-2 p-3 text-left transition ${withChauffeur ? 'border-sigfleet bg-red-50' : 'border-zinc-200 hover:border-zinc-300'}`}
-        >
-          <p className="font-black text-sm text-zinc-950">With Chauffeur</p>
-          <p className="text-xs font-bold text-sigfleet">+₹800/day</p>
-          <p className="text-xs text-zinc-400 mt-1">Professional driver</p>
-        </button>
-      </div>
+      {isBike ? (
+        <div className="mt-2 rounded-lg border-2 border-sigfleet bg-red-50 p-3">
+          <p className="font-black text-sm text-zinc-950">Self Ride</p>
+          <p className="text-xs font-bold text-zinc-500">Bikes are booked without chauffeur service.</p>
+        </div>
+      ) : (
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setWithChauffeur(false)}
+            className={`rounded-lg border-2 p-3 text-left transition ${!withChauffeur ? 'border-sigfleet bg-red-50' : 'border-zinc-200 hover:border-zinc-300'}`}
+          >
+            <p className="font-black text-sm text-zinc-950">Self Drive</p>
+            <p className="text-xs font-bold text-zinc-500">Free</p>
+            <p className="text-xs text-zinc-400 mt-1">Drive yourself</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => setWithChauffeur(true)}
+            className={`rounded-lg border-2 p-3 text-left transition ${withChauffeur ? 'border-sigfleet bg-red-50' : 'border-zinc-200 hover:border-zinc-300'}`}
+          >
+            <p className="font-black text-sm text-zinc-950">With Chauffeur</p>
+            <p className="text-xs font-bold text-sigfleet">+₹800/day</p>
+            <p className="text-xs text-zinc-400 mt-1">Professional driver</p>
+          </button>
+        </div>
+      )}
 
       {/* Location fields — conditional on rental type */}
       <div className="mt-4 space-y-3">
-        {withChauffeur ? (
+        {!isBike && withChauffeur ? (
           <>
             {/* Chauffeur: ask for both pickup and drop */}
             <div>

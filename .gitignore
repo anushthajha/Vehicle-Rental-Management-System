@@ -83,7 +83,6 @@ lerna-debug.log*
 .env.production.local
 
 graphify-out
-docs
 # Docker
 docker-compose.override.yml
 docker-compose.*.yml

@@ -147,10 +147,12 @@ async def _validate_dates(car: Vehicle, pickup: datetime, return_at: datetime) -
     if pickup < datetime.utcnow() + timedelta(hours=1):
         raise _validation_error("pickup_date", "Pickup must be at least 1 hour from now", "PAST_DATE")
     hours = AvailabilityService.calculate_rental_duration(pickup, return_at)["total_hours"]
-    if hours < car.min_trip_hours:
-        raise _validation_error("return_date", f"Trip must be at least {car.min_trip_hours} hours", "TOO_SHORT")
-    if hours / 24 > car.max_trip_days:
-        raise _validation_error("return_date", f"Trip cannot exceed {car.max_trip_days} days", "TOO_LONG")
+    min_trip_hours = car.min_trip_hours if car.min_trip_hours and car.min_trip_hours > 0 else 4
+    max_trip_days = car.max_trip_days if car.max_trip_days and car.max_trip_days > 0 else 30
+    if hours < min_trip_hours:
+        raise _validation_error("return_date", f"Trip must be at least {min_trip_hours} hours", "TOO_SHORT")
+    if hours / 24 > max_trip_days:
+        raise _validation_error("return_date", f"Trip cannot exceed {max_trip_days} day{'s' if max_trip_days != 1 else ''}", "TOO_LONG")
 
 
 async def _validate_coupon(db: AsyncSession, code: str | None, user: User | None, base_amount: float) -> tuple[Coupon | None, str | None]:
