@@ -61,7 +61,7 @@ def _transaction_payload(txn: WalletTransaction) -> dict:
 async def _pay_booking_with_wallet(db: AsyncSession, booking: Booking, payment: Payment, current_user: User) -> dict:
     if booking.customer_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the customer can pay for this booking")
-    if booking.status != "confirmed":
+    if booking.status not in {"pending", "confirmed"}:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Booking is not ready for wallet payment")
     if payment.status != "created":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Payment is not payable")
@@ -71,7 +71,8 @@ async def _pay_booking_with_wallet(db: AsyncSession, booking: Booking, payment: 
     car = await db.scalar(select(Vehicle).where(Vehicle.id == booking.vehicle_id))
     manager = await db.scalar(select(User).where(User.id == booking.manager_id))
     txn_id = await mark_payment_paid(db, booking, payment, car, current_user, manager, payment_method="wallet", debit_wallet=True)
-    return {"success": True, "booking_ref": booking.booking_ref, "transaction_id": txn_id, "message": "Payment successful. Booking confirmed!"}
+    message = "Payment successful. Booking is pending manager approval." if booking.status == "pending" else "Payment successful. Booking confirmed!"
+    return {"success": True, "booking_ref": booking.booking_ref, "transaction_id": txn_id, "message": message}
 
 
 @router.get("/wallet")

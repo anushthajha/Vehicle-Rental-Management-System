@@ -113,12 +113,14 @@ function BookingSummaryCard({ data, onConfirm, onChange }) {
   )
 }
 
-function PayNowCard({ bookingId, bookingRef, totalAmount, onPay }) {
+function PayNowCard({ bookingId, bookingRef, totalAmount, status, onPay }) {
+  const isPending = status === 'pending'
   return (
-    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mt-2">
-      <p className="font-black text-emerald-800 text-sm">✅ Booking Created!</p>
-      <p className="text-xs text-emerald-700 mt-1">Booking ID: <span className="font-black">{bookingRef}</span></p>
-      <p className="text-xs text-emerald-700">Amount due: <span className="font-black">₹{totalAmount?.toLocaleString('en-IN')}</span></p>
+    <div className={`${isPending ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'} border rounded-xl p-4 mt-2`}>
+      <p className={`font-black text-sm ${isPending ? 'text-amber-800' : 'text-emerald-800'}`}>{isPending ? '⏳ Booking Pending' : '✅ Booking Created!'}</p>
+      <p className={`text-xs mt-1 ${isPending ? 'text-amber-700' : 'text-emerald-700'}`}>Booking ID: <span className="font-black">{bookingRef}</span></p>
+      <p className={`text-xs ${isPending ? 'text-amber-700' : 'text-emerald-700'}`}>Amount due: <span className="font-black">₹{totalAmount?.toLocaleString('en-IN')}</span></p>
+      {isPending && <p className="mt-2 text-xs font-bold text-amber-700">Pay now to submit the request. The manager will review it within 24 hours.</p>}
       <button
         onClick={onPay}
         className="mt-3 w-full bg-[#E31837] text-white text-sm font-black py-2.5 rounded-full hover:bg-red-700 transition flex items-center justify-center gap-2"
@@ -267,6 +269,7 @@ function MessageBubble({ msg, onSelectVehicle, onConfirmBooking, onChangeBooking
             bookingId={msg.data.booking_id}
             bookingRef={msg.data.booking_ref}
             totalAmount={msg.data.total_amount}
+            status={msg.data.status}
             onPay={() => onPayNow(msg.data.booking_id)}
           />
         )}

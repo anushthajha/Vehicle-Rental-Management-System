@@ -54,6 +54,140 @@ async def sync_vehicle_availability(db: AsyncSession, vehicle_id: str) -> None:
         car.is_available = should_be_available
 
 
+async def complete_booking_lifecycle(
+    db: AsyncSession,
+    booking: Booking,
+    completed_at: datetime | None = None,
+) -> None:
+    """Close a paid trip and release money exactly once when status changes to completed."""
+    if booking.status == "completed":
+        return
+
+    now = completed_at or datetime.utcnow()
+    booking.status = "completed"
+    booking.actual_pickup_time = booking.actual_pickup_time or booking.pickup_datetime
+    booking.actual_return_time = booking.actual_return_time or now
+
+    customer_wallet = await get_or_create_wallet(db, booking.customer_id)
+    customer_wallet.balance = Decimal(str(customer_wallet.balance)) + Decimal(str(booking.security_deposit_amount))
+    add_wallet_transaction(
+        db,
+        booking.customer_id,
+        "credit",
+        booking.security_deposit_amount,
+        customer_wallet.balance,
+        f"Security deposit released for {booking.booking_ref}",
+        booking.id,
+    )
+
+    manager_wallet = await get_or_create_wallet(db, booking.manager_id)
+    manager_wallet.balance = Decimal(str(manager_wallet.balance)) + Decimal(str(booking.manager_earnings))
+    add_wallet_transaction(
+        db,
+        booking.manager_id,
+        "credit",
+        booking.manager_earnings,
+        manager_wallet.balance,
+        f"Vehicle Manager earning for {booking.booking_ref}",
+        booking.id,
+    )
+
+    car = await db.scalar(select(Vehicle).where(Vehicle.id == booking.vehicle_id))
+    if car:
+        car.total_trips += 1
+
+
+async def sync_booking_lifecycle(
+    db: AsyncSession,
+    bookings: list[Booking],
+    now: datetime | None = None,
+) -> bool:
+    """
+    Bring booking statuses in line with time and payment state.
+
+    - confirmed + paid + pickup reached -> active
+    - active + return passed -> completed
+    - confirmed + unpaid + pickup passed -> cancelled
+    """
+    now = now or datetime.utcnow()
+    changed = False
+    touched_vehicle_ids: set[str] = set()
+
+    for booking in bookings:
+        payment = await db.scalar(select(Payment).where(Payment.booking_id == booking.id))
+
+        if booking.status == "confirmed" and booking.manager_accepted_at:
+            car = await db.scalar(select(Vehicle).where(Vehicle.id == booking.vehicle_id))
+            paid_at = payment.paid_at if payment else None
+            accepted_at = booking.manager_accepted_at
+            auto_created = booking.created_at and abs((accepted_at - booking.created_at).total_seconds()) <= 2
+            auto_paid = paid_at and abs((accepted_at - paid_at).total_seconds()) <= 2
+            if car and car.auto_accept_bookings and (auto_created or auto_paid):
+                booking.status = "pending"
+                booking.manager_accepted_at = None
+                touched_vehicle_ids.add(booking.vehicle_id)
+                changed = True
+                continue
+
+        if booking.status not in {"confirmed", "active"}:
+            continue
+
+        is_paid = bool(payment and payment.status == "paid")
+
+        if booking.status == "confirmed" and not is_paid and booking.pickup_datetime <= now:
+            booking.status = "cancelled"
+            booking.cancellation_reason = "[EXPIRED] Payment not completed before pickup"
+            booking.cancelled_at = now
+            booking.cancelled_by = booking.customer_id
+            booking.refund_status = "not_applicable"
+            touched_vehicle_ids.add(booking.vehicle_id)
+            changed = True
+            await create_notification(
+                booking.customer_id,
+                "Booking expired",
+                f"Booking {booking.booking_ref} expired because payment was not completed before pickup.",
+                "booking",
+                action_url=f"/dashboard/bookings/{booking.id}",
+                meta={"booking_id": booking.id},
+            )
+            continue
+
+        if not is_paid:
+            continue
+
+        if booking.return_datetime <= now:
+            await complete_booking_lifecycle(db, booking, booking.return_datetime)
+            touched_vehicle_ids.add(booking.vehicle_id)
+            changed = True
+            await create_notification(
+                booking.customer_id,
+                "Trip completed",
+                f"Your trip {booking.booking_ref} has been marked completed.",
+                "booking",
+                action_url=f"/dashboard/bookings/{booking.id}",
+                meta={"booking_id": booking.id},
+            )
+        elif booking.status == "confirmed" and booking.pickup_datetime <= now:
+            booking.status = "active"
+            booking.actual_pickup_time = booking.actual_pickup_time or booking.pickup_datetime
+            touched_vehicle_ids.add(booking.vehicle_id)
+            changed = True
+            await create_notification(
+                booking.manager_id,
+                "Trip active",
+                f"Booking {booking.booking_ref} is now active.",
+                "booking",
+                action_url="/manager/trips/active",
+                meta={"booking_id": booking.id},
+            )
+
+    if changed:
+        await db.flush()
+        for vehicle_id in touched_vehicle_ids:
+            await sync_vehicle_availability(db, vehicle_id)
+    return changed
+
+
 def add_wallet_transaction(
     db: AsyncSession,
     user_id: str,
@@ -107,14 +241,10 @@ async def mark_payment_paid(
     debit_wallet: bool = False,
 ) -> str:
     txn_id = transaction_id()
-    now = datetime.utcnow()
     payment.status = "paid"
     payment.payment_method = payment_method
-    payment.paid_at = now
+    payment.paid_at = datetime.utcnow()
     payment.simulated_transaction_id = txn_id
-    if booking.status == "pending" and car.auto_accept_bookings:
-        booking.status = "confirmed"
-        booking.manager_accepted_at = now
 
     if debit_wallet:
         customer_wallet = await get_or_create_wallet(db, customer.id)
@@ -149,10 +279,16 @@ async def mark_payment_paid(
         send_trip_reminder_task.apply_async(args=[booking.id], countdown=countdown)
     except Exception:
         pass
+    if booking.status == "pending":
+        title = "Payment successful"
+        message = f"Payment for {booking.booking_ref} is complete. Your booking is pending manager approval."
+    else:
+        title = "Payment successful"
+        message = f"Your booking {booking.booking_ref} is confirmed."
     await create_notification(
         customer.id,
-        "Payment successful",
-        f"Your booking {booking.booking_ref} is confirmed.",
+        title,
+        message,
         "payment",
         action_url=f"/dashboard/bookings/{booking.id}",
         meta={"booking_id": booking.id, "transaction_id": txn_id},

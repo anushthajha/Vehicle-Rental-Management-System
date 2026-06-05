@@ -22,9 +22,11 @@ from app.mongo_models.review import get_booking_reviews
 from app.services.booking_flow import (
     add_wallet_transaction,
     booking_email_payload,
+    complete_booking_lifecycle,
     get_or_create_wallet,
     mark_payment_paid,
     money,
+    sync_booking_lifecycle,
     sync_vehicle_availability,
 )
 from app.services.availability import AvailabilityService
@@ -428,7 +430,7 @@ async def create_booking(
         vehicle_id=car.id,
         customer_id=current_user.id,
         manager_id=car.manager_id,
-        status="confirmed" if car.auto_accept_bookings else "pending",
+        status="pending",
         pickup_datetime=payload.pickup_datetime,
         return_datetime=payload.return_datetime,
         pickup_location=payload.pickup_location or car.location_address or f"{car.location_area or ''}, {car.location_city}".strip(", "),
@@ -446,7 +448,7 @@ async def create_booking(
         platform_fee=Decimal(str(breakdown["platform_fee"])),
         manager_earnings=Decimal(str(breakdown["manager_earnings"])),
         customer_notes=payload.customer_notes,
-        manager_accepted_at=datetime.utcnow() if car.auto_accept_bookings else None,
+        manager_accepted_at=None,
     )
     db.add(booking)
     await db.flush()
@@ -488,7 +490,7 @@ async def create_booking(
         "price_breakdown": breakdown,
         "vehicle_name": car.title,
         "car_primary_image": image,
-        "requires_payment": not car.auto_accept_bookings,
+        "requires_payment": True,
     }
 
 
@@ -498,7 +500,7 @@ async def simulate_payment(booking_id: str, current_user: User = Depends(require
     if booking.customer_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the customer can pay for this booking")
     car = await _load_car(db, booking.vehicle_id)
-    if not (booking.status == "confirmed" or (booking.status == "pending" and car.auto_accept_bookings)):
+    if booking.status not in {"pending", "confirmed"}:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Booking is not ready for payment")
     payment = await _payment_for(db, booking.id)
     if payment.status != "created":
@@ -506,7 +508,8 @@ async def simulate_payment(booking_id: str, current_user: User = Depends(require
     manager = await db.scalar(select(User).where(User.id == booking.manager_id))
     txn_id = await mark_payment_paid(db, booking, payment, car, current_user, manager)
     await db.commit()
-    return {"success": True, "booking_ref": booking.booking_ref, "transaction_id": txn_id, "message": "Payment successful. Booking confirmed!"}
+    message = "Payment successful. Booking is pending manager approval." if booking.status == "pending" else "Payment successful. Booking confirmed!"
+    return {"success": True, "booking_ref": booking.booking_ref, "transaction_id": txn_id, "message": message}
 
 
 @router.patch("/{booking_id}/accept")
@@ -519,7 +522,13 @@ async def accept_booking(booking_id: str, current_user: User = Depends(require_v
     booking.status = "confirmed"
     booking.manager_accepted_at = datetime.utcnow()
     await db.commit()
-    await create_notification(booking.customer_id, "Booking accepted", "Your booking request was accepted! Complete payment to confirm.", "booking", action_url=f"/booking/pay/{booking.id}", meta={"booking_id": booking.id})
+    payment = await db.scalar(select(Payment).where(Payment.booking_id == booking.id))
+    is_paid = bool(payment and payment.status == "paid")
+    message = "Your booking request was approved by the vehicle manager."
+    action_url = f"/dashboard/bookings/{booking.id}" if is_paid else f"/booking/pay/{booking.id}"
+    if not is_paid:
+        message += " Complete payment before pickup."
+    await create_notification(booking.customer_id, "Booking confirmed", message, "booking", action_url=action_url, meta={"booking_id": booking.id})
     return {"status": booking.status}
 
 
@@ -676,16 +685,8 @@ async def end_trip(booking_id: str, payload: EndTripRequest, current_user: User 
     actual_km = max((payload.odometer_end - (booking.odometer_start or payload.odometer_end)), 0)
     extra_km = max(actual_km - allowed_km, 0)
     booking.extra_km_charged = Decimal(str(extra_km)) * Decimal(str(car.extra_km_charge))
-    booking.status = "completed"
-    booking.actual_return_time = datetime.utcnow()
     booking.odometer_end = payload.odometer_end
-    customer_wallet = await get_or_create_wallet(db, booking.customer_id)
-    customer_wallet.balance = Decimal(str(customer_wallet.balance)) + Decimal(str(booking.security_deposit_amount))
-    add_wallet_transaction(db, booking.customer_id, "credit", booking.security_deposit_amount, customer_wallet.balance, f"Security deposit released for {booking.booking_ref}", booking.id)
-    manager_wallet = await get_or_create_wallet(db, booking.manager_id)
-    manager_wallet.balance = Decimal(str(manager_wallet.balance)) + Decimal(str(booking.manager_earnings))
-    add_wallet_transaction(db, booking.manager_id, "credit", booking.manager_earnings, manager_wallet.balance, f"Vehicle Manager earning for {booking.booking_ref}", booking.id)
-    car.total_trips += 1
+    await complete_booking_lifecycle(db, booking, datetime.utcnow())
     profile = await db.scalar(select(ManagerProfile).where(ManagerProfile.user_id == booking.manager_id))
     if profile:
         profile.acceptance_rate = min(Decimal("100.00"), max(Decimal(str(profile.acceptance_rate)), Decimal("95.00")))
@@ -801,6 +802,17 @@ async def list_bookings(
 
     # Auto-expire any pending bookings whose pickup time has passed (for this user)
     now = datetime.utcnow()
+    lifecycle_candidates = (
+        await db.execute(
+            select(Booking).where(
+                Booking.manager_id == current_user.id if as_role == "vehicle_manager" else Booking.customer_id == current_user.id,
+                Booking.status.in_(("confirmed", "active")),
+            )
+        )
+    ).scalars().all()
+    if await sync_booking_lifecycle(db, list(lifecycle_candidates), now):
+        await db.commit()
+
     expired_pending = (
         await db.execute(
             select(Booking.id).where(
@@ -847,6 +859,9 @@ async def list_bookings(
 @router.get("/{booking_id}")
 async def get_booking(booking_id: str, current_user: User = Depends(get_current_active_user), db: AsyncSession = Depends(get_db)):
     booking = await _booking_with_access(booking_id, current_user, db)
+    if await sync_booking_lifecycle(db, [booking]):
+        await db.commit()
+        booking = await _booking_with_access(booking_id, current_user, db)
     car = await _load_car(db, booking.vehicle_id)
     image = await _primary_image(db, car.id)
     counterparty_id = booking.manager_id if current_user.id == booking.customer_id else booking.customer_id

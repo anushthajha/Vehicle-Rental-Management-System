@@ -13,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
+from app.models.booking import Booking
+from app.models.payment import Payment
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.vehicle_category import VehicleType
@@ -26,6 +28,24 @@ HELP_DOCS_DIR = Path(__file__).resolve().parents[3] / "docs" / "help"
 VECTOR_DIMENSIONS = 384
 COLLECTION_NAME = "help_knowledge_chunks"
 MIN_CONFIDENCE = 0.45
+OUT_OF_SCOPE_ANSWER = "I can only answer questions related to SigFleet."
+NO_PERSONAL_DATA_ANSWER = "I do not have access to personal information or account data."
+NO_RELIABLE_ANSWER = "I couldn't find a reliable answer in the SigFleet knowledge base."
+NO_TOOL_ANSWER = "I couldn't find that information."
+
+SIGFLEET_SCOPE_TERMS = {
+    "sigfleet", "sigbot", "vehicle", "vehicles", "car", "cars", "bike", "bikes",
+    "traveller", "travellers", "booking", "bookings", "book", "rent", "rental",
+    "trip", "trips", "manager",
+    "customer", "admin", "kyc", "aadhaar", "aadhar", "licence", "license",
+    "document", "documents", "payment", "wallet", "refund", "support", "ticket",
+    "coupon", "payout", "payouts", "earning", "earnings", "withdraw", "withdrawal",
+    "withdrawals", "dashboard", "notification", "notifications",
+    "register", "registration", "account", "login", "profile", "approval",
+    "approve", "vehicle_manager", "listing", "availability", "insurance",
+    "chauffeur", "review", "reviews", "wishlist", "count", "counts", "total",
+    "totals", "revenue", "statistic", "statistics", "stats",
+}
 
 
 class HelpAskRequest(BaseModel):
@@ -65,6 +85,11 @@ SYNONYMS = {
     "approve": ["approval", "review", "verify"],
     "payment": ["pay", "wallet", "amount", "transaction"],
     "refund": ["cancel", "cancellation", "wallet"],
+    "payout": ["payouts", "earnings", "withdraw", "withdrawal"],
+    "payouts": ["payout", "earnings", "withdraw", "withdrawal"],
+    "withdraw": ["withdrawal", "payout", "payouts", "earnings"],
+    "withdrawal": ["withdraw", "payout", "payouts", "earnings"],
+    "earnings": ["earning", "payout", "payouts", "withdrawal"],
     "support": ["ticket", "help", "issue", "reply"],
     "kyc": ["verify", "document", "license", "aadhaar"],
     "admin": ["approval", "review", "dashboard"],
@@ -94,6 +119,39 @@ def _tokens(text: str) -> list[str]:
         expanded.append(word)
         expanded.extend(SYNONYMS.get(word, []))
     return expanded
+
+
+def _raw_tokens(text: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", text.lower()))
+
+
+def _is_personal_info_question(question: str) -> bool:
+    normalized = question.lower()
+    personal_patterns = (
+        r"\bmy (password|otp|session)\b",
+        r"\bshow me my (password|otp|session)\b",
+        r"\bwhat(?:'s| is)? my (password|otp|session)\b",
+    )
+    return any(re.search(pattern, normalized) for pattern in personal_patterns)
+
+
+def _is_sigfleet_related_question(question: str) -> bool:
+    return bool(_raw_tokens(question) & SIGFLEET_SCOPE_TERMS)
+
+
+def _is_account_api_question(question: str) -> bool:
+    normalized = question.lower()
+    return bool(
+        re.search(r"\bmy\b", normalized)
+        and re.search(r"\b(bookings?|trips?|profile|account|name|email|phone|wallet|kyc)\b", normalized)
+    )
+
+
+def _is_analytics_api_question(question: str) -> bool:
+    normalized = question.lower()
+    has_metric = re.search(r"\b(how many|count|counts|number of|total|totals|revenue|statistics|stats)\b", normalized)
+    has_entity = re.search(r"\b(bookings?|users?|customers?|managers?|vehicles?|cars?|bikes?|revenue|earnings)\b", normalized)
+    return bool(has_metric and has_entity)
 
 
 def _embedding(text: str) -> list[float]:
@@ -448,16 +506,207 @@ async def _live_user_count_answer(question: str, requester_role: str, db: AsyncS
     }
 
 
-def _low_confidence_answer(question: str) -> str:
-    if _is_live_inventory_question(question):
-        return (
-            "I do not have enough confidence to answer this from the help knowledge base because it asks for live vehicle inventory. "
-            "Please use Browse Vehicles with the city filter, or ask SigBot to search available vehicles for specific dates."
+def _source(source_id: str, title: str) -> dict:
+    return {"id": source_id, "title": title, "source_path": "Authenticated application API", "score": 1}
+
+
+def _format_money(value) -> str:
+    return f"Rs. {float(value or 0):,.2f}"
+
+
+def _format_datetime(value: datetime | None) -> str:
+    return value.strftime("%d %b %Y, %I:%M %p") if value else "-"
+
+
+async def _booking_status_summary(db: AsyncSession, conditions: list) -> str:
+    rows = (await db.execute(select(Booking.status, func.count()).where(*conditions).group_by(Booking.status))).all()
+    if not rows:
+        return ""
+    ordered = sorted((status, int(count or 0)) for status, count in rows)
+    return " Status breakdown: " + ", ".join(f"{status} {count}" for status, count in ordered) + "."
+
+
+async def _account_api_answer(question: str, current_user: User | None, db: AsyncSession) -> dict | None:
+    if not _is_account_api_question(question):
+        return None
+    if current_user is None:
+        return {
+            "answer": NO_TOOL_ANSWER,
+            "sources": [],
+            "role": "guest",
+            "retrieval": "account_api",
+            "confidence": "high",
+        }
+
+    normalized = question.lower()
+    if re.search(r"\b(next|upcoming)\b", normalized) and re.search(r"\b(trip|booking|rental)\b", normalized):
+        owner_condition = Booking.manager_id == current_user.id if current_user.role == "vehicle_manager" else Booking.customer_id == current_user.id
+        booking = await db.scalar(
+            select(Booking)
+            .where(
+                owner_condition,
+                Booking.status.in_(("pending", "confirmed", "active")),
+                Booking.return_datetime >= datetime.utcnow(),
+            )
+            .order_by(Booking.pickup_datetime.asc())
+            .limit(1)
         )
-    return (
-        "I do not have enough confidence to answer this from the SigFleet help knowledge base. "
-        "Please try asking with more detail, check the relevant dashboard section, or create a support ticket."
-    )
+        if not booking:
+            return {
+                "answer": "I couldn't find an upcoming trip for your account.",
+                "sources": [_source("account_bookings_api", "Account bookings API")],
+                "role": current_user.role,
+                "retrieval": "account_api",
+                "confidence": "high",
+            }
+        vehicle = await db.scalar(select(Vehicle).where(Vehicle.id == booking.vehicle_id))
+        vehicle_title = vehicle.title if vehicle else "Vehicle rental"
+        return {
+            "answer": (
+                f"Your next trip is {vehicle_title}. Status: {booking.status}. "
+                f"Pickup: {_format_datetime(booking.pickup_datetime)}. "
+                f"Return: {_format_datetime(booking.return_datetime)}."
+            ),
+            "sources": [_source("account_bookings_api", "Account bookings API")],
+            "role": current_user.role,
+            "retrieval": "account_api",
+            "confidence": "high",
+        }
+
+    if re.search(r"\bbookings?\b", normalized):
+        if current_user.role == "vehicle_manager":
+            conditions = [Booking.manager_id == current_user.id]
+            total = await db.scalar(select(func.count()).select_from(Booking).where(*conditions)) or 0
+            detail = await _booking_status_summary(db, conditions)
+            answer = f"You have {total} managed booking(s) in SigFleet.{detail}"
+        else:
+            conditions = [Booking.customer_id == current_user.id]
+            total = await db.scalar(select(func.count()).select_from(Booking).where(*conditions)) or 0
+            detail = await _booking_status_summary(db, conditions)
+            answer = f"You have {total} booking(s) in SigFleet.{detail}"
+        return {
+            "answer": answer,
+            "sources": [_source("account_bookings_api", "Account bookings API")],
+            "role": current_user.role,
+            "retrieval": "account_api",
+            "confidence": "high",
+        }
+
+    if re.search(r"\b(profile|account|name|email|phone)\b", normalized):
+        parts = [f"Name: {current_user.full_name}", f"Role: {current_user.role}"]
+        if current_user.email:
+            parts.append(f"Email: {current_user.email}")
+        if current_user.phone:
+            parts.append(f"Phone: {current_user.phone}")
+        return {
+            "answer": "Your SigFleet account details are: " + "; ".join(parts) + ".",
+            "sources": [_source("account_profile_api", "Account profile API")],
+            "role": current_user.role,
+            "retrieval": "account_api",
+            "confidence": "high",
+        }
+
+    return {
+        "answer": NO_TOOL_ANSWER,
+        "sources": [],
+        "role": current_user.role,
+        "retrieval": "account_api",
+        "confidence": "high",
+    }
+
+
+async def _analytics_api_answer(question: str, current_user: User | None, db: AsyncSession) -> dict | None:
+    if not _is_analytics_api_question(question):
+        return None
+    if current_user is None:
+        return {
+            "answer": NO_TOOL_ANSWER,
+            "sources": [],
+            "role": "guest",
+            "retrieval": "analytics_api",
+            "confidence": "high",
+        }
+
+    normalized = question.lower()
+    asks_bookings = re.search(r"\bbookings?\b", normalized)
+    asks_revenue = re.search(r"\b(revenue|earnings)\b", normalized)
+    asks_users = re.search(r"\b(users?|customers?|managers?)\b", normalized)
+
+    if asks_bookings:
+        if current_user.role == "admin":
+            conditions = []
+            total = await db.scalar(select(func.count()).select_from(Booking)) or 0
+            detail = await _booking_status_summary(db, conditions)
+            answer = f"SigFleet has {total} total booking(s).{detail}"
+        elif current_user.role == "vehicle_manager":
+            conditions = [Booking.manager_id == current_user.id]
+            total = await db.scalar(select(func.count()).select_from(Booking).where(*conditions)) or 0
+            detail = await _booking_status_summary(db, conditions)
+            answer = f"You have {total} total managed booking(s).{detail}"
+        else:
+            conditions = [Booking.customer_id == current_user.id]
+            total = await db.scalar(select(func.count()).select_from(Booking).where(*conditions)) or 0
+            detail = await _booking_status_summary(db, conditions)
+            answer = f"You have {total} total booking(s).{detail}"
+        return {
+            "answer": answer,
+            "sources": [_source("booking_analytics_api", "Booking analytics API")],
+            "role": current_user.role,
+            "retrieval": "analytics_api",
+            "confidence": "high",
+        }
+
+    if asks_revenue:
+        if current_user.role == "admin":
+            total = await db.scalar(
+                select(func.coalesce(func.sum(Payment.amount), 0)).where(Payment.status.in_(("paid", "refunded")))
+            ) or 0
+            answer = f"SigFleet total revenue is {_format_money(total)}."
+        elif current_user.role == "vehicle_manager":
+            total = await db.scalar(
+                select(func.coalesce(func.sum(Booking.manager_earnings), 0)).where(
+                    Booking.manager_id == current_user.id,
+                    Booking.status == "completed",
+                )
+            ) or 0
+            answer = f"Your total manager earnings are {_format_money(total)}."
+        else:
+            total = await db.scalar(
+                select(func.coalesce(func.sum(Payment.amount), 0)).where(
+                    Payment.user_id == current_user.id,
+                    Payment.status.in_(("paid", "refunded")),
+                )
+            ) or 0
+            answer = f"Your total paid booking amount is {_format_money(total)}."
+        return {
+            "answer": answer,
+            "sources": [_source("revenue_analytics_api", "Revenue analytics API")],
+            "role": current_user.role,
+            "retrieval": "analytics_api",
+            "confidence": "high",
+        }
+
+    if asks_users and current_user.role == "admin":
+        total = await db.scalar(select(func.count()).select_from(User)) or 0
+        return {
+            "answer": f"SigFleet has {total} total user account(s).",
+            "sources": [_source("user_analytics_api", "User analytics API")],
+            "role": current_user.role,
+            "retrieval": "analytics_api",
+            "confidence": "high",
+        }
+
+    return {
+        "answer": NO_TOOL_ANSWER,
+        "sources": [],
+        "role": current_user.role,
+        "retrieval": "analytics_api",
+        "confidence": "high",
+    }
+
+
+def _low_confidence_answer(question: str) -> str:
+    return NO_RELIABLE_ANSWER
 
 
 def _parse_frontmatter(text: str) -> tuple[dict, str]:
@@ -576,14 +825,11 @@ async def _retrieve(question: str, role: str, limit: int = 4) -> list[dict]:
 
 def _fallback_answer(role: str, chunks: list[dict]) -> str:
     if not chunks:
-        return "I could not find that in the SigFleet help knowledge base. Please check Support or create a support ticket."
+        return NO_RELIABLE_ANSWER
     top = chunks[0]
     content = re.sub(r"^##\s+", "", top["content"], flags=re.MULTILINE).strip()
     content = re.sub(r"\n{3,}", "\n\n", content)
-    suffix = ""
-    if role == "customer" and re.search(r"\b(book|booking|vehicle)\b", content, re.I):
-        suffix = "\n\nYou can also book using SigBot from the customer dashboard."
-    return f"{content}{suffix}"
+    return content
 
 
 async def _llm_answer(question: str, role: str, chunks: list[dict]) -> str:
@@ -597,15 +843,29 @@ async def _llm_answer(question: str, role: str, chunks: list[dict]) -> str:
         for chunk in chunks
     )
     prompt = f"""
-You are SigFleet Help Assistant. Use only the retrieved Markdown knowledge base context.
+You are the official SigFleet Knowledge Assistant.
+
+Your purpose is to answer questions ONLY using the retrieved SigFleet knowledge base documents provided in the context.
+You are not a general-purpose AI assistant.
+
 Role: {role}
 
 Rules:
-- Answer the user's application usage question directly.
-- Include steps when the context contains steps.
-- If the user is a customer asking about booking, mention that SigBot can also book vehicles.
-- If the context does not answer the question, say to open Support and create a ticket.
-- Do not invent pages or policies not present in the context.
+- Answer only if the question is related to SigFleet.
+- Answer only if the retrieved context directly supports the answer.
+- Use only the retrieved context. Do not use general knowledge, prior knowledge, assumptions, or external information.
+- Do not invent features, screens, buttons, APIs, policies, permissions, workflows, pricing, or booking rules.
+- You do not have access to personal information, account data, session data, or database records.
+- If the question asks for personal information, respond exactly: "{NO_PERSONAL_DATA_ANSWER}"
+- If the question is out of scope, respond exactly: "{OUT_OF_SCOPE_ANSWER}"
+- If the retrieved context does not directly answer the question, respond exactly: "{NO_RELIABLE_ANSWER}"
+
+Response format for valid answers:
+Answer:
+<answer>
+
+Source:
+<document title>
 
 Retrieved context:
 {context}
@@ -654,17 +914,6 @@ async def _knowledge_answer(question: str, role: str) -> dict:
 
 
 async def _answer_one_question(question: str, role: str, db: AsyncSession) -> dict:
-    user_count_answer = await _live_user_count_answer(question, role, db)
-    if user_count_answer:
-        user_count_answer["resolved_question"] = question
-        return user_count_answer
-
-    live_answer = await _live_inventory_answer(question, db)
-    if live_answer:
-        live_answer["role"] = role
-        live_answer["resolved_question"] = question
-        return live_answer
-
     knowledge_answer = await _knowledge_answer(question, role)
     chunks = knowledge_answer.pop("chunks")
     return {
@@ -719,6 +968,36 @@ async def ask_help(
     current_user: User | None = Depends(_optional_user),
 ):
     effective_role = current_user.role if current_user else "guest"
+
+    if _is_personal_info_question(payload.question):
+        return {
+            "answer": NO_PERSONAL_DATA_ANSWER,
+            "sources": [],
+            "role": effective_role,
+            "retrieval": "scope_guard",
+            "confidence": "high",
+            "resolved_question": payload.question,
+        }
+
+    account_answer = await _account_api_answer(payload.question, current_user, db)
+    if account_answer:
+        account_answer["resolved_question"] = payload.question
+        return account_answer
+
+    analytics_answer = await _analytics_api_answer(payload.question, current_user, db)
+    if analytics_answer:
+        analytics_answer["resolved_question"] = payload.question
+        return analytics_answer
+
+    if not _is_sigfleet_related_question(payload.question):
+        return {
+            "answer": OUT_OF_SCOPE_ANSWER,
+            "sources": [],
+            "role": effective_role,
+            "retrieval": "scope_guard",
+            "confidence": "high",
+            "resolved_question": payload.question,
+        }
 
     followup_answer = _date_followup_answer(payload.question, payload.conversation_history)
     if followup_answer:

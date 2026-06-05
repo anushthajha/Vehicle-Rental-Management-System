@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { HelpCircle, Loader2, Minus, Send, X } from 'lucide-react'
 import api from '../../services/api'
 import { useAuthStore } from '../../context/AuthContext'
@@ -33,10 +33,16 @@ function roleLabel(role) {
   return 'Guest'
 }
 
+function greetingForUser(user) {
+  const role = user?.role || 'guest'
+  const firstName = user?.full_name?.split(' ')[0] || 'there'
+  return `Hi ${firstName}. I can answer SigFleet app questions for ${roleLabel(role).toLowerCase()} users.`
+}
+
 export default function HelpAssistantWidget() {
   const { user } = useAuthStore()
   const role = user?.role || 'guest'
-  const firstName = user?.full_name?.split(' ')[0] || 'there'
+  const chatSessionKey = user?.id ? `${user.id}:${role}` : 'guest'
   const [open, setOpen] = useState(false)
   const [minimized, setMinimized] = useState(false)
   const [input, setInput] = useState('')
@@ -46,11 +52,25 @@ export default function HelpAssistantWidget() {
     {
       id: 1,
       role: 'assistant',
-      text: `Hi ${firstName}. I can answer SigFleet app questions for ${roleLabel(role).toLowerCase()} users.`,
+      text: greetingForUser(user),
+      isGreeting: true,
     },
   ])
 
   const quickPrompts = useMemo(() => PROMPTS[role] || PROMPTS.guest, [role])
+
+  useEffect(() => {
+    setInput('')
+    setLoading(false)
+    setMessages([
+      {
+        id: 1,
+        role: 'assistant',
+        text: greetingForUser(user),
+        isGreeting: true,
+      },
+    ])
+  }, [chatSessionKey, user?.full_name])
 
   async function send(text = input) {
     const question = text.trim()
@@ -104,7 +124,7 @@ export default function HelpAssistantWidget() {
   }
 
   return (
-    <div className="fixed bottom-6 left-6 z-50 flex flex-col items-start gap-3">
+    <div className="fixed bottom-6 right-24 z-50 flex flex-col items-end gap-3">
       {open && !minimized && (
         <div className="flex h-[500px] w-[360px] max-w-[calc(100vw-3rem)] flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl">
           <div className="flex items-center justify-between bg-zinc-950 px-4 py-3">

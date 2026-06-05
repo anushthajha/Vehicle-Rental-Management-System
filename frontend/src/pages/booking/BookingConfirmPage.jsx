@@ -107,6 +107,7 @@ export default function BookingConfirmPage() {
           JSON.stringify({
             id: response.data.booking_id,
             booking_ref: response.data.booking_ref,
+            status: response.data.status,
             car: { title: response.data.vehicle_name, primary_image_url: response.data.car_primary_image },
             pickup_datetime: pickup.toISOString(),
             return_datetime: returnAt.toISOString(),

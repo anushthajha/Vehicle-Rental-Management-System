@@ -369,8 +369,6 @@ function BookingWidget({ car, user, borderless = false }) {
         drop_location: !isBike && withChauffeur ? (dropLocation.trim() || undefined) : undefined,
       })
       const data = response.data
-      // Always go to payment page so user can choose their payment method
-      // (Card / UPI / Net Banking / Wallet)
       navigate(`/booking/pay/${data.booking_id}`)
     } catch (err) {
       const detail = err.response?.data?.detail

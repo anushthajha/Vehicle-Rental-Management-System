@@ -735,7 +735,7 @@ async def execute_tool(tool_name: str, params: dict, current_user: User, db: Asy
             vehicle_id=v.id,
             customer_id=current_user.id,
             manager_id=v.manager_id,
-            status="confirmed",
+            status="pending",
             pickup_datetime=pickup,
             return_datetime=return_dt,
             pickup_location=v.location_address or v.location_city,
@@ -750,7 +750,7 @@ async def execute_tool(tool_name: str, params: dict, current_user: User, db: Asy
             total_amount=Decimal(str(breakdown["total_amount"])),
             platform_fee=Decimal(str(breakdown["platform_fee"])),
             manager_earnings=Decimal(str(breakdown["manager_earnings"])),
-            manager_accepted_at=datetime.utcnow(),
+            manager_accepted_at=None,
         )
         db.add(booking)
         await db.flush()
@@ -770,7 +770,7 @@ async def execute_tool(tool_name: str, params: dict, current_user: User, db: Asy
             "booking_ref": booking.booking_ref,
             "total_amount": float(booking.total_amount),
             "vehicle_title": v.title,
-            "status": "confirmed",
+            "status": booking.status,
         }
 
     elif tool_name == "get_my_bookings":
@@ -1005,8 +1005,8 @@ async def chat(
             }
         return {
             "reply": (
-                f"Your booking is confirmed! Booking ID: {tool_result.get('booking_ref')}. "
-                "Click Pay Now to complete payment. ✅"
+                f"Your booking request is pending! Booking ID: {tool_result.get('booking_ref')}. "
+                "The vehicle manager will review it within 24 hours, and you will be notified after confirmation."
             ),
             "action": "booking_complete",
             "data": tool_result,
