@@ -195,6 +195,11 @@ export default function AddVehiclePage({ editMode = false, carId = null, initial
       setError('Please complete all required fields before submitting.')
       return
     }
+    if (!editMode && !activeForm.rc_document) {
+      setError('Please upload the RC document before submitting.')
+      setStep(5)
+      return
+    }
     setSubmitting(true)
     setError('')
     try {
@@ -202,6 +207,10 @@ export default function AddVehiclePage({ editMode = false, carId = null, initial
       const response = editMode ? await api.patch(`/vehicles/${carId}`, body) : await api.post('/vehicles', body)
       const targetCarId = carId || response.data.vehicle_id
       if (!editMode) {
+        await uploadVehicleDocument(targetCarId, 'rc', activeForm.rc_document)
+        if (activeForm.insurance_document) {
+          await uploadVehicleDocument(targetCarId, 'insurance', activeForm.insurance_document)
+        }
         for (const photo of activeForm.photos) {
           const data = new FormData()
           data.append('file', photo.file)
@@ -211,7 +220,7 @@ export default function AddVehiclePage({ editMode = false, carId = null, initial
       }
       setSubmitted(true)
     } catch (err) {
-      setError(err.response?.data?.detail || 'Unable to submit listing.')
+      setError(err.message || err.response?.data?.detail || 'Unable to submit listing.')
     } finally {
       setSubmitting(false)
     }
@@ -279,6 +288,13 @@ export default function AddVehiclePage({ editMode = false, carId = null, initial
       </section>
     </main>
   )
+}
+
+async function uploadVehicleDocument(vehicleId, documentType, file) {
+  if (!file) return null
+  const data = new FormData()
+  data.append('file', file)
+  return api.post(`/vehicles/${vehicleId}/documents`, data, { params: { document_type: documentType } })
 }
 
 function buildCarPayload(form) {

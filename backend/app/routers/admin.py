@@ -946,6 +946,8 @@ async def list_cars(
                 "is_available": car.is_available,
                 "listed_date": _dt(car.created_at),
                 "description": car.description,
+                "rc_document_url": car.rc_document_url,
+                "insurance_document_url": car.insurance_document_url,
             }
             for car, manager_name, manager_email, category, vehicle_type in rows
         ],

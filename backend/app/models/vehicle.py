@@ -39,6 +39,8 @@ class Vehicle(TimestampMixin, Base):
     vehicle_type = relationship("VehicleType", back_populates="vehicles")
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     registration_number: Mapped[str] = mapped_column(String(20), unique=True, index=True, nullable=False)
+    rc_document_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    insurance_document_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     location_city: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
     location_area: Mapped[str | None] = mapped_column(String(200), nullable=True)
     location_lat: Mapped[Decimal | None] = mapped_column(DECIMAL(9, 6), nullable=True)

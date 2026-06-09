@@ -25,7 +25,7 @@ from app.mongo_models.analytics import log_activity, log_car_view, log_search
 from app.mongo_models.notification import create_notification
 from app.mongo_models.review import get_car_reviews
 from app.redis import get_redis
-from app.utils.auth import get_current_active_user, require_vehicle_manager, require_kyc_user, verify_token
+from app.utils.auth import get_current_active_user, require_vehicle_manager, verify_token
 from app.utils.validators import validate_registration_number
 
 
@@ -265,6 +265,8 @@ def _car_payload(
         "fuel_type": car.fuel_type,
         "seats": car.seats,
         "description": car.description,
+        "rc_document_url": car.rc_document_url,
+        "insurance_document_url": car.insurance_document_url,
         "location_city": car.location_city,
         "location_area": car.location_area,
         "location_lat": _money(car.location_lat) if car.location_lat is not None else None,
@@ -704,7 +706,7 @@ async def toggle_availability(vehicle_id: str, current_user: User = Depends(requ
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
-async def create_car(payload: VehicleCreate, current_user: User = Depends(require_kyc_user), db: AsyncSession = Depends(get_db)):
+async def create_car(payload: VehicleCreate, current_user: User = Depends(require_vehicle_manager), db: AsyncSession = Depends(get_db)):
     if current_user.role != "vehicle_manager":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vehicle Manager access required")
 
@@ -736,6 +738,41 @@ async def create_car(payload: VehicleCreate, current_user: User = Depends(requir
         )
     await log_activity(current_user.id, "car_listed", "car", car.id, {"title": car.title, "city": car.location_city})
     return {"vehicle_id": car.id, "message": "Listing submitted for review. You'll be notified within 24 hours."}
+
+
+@router.post("/{vehicle_id}/documents")
+async def upload_vehicle_document(
+    vehicle_id: str,
+    document_type: str,
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_vehicle_manager),
+    db: AsyncSession = Depends(get_db),
+):
+    car = await _get_owned_car(vehicle_id, current_user.id, db)
+    if document_type not in {"rc", "insurance"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document type must be rc or insurance")
+    if file.content_type not in {"image/jpeg", "image/png", "application/pdf"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only jpg, png, and pdf files are allowed")
+
+    raw = await file.read()
+    if len(raw) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document must be 5MB or smaller")
+
+    extension = ".pdf" if file.content_type == "application/pdf" else ".jpg" if file.content_type == "image/jpeg" else ".png"
+    upload_dir = os.path.join(settings.UPLOAD_DIR, "vehicles", vehicle_id, "documents")
+    os.makedirs(upload_dir, exist_ok=True)
+    filename = f"{document_type}_{uuid4()}{extension}"
+    path = os.path.join(upload_dir, filename)
+    with open(path, "wb") as output:
+        output.write(raw)
+
+    document_url = f"/uploads/vehicles/{vehicle_id}/documents/{filename}"
+    if document_type == "rc":
+        car.rc_document_url = document_url
+    else:
+        car.insurance_document_url = document_url
+    await db.commit()
+    return {"document_type": document_type, "document_url": document_url}
 
 
 @vehicles_router.get("/count")
