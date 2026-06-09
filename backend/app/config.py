@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,6 +25,9 @@ class Settings(BaseSettings):
 
     FRONTEND_URL: str = "http://localhost"
     BACKEND_URL: str = "http://localhost/api"
+    CORS_ORIGINS: str = ""
+    COOKIE_SECURE: bool = False
+    COOKIE_SAMESITE: str = "strict"
 
     UPLOAD_DIR: str = "uploads"
 
@@ -36,6 +40,24 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     OPENROUTER_API_KEY: str = ""
     GROQ_API_KEY: str = ""
+
+    @field_validator("MYSQL_URL", mode="before")
+    @classmethod
+    def normalize_mysql_url(cls, value: str) -> str:
+        if not isinstance(value, str):
+            return value
+        normalized = value.strip()
+        if normalized.startswith("mysql://"):
+            normalized = normalized.replace("mysql://", "mysql+aiomysql://", 1)
+        normalized = normalized.replace("ssl-mode=REQUIRED", "ssl=true")
+        normalized = normalized.replace("ssl-mode=required", "ssl=true")
+        return normalized
+
+    @property
+    def cors_origins(self) -> list[str]:
+        values = [self.FRONTEND_URL, "http://localhost", "http://localhost:3000", "http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:5176", "http://localhost:5177", "http://localhost:8000"]
+        values.extend(origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip())
+        return list(dict.fromkeys(value.rstrip("/") for value in values if value))
 
     model_config = SettingsConfigDict(
         env_file=".env",

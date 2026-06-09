@@ -10,6 +10,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.agents.registration_agent import notify_admins_new_manager_registered
 from app.middleware.rate_limiter import rate_limit
@@ -37,6 +38,16 @@ from app.utils.validators import validate_phone
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 NAME_RE = re.compile(r"^[A-Za-z][A-Za-z .'-]*$")
+
+
+def _refresh_cookie_kwargs() -> dict:
+    return {
+        "httponly": True,
+        "secure": settings.COOKIE_SECURE,
+        "samesite": settings.COOKIE_SAMESITE,
+        "max_age": 30 * 24 * 3600,
+        "path": "/api/auth",
+    }
 
 # ---------------------------------------------------------------------------
 # OTP helpers
@@ -334,11 +345,7 @@ async def verify_otp_endpoint(payload: OtpVerifyRequest, request: Request, db: A
     response.set_cookie(
         key="sf_refresh_token",
         value=refresh_token,
-        httponly=True,
-        secure=False,
-        samesite="strict",
-        max_age=30 * 24 * 3600,
-        path="/api/auth",
+        **_refresh_cookie_kwargs(),
     )
     return response
 
@@ -428,11 +435,7 @@ async def login(payload: LoginRequest, request: Request, db: AsyncSession = Depe
     response.set_cookie(
         key="sf_refresh_token",
         value=refresh_token,
-        httponly=True,
-        secure=False,          # Set True in production with HTTPS
-        samesite="strict",
-        max_age=30 * 24 * 3600,  # 30 days
-        path="/api/auth",
+        **_refresh_cookie_kwargs(),
     )
     return response
 
@@ -469,11 +472,7 @@ async def refresh(request: Request, db: AsyncSession = Depends(get_db)):
     response.set_cookie(
         key="sf_refresh_token",
         value=new_refresh_token,
-        httponly=True,
-        secure=False,
-        samesite="strict",
-        max_age=30 * 24 * 3600,
-        path="/api/auth",
+        **_refresh_cookie_kwargs(),
     )
     return response
 
@@ -487,7 +486,7 @@ async def logout(request: Request, token: str = Depends(oauth2_scheme)):
         await get_redis().set(f"blacklist:{payload['jti']}", "1", ex=ttl)
     response = JSONResponse(content={"message": "Logged out successfully."})
     # Clear the refresh token cookie
-    response.delete_cookie(key="sf_refresh_token", path="/api/auth")
+    response.delete_cookie(key="sf_refresh_token", path="/api/auth", secure=settings.COOKIE_SECURE, samesite=settings.COOKIE_SAMESITE)
     return response
 
 

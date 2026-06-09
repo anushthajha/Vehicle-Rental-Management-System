@@ -2,7 +2,18 @@
 set -e
 
 echo ">>> Waiting for MySQL..."
-until mysqladmin ping --ssl=0 -h "${MYSQL_HOST:-mysql}" -u "${MYSQL_USER:-zoomuser}" -p"${MYSQL_PASSWORD:-zoompass}" --silent; do
+until python -c "
+import asyncio
+from sqlalchemy import text
+from app.database import engine
+
+async def main():
+    async with engine.connect() as conn:
+        await conn.execute(text('SELECT 1'))
+    await engine.dispose()
+
+asyncio.run(main())
+" 2>/dev/null; do
   sleep 2
 done
 echo ">>> MySQL ready."
@@ -26,8 +37,12 @@ echo ">>> MongoDB ready."
 echo ">>> Running Alembic migrations..."
 alembic upgrade head
 
-echo ">>> Running seed check..."
-python app/seed.py
+if [ "${RUN_SEED:-false}" = "true" ]; then
+  echo ">>> Running seed check..."
+  python app/seed.py
+else
+  echo ">>> Skipping seed check. Set RUN_SEED=true to seed demo data."
+fi
 
 echo ">>> Starting FastAPI server..."
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}"
