@@ -19,14 +19,12 @@ from app.models.manager import ManagerProfile
 from app.models.user import PasswordReset, User, UserKYC
 from app.mongo_models.analytics import log_activity
 from app.mongo_models.session import create_session
-from app.redis import get_redis
 from app.utils import email as email_utils
 from app.utils.auth import (
     create_access_token,
     create_refresh_token,
     get_current_user,
     get_password_hash,
-    get_token_ttl_seconds,
     oauth2_scheme,
     validate_password_strength,
     verify_password,
@@ -57,33 +55,42 @@ OTP_TTL = 600          # 10 minutes
 OTP_MAX_ATTEMPTS = 5
 RESEND_COOLDOWN = 60   # seconds
 
+# In-memory OTP store: {email -> {otp, attempts, sent_at, verified}}
+# Lightweight for free-tier deploy (single process). Keys expire after OTP_TTL seconds.
+import time as _time
+_otp_store: dict[str, dict] = {}
+
+def _otp_cleanup() -> None:
+    """Remove expired entries."""
+    now = _time.time()
+    expired = [k for k, v in _otp_store.items() if now - v["sent_at"] > OTP_TTL]
+    for k in expired:
+        _otp_store.pop(k, None)
+
 
 def _generate_otp() -> str:
-    """Return a cryptographically random 6-digit OTP string."""
     return str(secrets.randbelow(900000) + 100000)
 
 
 async def _store_otp(email: str, otp: str) -> None:
-    redis = get_redis()
-    data = json.dumps({"otp": otp, "attempts": 0, "sent_at": int(datetime.utcnow().timestamp())})
-    await redis.setex(f"email_otp:{email.lower()}", OTP_TTL, data)
+    _otp_cleanup()
+    _otp_store[email.lower()] = {"otp": otp, "attempts": 0, "sent_at": _time.time(), "verified": False}
 
 
 async def _verify_otp(email: str, entered_otp: str) -> dict:
-    redis = get_redis()
-    raw = await redis.get(f"email_otp:{email.lower()}")
-    if not raw:
+    _otp_cleanup()
+    key = email.lower()
+    data = _otp_store.get(key)
+    if not data:
         return {"valid": False, "reason": "OTP expired or not found. Please request a new one."}
-    data = json.loads(raw)
     if data["attempts"] >= OTP_MAX_ATTEMPTS:
-        await redis.delete(f"email_otp:{email.lower()}")
+        _otp_store.pop(key, None)
         return {"valid": False, "reason": "Too many incorrect attempts. Please request a new OTP."}
     if data["otp"] != entered_otp:
         data["attempts"] += 1
-        await redis.setex(f"email_otp:{email.lower()}", OTP_TTL, json.dumps(data))
         remaining = OTP_MAX_ATTEMPTS - data["attempts"]
         return {"valid": False, "reason": f"Incorrect code. {remaining} attempt{'s' if remaining != 1 else ''} left."}
-    await redis.delete(f"email_otp:{email.lower()}")
+    _otp_store.pop(key, None)
     return {"valid": True}
 
 
@@ -363,15 +370,13 @@ async def resend_otp(payload: EmailRequest, db: AsyncSession = Depends(get_db)):
     if user.is_verified:
         return {"message": "This email is already verified. Please log in."}
 
-    # Enforce 60-second cooldown using the sent_at field stored in Redis
-    redis = get_redis()
-    raw = await redis.get(f"email_otp:{email}")
-    if raw:
-        data = json.loads(raw)
-        sent_at = data.get("sent_at", 0)
-        elapsed = int(datetime.utcnow().timestamp()) - sent_at
+    # Enforce 60-second cooldown using the sent_at field stored in memory
+    _otp_cleanup()
+    existing = _otp_store.get(email)
+    if existing:
+        elapsed = _time.time() - existing["sent_at"]
         if elapsed < RESEND_COOLDOWN:
-            wait = RESEND_COOLDOWN - elapsed
+            wait = int(RESEND_COOLDOWN - elapsed)
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=f"Please wait {wait} seconds before requesting a new OTP.",
@@ -480,12 +485,8 @@ async def refresh(request: Request, db: AsyncSession = Depends(get_db)):
 @router.post("/logout")
 async def logout(request: Request, token: str = Depends(oauth2_scheme)):
     from fastapi.responses import JSONResponse
-    payload = await verify_token(token)
-    ttl = get_token_ttl_seconds(payload)
-    if ttl > 0:
-        await get_redis().set(f"blacklist:{payload['jti']}", "1", ex=ttl)
+    # Token blacklisting removed (no Redis). Tokens expire naturally per ACCESS_TOKEN_EXPIRE_MINUTES.
     response = JSONResponse(content={"message": "Logged out successfully."})
-    # Clear the refresh token cookie
     response.delete_cookie(key="sf_refresh_token", path="/api/auth", secure=settings.COOKIE_SECURE, samesite=settings.COOKIE_SAMESITE)
     return response
 
@@ -568,9 +569,8 @@ async def forgot_password_otp(payload: PasswordResetOtpRequest, db: AsyncSession
     # Always return success to avoid email enumeration
     if user and user.is_active:
         otp = _generate_otp()
-        redis = get_redis()
-        data = json.dumps({"otp": otp, "attempts": 0, "sent_at": int(datetime.utcnow().timestamp())})
-        await redis.setex(f"{RESET_OTP_PREFIX}{email}", OTP_TTL, data)
+        _otp_cleanup()
+        _otp_store[f"pwd_reset:{email}"] = {"otp": otp, "attempts": 0, "sent_at": _time.time(), "verified": False}
         print(f"[DEV RESET OTP] {email}: {otp}")
         try:
             await email_utils.send_otp_email(user.email, user.full_name, otp)
@@ -583,25 +583,22 @@ async def forgot_password_otp(payload: PasswordResetOtpRequest, db: AsyncSession
 async def verify_reset_otp(payload: PasswordResetOtpVerifyRequest):
     """Step 2: Verify the OTP (without changing the password yet)."""
     email = payload.email.lower()
-    redis = get_redis()
-    raw = await redis.get(f"{RESET_OTP_PREFIX}{email}")
-    if not raw:
+    _otp_cleanup()
+    key = f"pwd_reset:{email}"
+    data = _otp_store.get(key)
+    if not data:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP expired or not found. Please request a new one.")
-    data = json.loads(raw)
     if data["attempts"] >= OTP_MAX_ATTEMPTS:
-        await redis.delete(f"{RESET_OTP_PREFIX}{email}")
+        _otp_store.pop(key, None)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Too many incorrect attempts. Please request a new OTP.")
     if data["otp"] != payload.otp:
         data["attempts"] += 1
-        await redis.setex(f"{RESET_OTP_PREFIX}{email}", OTP_TTL, json.dumps(data))
         remaining = OTP_MAX_ATTEMPTS - data["attempts"]
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Incorrect code. {remaining} attempt{'s' if remaining != 1 else ''} left.",
         )
-    # Mark OTP as verified (keep it so step 3 can confirm it's the same session)
     data["verified"] = True
-    await redis.setex(f"{RESET_OTP_PREFIX}{email}", 600, json.dumps(data))
     return {"message": "OTP verified. You can now set a new password."}
 
 
@@ -609,13 +606,10 @@ async def verify_reset_otp(payload: PasswordResetOtpVerifyRequest):
 async def reset_password_with_otp(payload: PasswordResetNewPasswordRequest, db: AsyncSession = Depends(get_db)):
     """Step 3: Set new password after OTP has been verified."""
     email = payload.email.lower()
-    redis = get_redis()
-    raw = await redis.get(f"{RESET_OTP_PREFIX}{email}")
-    if not raw:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Session expired. Please start over.")
-    data = json.loads(raw)
-    # Must be verified AND OTP must still match
-    if not data.get("verified") or data["otp"] != payload.otp:
+    _otp_cleanup()
+    key = f"pwd_reset:{email}"
+    data = _otp_store.get(key)
+    if not data or not data.get("verified") or data["otp"] != payload.otp:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired session. Please start over.")
 
     user = await _find_user_by_email(db, email)
@@ -624,10 +618,7 @@ async def reset_password_with_otp(payload: PasswordResetNewPasswordRequest, db: 
 
     user.hashed_password = get_password_hash(payload.new_password)
     await db.commit()
-    # Delete the OTP so it can't be reused
-    await redis.delete(f"{RESET_OTP_PREFIX}{email}")
-    # Force logout all existing sessions
-    await redis.set(f"force_logout:{user.id}", int(datetime.utcnow().timestamp()), ex=60 * 60 * 24 * 31)
+    _otp_store.pop(key, None)
     return {"message": "Password reset successfully. You can now log in."}
 
 
@@ -652,11 +643,6 @@ async def reset_password(payload: ResetPasswordRequest, db: AsyncSession = Depen
     user.hashed_password = get_password_hash(payload.new_password)
     reset.is_used = True
     await db.commit()
-    await get_redis().set(
-        f"force_logout:{user.id}",
-        int(datetime.utcnow().timestamp()),
-        ex=60 * 60 * 24 * 31,
-    )
     return {"message": "Password reset successfully. You can now log in."}
 
 
@@ -678,9 +664,4 @@ async def change_password(
         )
     current_user.hashed_password = get_password_hash(payload.new_password)
     await db.commit()
-    await get_redis().set(
-        f"force_logout:{current_user.id}",
-        int(datetime.utcnow().timestamp()),
-        ex=60 * 60 * 24 * 31,
-    )
     return {"message": "Password changed successfully. Please log in again."}

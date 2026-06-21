@@ -24,7 +24,6 @@ from app.models.vehicle_category import VehicleCategory, VehicleType
 from app.mongo_models.analytics import log_activity, log_car_view, log_search
 from app.mongo_models.notification import create_notification
 from app.mongo_models.review import get_car_reviews
-from app.redis import get_redis
 from app.utils.auth import get_current_active_user, require_vehicle_manager, verify_token
 from app.utils.validators import validate_registration_number
 

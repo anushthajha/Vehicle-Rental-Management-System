@@ -1,4 +1,3 @@
-import json
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -10,7 +9,6 @@ from app.database import get_db
 from app.models.booking import Booking
 from app.models.user import User
 from app.models.vehicle import Vehicle
-from app.redis import get_redis
 from app.services.availability import AvailabilityService
 from app.services.pricing import calculate_booking_price
 from app.utils.auth import verify_token
@@ -44,15 +42,8 @@ async def _optional_user(
 
 @router.get("/{vehicle_id}/availability")
 async def vehicle_availability(vehicle_id: str, year: int = Query(...), month: int = Query(..., ge=1, le=12), db: AsyncSession = Depends(get_db)):
-    cache_key = f"availability:{vehicle_id}:{year}:{month}"
-    redis = get_redis()
-    cached = await redis.get(cache_key)
-    if cached:
-        return json.loads(cached)
     days = await AvailabilityService.get_vehicle_availability_calendar(vehicle_id, year, month, db)
-    payload = {"vehicle_id": vehicle_id, "year": year, "month": month, "days": days}
-    await redis.set(cache_key, json.dumps(payload), ex=60)
-    return payload
+    return {"vehicle_id": vehicle_id, "year": year, "month": month, "days": days}
 
 
 @router.get("/{vehicle_id}/availability/check")

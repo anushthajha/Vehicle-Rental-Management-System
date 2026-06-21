@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.models.user import User
 from app.mongodb import get_mongo_db
 from app.mongo_models.notification import delete_notification, get_unread_count, get_user_notifications, mark_all_read, mark_notification_read
-from app.redis import get_redis
 from app.utils.auth import get_current_active_user
 
 
@@ -61,13 +60,7 @@ async def list_notifications(
 
 @router.get("/unread-count")
 async def unread_count(current_user: User = Depends(get_current_active_user)):
-    redis = get_redis()
-    cache_key = f"notifications:unread:{current_user.id}"
-    cached = await redis.get(cache_key)
-    if cached is not None:
-        return {"count": int(cached)}
     count = await get_unread_count(current_user.id)
-    await redis.set(cache_key, count, ex=30)
     return {"count": count}
 
 
@@ -76,7 +69,6 @@ async def _mark_read(notification_id: str, current_user: User) -> dict:
     if exists is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
     await mark_notification_read(notification_id)
-    await get_redis().delete(f"notifications:unread:{current_user.id}")
     return {"is_read": True}
 
 
@@ -93,7 +85,6 @@ async def mark_read_legacy(notification_id: str, current_user: User = Depends(ge
 @router.patch("/mark-all-read")
 async def mark_all_notifications_read(current_user: User = Depends(get_current_active_user)):
     await mark_all_read(current_user.id)
-    await get_redis().delete(f"notifications:unread:{current_user.id}")
     return {"message": "All notifications marked as read", "unread_count": 0}
 
 
@@ -106,7 +97,6 @@ async def mark_all_notifications_read_legacy(current_user: User = Depends(get_cu
 async def delete_all_notifications(current_user: User = Depends(get_current_active_user)):
     """Delete all notifications for the current user."""
     result = await get_mongo_db().notifications.delete_many({"user_id": current_user.id})
-    await get_redis().delete(f"notifications:unread:{current_user.id}")
     return {"message": f"Deleted {result.deleted_count} notifications"}
 
 
@@ -116,5 +106,4 @@ async def delete_user_notification(notification_id: str, current_user: User = De
     if exists is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
     await delete_notification(notification_id)
-    await get_redis().delete(f"notifications:unread:{current_user.id}")
     return {"message": "Notification deleted"}

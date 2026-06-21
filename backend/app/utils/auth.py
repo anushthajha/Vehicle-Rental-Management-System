@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.models.user import User, UserKYC
-from app.redis import get_redis
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
@@ -70,15 +69,6 @@ async def verify_token(token: str) -> dict:
     jti = payload.get("jti")
     user_id = payload.get("sub")
     if not jti or not user_id:
-        raise credentials_exception
-
-    redis = get_redis()
-    if await redis.exists(f"blacklist:{jti}"):
-        raise credentials_exception
-
-    force_logout_at = await redis.get(f"force_logout:{user_id}")
-    issued_at = payload.get("iat")
-    if force_logout_at and issued_at and int(issued_at) < int(force_logout_at):
         raise credentials_exception
 
     return payload

@@ -1,4 +1,3 @@
-import json
 import re
 from datetime import datetime
 
@@ -11,7 +10,6 @@ from app.database import get_db
 from app.models.vehicle import Vehicle, VehicleImage
 from app.models.user import User
 from app.models.vehicle_category import VehicleCategory, VehicleType
-from app.redis import get_redis
 from app.services.booking_flow import money
 from app.utils.auth import require_admin
 
@@ -89,10 +87,7 @@ def _type_payload(vehicle_type: VehicleType, vehicle_count: int = 0) -> dict:
 
 
 async def _clear_cache() -> None:
-    try:
-        await get_redis().delete(CATEGORY_CACHE_KEY, TYPE_CACHE_KEY)
-    except Exception:
-        pass
+    pass  # Redis removed — no cache to clear
 
 
 async def _ensure_unique_slug(db: AsyncSession, model, slug: str, current_id: str | None = None) -> None:
@@ -115,13 +110,6 @@ async def _primary_image(db: AsyncSession, vehicle_id: str) -> str | None:
 
 @router.get("/categories")
 async def list_categories(db: AsyncSession = Depends(get_db)):
-    redis = get_redis()
-    try:
-        cached = await redis.get(CATEGORY_CACHE_KEY)
-        if cached:
-            return json.loads(cached)
-    except Exception:
-        pass
     rows = (
         await db.execute(
             select(VehicleCategory, func.count(Vehicle.id))
@@ -132,10 +120,6 @@ async def list_categories(db: AsyncSession = Depends(get_db)):
         )
     ).all()
     payload = {"categories": [_category_payload(category, count) for category, count in rows]}
-    try:
-        await redis.setex(CATEGORY_CACHE_KEY, CACHE_TTL_SECONDS, json.dumps(payload))
-    except Exception:
-        pass
     return payload
 
 
@@ -290,13 +274,6 @@ async def delete_category(
 
 @router.get("/vehicle-types")
 async def list_vehicle_types(db: AsyncSession = Depends(get_db)):
-    redis = get_redis()
-    try:
-        cached = await redis.get(TYPE_CACHE_KEY)
-        if cached:
-            return json.loads(cached)
-    except Exception:
-        pass
     rows = (
         await db.execute(
             select(VehicleType, func.count(Vehicle.id))
@@ -307,10 +284,6 @@ async def list_vehicle_types(db: AsyncSession = Depends(get_db)):
         )
     ).all()
     payload = {"vehicle_types": [_type_payload(vehicle_type, count) for vehicle_type, count in rows]}
-    try:
-        await redis.setex(TYPE_CACHE_KEY, CACHE_TTL_SECONDS, json.dumps(payload))
-    except Exception:
-        pass
     return payload
 
 
