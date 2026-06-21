@@ -7,9 +7,6 @@ class Settings(BaseSettings):
     MONGODB_URL: str
     MONGODB_DB_NAME: str = "zoomcar_docs"
 
-    # Redis is optional — rate limiting and caching degrade gracefully when absent
-    REDIS_URL: str = ""
-
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
 

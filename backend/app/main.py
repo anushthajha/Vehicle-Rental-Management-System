@@ -9,7 +9,6 @@ from app.database import init_db
 from app.middleware.auth_middleware import OptionalAuthMiddleware
 from app.middleware.error_handler import register_error_handlers
 from app.mongodb import connect_mongo, disconnect_mongo
-from app.redis import close_redis
 from app.routers import (
     agent,
     admin,
@@ -44,7 +43,6 @@ async def lifespan(app: FastAPI):
     else:
         print("⚠️  WARNING: OPENROUTER_API_KEY not set — chatbot will not work")
     yield
-    await close_redis()
     await disconnect_mongo()
 
 

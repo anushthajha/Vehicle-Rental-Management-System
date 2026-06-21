@@ -18,7 +18,6 @@ from app.models.vehicle_category import VehicleCategory, VehicleType
 from app.mongo_models.analytics import get_admin_activity_feed, log_activity
 from app.mongo_models.notification import create_notification
 from app.mongo_models.support_message import add_support_message, get_ticket_messages
-from app.redis import get_redis
 from app.services.booking_flow import add_wallet_transaction, get_or_create_wallet, money
 from app.tasks.email_tasks import (
     send_manager_payout_email,
@@ -159,23 +158,11 @@ async def _image_map(db: AsyncSession, vehicle_ids: list[str]) -> dict[str, str 
 
 
 async def _active_now_count(db: AsyncSession) -> int:
-    redis = get_redis()
-    try:
-        cached = await redis.get("admin:active_bookings_now")
-        if cached is not None:
-            return int(cached)
-    except Exception:
-        pass
-    # Count all bookings with status='active' — the status itself means the trip is in progress
     count = await db.scalar(
         select(func.count())
         .select_from(Booking)
         .where(Booking.status == "active")
     ) or 0
-    try:
-        await redis.setex("admin:active_bookings_now", 30, int(count))
-    except Exception:
-        pass
     return int(count)
 
 

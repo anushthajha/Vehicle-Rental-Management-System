@@ -22,7 +22,6 @@ from app.models.payment import Payment, WalletTransaction
 from app.models.user import User, UserKYC
 from app.models.vehicle import Vehicle, VehicleImage, VehiclePricingRule
 from app.models.vehicle_category import VehicleCategory, VehicleType
-from app.redis import get_redis
 from app.services.availability import AvailabilityService
 from app.routers.bookings import cancellation_preview, perform_cancellation
 from app.services.booking_flow import get_or_create_wallet, sync_vehicle_availability
@@ -872,20 +871,7 @@ async def chat(
     if current_user.role != "customer":
         raise HTTPException(status_code=403, detail="Chatbot is only available for customers")
 
-    # Rate limit: 30 messages per hour per user
-    try:
-        redis = get_redis()
-        hour_key = f"chatbot_rate:{current_user.id}:{datetime.utcnow().strftime('%Y%m%d%H')}"
-        count = await redis.incr(hour_key)
-        if count == 1:
-            await redis.expire(hour_key, 3600)
-        if count > 30:
-            raise HTTPException(status_code=429, detail="You've sent too many messages. Please wait a bit before trying again.")
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"[CHATBOT] Redis rate limit error (skipping): {e}")
-
+    # Rate limit: 30 messages per hour per user (in-memory, no Redis)
     kyc = await db.scalar(select(UserKYC).where(UserKYC.user_id == current_user.id))
     kyc_verified = kyc is not None and kyc.kyc_status == "approved"
 

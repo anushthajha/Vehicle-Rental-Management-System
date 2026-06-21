@@ -217,10 +217,6 @@ def _features(car: Vehicle) -> list[str]:
     return features
 
 
-BRANDS_CACHE_KEY = "vehicles:brands:approved"
-BRANDS_CACHE_TTL_SECONDS = 300
-
-
 def _csv_values(value: str | None) -> list[str]:
     return [item.strip() for item in (value or "").split(",") if item.strip()]
 
@@ -337,9 +333,7 @@ async def _get_owned_car(vehicle_id: str, manager_id: str, db: AsyncSession) -> 
 
 
 async def _clear_availability_cache(vehicle_id: str) -> None:
-    redis = get_redis()
-    async for key in redis.scan_iter(f"availability:{vehicle_id}:*"):
-        await redis.delete(key)
+    pass  # Redis removed — no cache to clear
 
 
 async def _resolve_category_id(db: AsyncSession, category_id: str | None, legacy_category: str | None = None) -> str | None:
@@ -450,14 +444,6 @@ async def _search_facets(db: AsyncSession, conditions: list) -> dict:
 @vehicles_router.get("/brands")
 @router.get("/brands")
 async def list_vehicle_brands(db: AsyncSession = Depends(get_db)):
-    redis = get_redis()
-    try:
-        cached = await redis.get(BRANDS_CACHE_KEY)
-        if cached:
-            return json.loads(cached)
-    except Exception:
-        pass
-
     brands = (
         await db.execute(
             select(distinct(Vehicle.make))
@@ -465,12 +451,7 @@ async def list_vehicle_brands(db: AsyncSession = Depends(get_db)):
             .order_by(Vehicle.make.asc())
         )
     ).scalars().all()
-    payload = {"brands": list(brands)}
-    try:
-        await redis.setex(BRANDS_CACHE_KEY, BRANDS_CACHE_TTL_SECONDS, json.dumps(payload))
-    except Exception:
-        pass
-    return payload
+    return {"brands": list(brands)}
 
 
 @vehicles_router.get("/")
@@ -828,7 +809,6 @@ async def get_car_detail(vehicle_id: str, request: Request, db: AsyncSession = D
     ).scalars().all()
     review_data = await get_car_reviews(vehicle_id, page=1, limit=5)
     await log_car_view(vehicle_id, await _optional_user_id(request), car.location_city)
-    await get_redis().incr(f"car_views:{vehicle_id}")
 
     payload = _car_payload(car, manager.full_name, images[0].image_url if images else None, category=category, vehicle_type=vehicle_type)
     payload.update(
