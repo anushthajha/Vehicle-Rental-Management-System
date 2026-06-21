@@ -994,14 +994,21 @@ async def delete_block(vehicle_id: str, block_id: str, current_user: User = Depe
 
 
 @router.get("/{vehicle_id}/availability")
-async def get_availability(vehicle_id: str, month: str, db: AsyncSession = Depends(get_db)):
-    try:
-        year, month_number = [int(part) for part in month.split("-", 1)]
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="month must be YYYY-MM") from exc
-    days_in_month = calendar.monthrange(year, month_number)[1]
-    month_start = datetime.combine(date(year, month_number, 1), time.min)
-    month_end = datetime.combine(date(year, month_number, days_in_month), time.max)
+async def get_availability(vehicle_id: str, month: str | None = None, year: int | None = None, month_num: int | None = Query(default=None, alias="month"), db: AsyncSession = Depends(get_db)):
+    # Support both ?month=YYYY-MM (legacy) and ?year=YYYY&month=M (frontend format)
+    if month and "-" in str(month):
+        # YYYY-MM string format
+        try:
+            year_val, month_number = [int(part) for part in month.split("-", 1)]
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="month must be YYYY-MM or use year+month params") from exc
+    elif year and month_num:
+        year_val, month_number = year, month_num
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provide either month=YYYY-MM or year=YYYY&month=M")
+    days_in_month = calendar.monthrange(year_val, month_number)[1]
+    month_start = datetime.combine(date(year_val, month_number, 1), time.min)
+    month_end = datetime.combine(date(year_val, month_number, days_in_month), time.max)
 
     blocks = (
         await db.execute(
@@ -1025,7 +1032,7 @@ async def get_availability(vehicle_id: str, month: str, db: AsyncSession = Depen
 
     availability = []
     for day in range(1, days_in_month + 1):
-        current = date(year, month_number, day)
+        current = date(year_val, month_number, day)
         status_value = "available"
         if any(block.blocked_from.date() <= current <= block.blocked_to.date() for block in blocks):
             status_value = "unavailable"
