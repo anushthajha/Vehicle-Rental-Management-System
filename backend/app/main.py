@@ -70,7 +70,13 @@ register_error_handlers(app)
 
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
-
+@app.get("/")
+async def root():
+    return {
+        "message": "SigFleet Backend Running",
+        "docs": "/api/docs",
+        "health": "/api/health"
+    }
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok", "service": "sigfleet-backend"}
