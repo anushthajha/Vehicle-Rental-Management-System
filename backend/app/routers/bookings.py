@@ -422,21 +422,7 @@ async def create_booking(
     await _ensure_available(db, car, payload.pickup_datetime, payload.return_datetime, current_user.id)
     breakdown, coupon, coupon_error = await _price_breakdown(db, car, payload, current_user)
     if coupon_error:
-        # Silently drop the invalid coupon and proceed without it — the
-        # user will see the final total without the discount applied.
-        coupon = None
-        breakdown, _, _ = await _price_breakdown(
-            db, car,
-            payload.__class__(
-                vehicle_id=payload.vehicle_id,
-                pickup_datetime=payload.pickup_datetime,
-                return_datetime=payload.return_datetime,
-                insurance_plan=payload.insurance_plan,
-                coupon_code=None,
-                with_chauffeur=payload.with_chauffeur,
-            ),
-            current_user,
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=coupon_error)
 
     ref = await _booking_ref(db)
     booking = Booking(
