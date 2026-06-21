@@ -449,6 +449,7 @@ async def _search_facets(db: AsyncSession, conditions: list) -> dict:
 
 
 @vehicles_router.get("/brands")
+@router.get("/brands")
 async def list_vehicle_brands(db: AsyncSession = Depends(get_db)):
     redis = get_redis()
     try:

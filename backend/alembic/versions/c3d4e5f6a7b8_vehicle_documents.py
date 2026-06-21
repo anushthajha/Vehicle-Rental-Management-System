@@ -1,7 +1,7 @@
 """add vehicle document urls
 
 Revision ID: c3d4e5f6a7b8
-Revises: a1b2c3d4e5f6
+Revises: b2c3d4e5f6a7
 Create Date: 2026-06-09 12:00:00.000000
 """
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 revision: str = "c3d4e5f6a7b8"
-down_revision: Union[str, None] = "a1b2c3d4e5f6"
+down_revision: Union[str, None] = "b2c3d4e5f6a7"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

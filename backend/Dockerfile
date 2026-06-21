@@ -26,3 +26,4 @@ RUN mkdir -p uploads/cars uploads/kyc uploads/avatars
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 EXPOSE 8000
+CMD ["/app/entrypoint.sh"]

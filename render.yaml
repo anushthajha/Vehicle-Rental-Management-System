@@ -1,0 +1,71 @@
+services:
+  - type: web
+    name: sigfleet-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    startCommand: /app/entrypoint.sh
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      # ── Databases ──────────────────────────────────────────────────────────
+      # Paste the Aiven MySQL connection string (mysql://user:pass@host:port/db?ssl-mode=REQUIRED)
+      # The app normalises it to mysql+aiomysql://... automatically.
+      - key: MYSQL_URL
+        sync: false          # set manually in Render dashboard
+      - key: MONGODB_URL
+        sync: false          # MongoDB Atlas SRV URI
+      - key: MONGODB_DB_NAME
+        value: sigfleet_docs
+      # ── Redis (optional — leave blank on free tier) ─────────────────────
+      - key: REDIS_URL
+        value: ""
+      # ── Auth ───────────────────────────────────────────────────────────────
+      - key: SECRET_KEY
+        generateValue: true  # Render generates a random secret on first deploy
+      - key: ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "60"
+      - key: REFRESH_TOKEN_EXPIRE_DAYS
+        value: "30"
+      # ── Cookies (must be secure=true + samesite=none for cross-domain) ───
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: COOKIE_SAMESITE
+        value: none
+      # ── Frontend / CORS ────────────────────────────────────────────────────
+      # Set to your actual Vercel URL once deployed, e.g. https://sigfleet.vercel.app
+      - key: FRONTEND_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false          # comma-separated extra origins if needed
+      # ── Email (optional) ──────────────────────────────────────────────────
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: SMTP_FROM_NAME
+        value: SigFleet
+      - key: SMTP_USE_TLS
+        value: "true"
+      # ── AI keys (optional) ────────────────────────────────────────────────
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      # ── App ───────────────────────────────────────────────────────────────
+      - key: SKIP_DB_WAIT
+        value: "true"        # Aiven/Atlas are always reachable; skip local wait loops
+      - key: RUN_SEED
+        value: "false"       # set to "true" once to seed demo data, then back to "false"
+      - key: UPLOAD_DIR
+        value: uploads
